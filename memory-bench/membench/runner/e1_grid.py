@@ -44,6 +44,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -63,6 +64,7 @@ from membench.runner.headless_agent import (
     resolve_cli_version,
     resolve_model,
     result_event,
+    seed_config_dir,
     serialize_stream,
     stream_cli_version,
     tool_calls_from_stream,
@@ -104,8 +106,10 @@ __all__ = [
     "GATE_KEY",
     "HALT_NO_CALL",
     "HALT_UNMEASURED",
+    "NATIVE_MEMORY_SETTING",
     "OK_FIRED",
     "RUNG_IDS",
+    "RUNG_SETTINGS",
     "RUNG_TEXT",
     "STAGED_REPEATS",
     "STAGED_RUNGS",
@@ -127,10 +131,13 @@ __all__ = [
     "guidance_block",
     "guidance_words",
     "monotonicity_violations",
+    "native_memory_pinned_off",
     "per_variant_task_count",
     "planned_call_count",
     "preflight",
     "preflight_verdict",
+    "rung_settings",
+    "rung_settings_fingerprint",
     "rung_step",
     "score_leg",
     "staged_plan",
@@ -159,11 +166,77 @@ CHANNEL = MemoryChannel.RECALLED
 
 RUNG_IDS: tuple[str, ...] = ("R0", "R1", "R2", "R3", "R4")
 
+# The `$CLAUDE_CONFIG_DIR/settings.json` each rung SEEDS into its freshly-minted config dir.
+#
+# R0 pins the CLI's OWN memory system OFF (`autoMemoryEnabled: false`, RULED 2026-09-03). The
+# floor rung was minted with an EMPTY config dir, which is the CLI's default — auto-memory ON —
+# so the rung that carries no guidance block still ran under a standing native instruction about
+# memory, and the first paid R4 cycle proved the reach is real: the agent read the native memory
+# file directly (mem-gj0pc). An unprompted reach at R0 was therefore being scored as the agent's
+# own disposition while the harness was still prompting it, which is the one reading this rung
+# exists to supply (mem-zfm0m item 5).
+#
+# R1..R4 stay EMPTY on purpose. They measure guidance ON TOP OF native memory, and pinning them
+# would change what they measure rather than clean it: the contrast the ladder publishes is
+# guidance strength, so only the zero-guidance end has to be actually zero.
+#
+# Frozen at both levels (`MappingProxyType`), the same discipline as
+# `toolreq_builtin.BUILTIN_SETTINGS` and for the same reason: an in-place edit would silently
+# diverge the settings WRITTEN from the settings the resume identity HASHES.
+NATIVE_MEMORY_SETTING = "autoMemoryEnabled"
+RUNG_SETTINGS: Mapping[str, Mapping[str, object]] = types.MappingProxyType(
+    {
+        "R0": types.MappingProxyType({NATIVE_MEMORY_SETTING: False}),
+        "R1": types.MappingProxyType({}),
+        "R2": types.MappingProxyType({}),
+        "R3": types.MappingProxyType({}),
+        "R4": types.MappingProxyType({}),
+    }
+)
+
+
+def rung_settings(rung: str) -> Mapping[str, object]:
+    """What ``rung`` seeds into its config dir — empty for every rung but the floor."""
+    if rung not in RUNG_SETTINGS:
+        raise ValueError(f"unknown rung {rung!r}: the ladder is {', '.join(RUNG_IDS)}")
+    return RUNG_SETTINGS[rung]
+
+
+def rung_settings_fingerprint() -> str:
+    """Digest of the WHOLE seeding table, read at call time.
+
+    Part of the resume identity for the reason the corpus and the tool surface are: an R0 bought
+    before the pin measured the agent under the CLI's own memory prompt, and pooling those legs
+    with pinned ones publishes two floors as one rate. Nothing else in the identity could see it
+    — ``surface_fingerprint`` digests the recognizer policy and the config-dir PIN, not the
+    dir's CONTENTS, and ``EXECUTION_PROTOCOL_VERSION`` is a hand-bumped integer — so before this
+    field the two artifacts hashed identical."""
+    return digest({rung: dict(settings) for rung, settings in RUNG_SETTINGS.items()})
+
+
+def native_memory_pinned_off(config_dir: Path) -> bool:
+    """Whether the minted ``config_dir`` on disk pins the CLI's own memory system OFF.
+
+    A READ of the artifact, never a restatement of the intent: an absent file, the key set true,
+    and the key set false are three different answers and only the last is the pin. Malformed
+    JSON in a dir this rig just wrote is a fault and propagates."""
+    settings_file = Path(config_dir) / "settings.json"
+    if not settings_file.exists():
+        return False
+    settings = json.loads(settings_file.read_text(encoding="utf-8"))
+    return isinstance(settings, dict) and settings.get(NATIVE_MEMORY_SETTING) is False
+
+
 # The ladder, as ADDED CLAUSES. Each rung's text is its predecessor's plus one clause, so the
 # nesting `RUNG_TEXT[n] in RUNG_TEXT[n+1]` is structural rather than a property of prose someone
 # has to keep true by hand. R0 is EMPTY — the silent rung, whose prompt carries no guidance block
 # at all — and it is the TOOL-AFFORDANCE FLOOR, not a zero: the agent still sees an allowlisted
 # memory tool, and reaching for it unprompted is the floor this ladder is measured above.
+#
+# Silent means silent on BOTH surfaces. R0 also pins `autoMemoryEnabled: false` into its minted
+# config dir (`RUNG_SETTINGS`), because the agent's OWN native memory is a second, unprompted
+# guidance channel: left on, an R0 leg can reach memory the ladder never offered it, and the
+# floor it measures is the harness's default rather than the affordance under test.
 _RUNG_CLAUSES: tuple[str, ...] = (
     "",
     "You have a persistent memory tool available in this session.",
@@ -283,6 +356,11 @@ class RungCell:
     # refusal, which halts). Unmeasured for the same reason and kept SEPARATE from the timeouts:
     # the two have different diagnoses and folding them loses which one a cell hit.
     errored_runs: int = 0
+    # Whether the legs of this cell ran with the CLI's own memory system pinned OFF, read back
+    # off each minted config dir (`native_memory_pinned_off`). Recorded per cell rather than
+    # derived from the rung so an artifact says what it RAN under, not what today's table would
+    # have given it. Defaults false: a cell built without it claims no pin.
+    native_memory_pinned_off: bool = False
 
     def __post_init__(self) -> None:
         if self.runs <= 0:
@@ -389,6 +467,10 @@ class RungCell:
             "variant": self.variant,
             "work_id": self.work_id,
             "guidance_words": guidance_words(self.rung),
+            # OUTSIDE `metrics`: the pin is a condition the cell ran under, not something
+            # measured about the agent, and `assert_gates_ride_outside_metrics` keeps that
+            # boundary meaningful in both directions.
+            "native_memory_pinned_off": self.native_memory_pinned_off,
             "verbs": list(self.verbs),
             "metrics": self.metrics(),
         }
@@ -410,6 +492,15 @@ class RungCell:
                     f"no {key!r}: it was counted before per-direction leg counts existed and "
                     "cannot be pooled into a read margin"
                 )
+        if "native_memory_pinned_off" not in row:
+            # No default, for the reason the read counts have none: a row written before the
+            # floor was pinned (mem-2vyej) ran under the CLI's own memory prompt, and resuming
+            # it as an unpinned-by-choice cell pools two different floors into one rate.
+            raise ValueError(
+                f"cell {row.get('rung')}/{row.get('variant')}/{row.get('work_id')} carries no "
+                "'native_memory_pinned_off': it was counted before the floor rung pinned the "
+                "CLI's own memory system and cannot be pooled with cells that did"
+            )
         return cls(
             rung=str(row["rung"]),
             variant=str(row["variant"]),
@@ -425,6 +516,7 @@ class RungCell:
             work_id=str(row.get("work_id", "")),
             timed_out_runs=int(m.get("timed_out_runs", 0)),
             errored_runs=int(m.get("errored_runs", 0)),
+            native_memory_pinned_off=bool(row["native_memory_pinned_off"]),
         )
 
 
@@ -475,6 +567,10 @@ class LegRecord:
     detail: str = ""
     cli_version: str = ""
     truncated: bool = False
+    # The condition the leg ran under, read off its own minted config dir. On the leg as well as
+    # the cell because the leg is the re-scorable evidence: a stream re-counted later has to say
+    # whether the CLI's own memory system was prompting the agent while it was recorded.
+    native_memory_pinned_off: bool = False
 
     def row(self) -> dict[str, Any]:
         return {
@@ -491,6 +587,7 @@ class LegRecord:
             "detail": self.detail,
             "cli_version": self.cli_version,
             "truncated": self.truncated,
+            "native_memory_pinned_off": self.native_memory_pinned_off,
         }
 
     @property
@@ -741,6 +838,10 @@ def summarize(
         "channel": CHANNEL.value,
         "model": resolve_model(model) or "cli-default",
         "surface_fingerprint": surface_fingerprint(),
+        # The R0 pin is NOT inside `surface_fingerprint`: that hashes the recognizer policy
+        # and the fact that a config dir is pinned, never the dir's CONTENTS. A grid counted
+        # with R0 unpinned measured a different floor, so the pin table gets its own field.
+        "settings_fingerprint": rung_settings_fingerprint(),
         "execution_protocol": EXECUTION_PROTOCOL_VERSION,
         "cli_version": cli_version,
         "corpus_fingerprint": corpus,
@@ -850,6 +951,7 @@ class _LegOutcome:
     truncated: bool = False
     quota_refusal: str = ""
     cause: HeadlessAgentError | None = None
+    native_memory_pinned_off: bool = False
 
 
 def _run_leg(
@@ -874,6 +976,30 @@ def _run_leg(
         paid_sandbox(f"e1-{rung.lower()}-") as sandbox,
     ):
         surface = provision_memory_tool(Path(root), sandbox=sandbox)
+        # The rung's own settings.json, written into the config dir the surface just minted and
+        # BEFORE the agent is spawned -- `provision_memory_tool` mints it empty for every arm, so
+        # the pin belongs to the rung, not to the surface. Read straight back off disk: what the
+        # leg reports having run under is the file the agent would have read.
+        config_dir = surface.config_dir
+        if config_dir is None:
+            # `provision_memory_tool` always pins one; a surface without it is a rig fault, not a
+            # leg to run unpinned. Silently skipping the seed would report R0 as silent while the
+            # CLI's own memory prompt was still on -- the exact reading the pin exists to fix.
+            raise RigHaltError(
+                f"{rung}/{task.variant}/{task.work_id}: the provisioned surface pins no config "
+                "dir, so the rung's settings cannot be seeded and this leg cannot say what the "
+                "agent's own memory system was doing while it ran."
+            )
+        settings = rung_settings(rung)
+        if settings:
+            seed_config_dir(config_dir, settings)
+        pinned_off = native_memory_pinned_off(config_dir)
+
+        def outcome(**fields: Any) -> _LegOutcome:
+            """Every exit from this leg carries the pin it ran under. One factory rather than the
+            field repeated at six returns, so a seventh cannot forget it."""
+            return _LegOutcome(native_memory_pinned_off=pinned_off, **fields)
+
         # PWD pinned to the sandbox: the agent merges this over the operator's environment,
         # whose PWD is the shell's cwd -- the checkout the corpus lives in. The kernel's cwd
         # is the sandbox regardless; the variable is what a child shell reports and what
@@ -911,7 +1037,7 @@ def _run_leg(
             #              fails EVERY leg, so a run of them halts rather than filling the
             #              grid with "errors" that read as measured zeros.
             if is_quota_halt(exc):
-                return _LegOutcome(
+                return outcome(
                     status="error",
                     detail=str(exc),
                     quota_refusal=f"the account refused the call ({exc})",
@@ -919,13 +1045,13 @@ def _run_leg(
                 )
             timeout = spawn_timeout_of(exc)
             if timeout is None:
-                return _LegOutcome(status="error", detail=str(exc))
+                return outcome(status="error", detail=str(exc))
             # The bound cut the stream, it did not erase it. What the agent did BEFORE the
             # bound is scored and persisted (the first fire threw it away and a leg that had
             # reached for memory twice was persisted as an empty stream, mem-zfm0m); the leg
             # still stays out of the cell, whose rates pool only streams that ended.
             partial = timeout_partial_stdout(timeout)
-            return _LegOutcome(
+            return outcome(
                 status="timeout",
                 detail=str(exc),
                 stream=partial,
@@ -940,7 +1066,7 @@ def _run_leg(
         # Same structural field the raising path is classified on, read one line earlier.
         stream = result.raw_stream or ""
         if stream_api_error_status(stream) in QUOTA_STATUSES:
-            return _LegOutcome(
+            return outcome(
                 status="error",
                 detail=f"exit 0 with api_error_status={stream_api_error_status(stream)}",
                 stream=stream,
@@ -950,7 +1076,7 @@ def _run_leg(
                 ),
             )
         if stream_is_error(stream):
-            return _LegOutcome(
+            return outcome(
                 status="error",
                 detail="the CLI exited 0 but declared its own run failed (is_error)",
             )
@@ -966,12 +1092,23 @@ def _run_leg(
                 f"changed mid-sweep, so the cells bought and the cells still to buy are not "
                 f"the same measurement. {_bought(leg)}."
             )
-        return _LegOutcome(
+        return outcome(
             status="ok",
             stream=stream,
             score=score_leg(result.tool_calls, config_dir=surface.config_dir),
             cli_version=leg_cli,
         )
+
+
+def _one_pin(pinned: set[bool], *, rung: str, task: ToolReqRealAgentTask) -> bool:
+    """The single pin state the cell's legs ran under, or a REFUSAL if they disagree."""
+    if len(pinned) > 1:
+        raise RigHaltError(
+            f"{rung}/{task.variant}/{task.work_id}: legs of one cell ran with the CLI's own "
+            "memory system both pinned off and left on. That is two different floors in one "
+            "rate; the cell is not a measurement."
+        )
+    return pinned.pop() if pinned else False
 
 
 def run_rung_cell(
@@ -1014,6 +1151,11 @@ def run_rung_cell(
     writes = 0
     timed_out = 0
     errored = 0
+    # What the legs actually ran under, read off each minted config dir. A SET, so legs that
+    # disagree are a refusal rather than a coin flip: every leg of a cell seeds the same rung
+    # table, so a split means the seeding stopped being deterministic and the cell would
+    # publish one pin for legs that had two.
+    pinned: set[bool] = set()
     streak = UnmeasuredStreak() if streak is None else streak
     verbs: list[str] = []
     step = rung_step(task, rung)
@@ -1047,6 +1189,7 @@ def run_rung_cell(
                 stream=redact_credentials(outcome.stream),
                 detail=outcome.detail,
                 truncated=outcome.truncated,
+                native_memory_pinned_off=outcome.native_memory_pinned_off,
             )
         )
         if streak.unmeasured():
@@ -1069,6 +1212,7 @@ def run_rung_cell(
             expect_cli_version=expect_cli_version,
             corpus_dir=corpus_dir,
         )
+        pinned.add(outcome.native_memory_pinned_off)
         if outcome.quota_refusal:
             _emit(
                 LegRecord(
@@ -1079,6 +1223,7 @@ def run_rung_cell(
                     status=outcome.status,
                     detail=outcome.detail,
                     stream=redact_credentials(outcome.stream),
+                    native_memory_pinned_off=outcome.native_memory_pinned_off,
                 )
             )
             raise QuotaHaltError(
@@ -1114,6 +1259,7 @@ def run_rung_cell(
                 verbs=score.verbs,
                 stream=redact_credentials(outcome.stream),
                 cli_version=outcome.cli_version,
+                native_memory_pinned_off=outcome.native_memory_pinned_off,
             )
         )
     return RungCell(
@@ -1131,6 +1277,7 @@ def run_rung_cell(
         work_id=task.work_id,
         timed_out_runs=timed_out,
         errored_runs=errored,
+        native_memory_pinned_off=_one_pin(pinned, rung=rung, task=task),
     )
 
 
@@ -1486,6 +1633,7 @@ def preflight(
         "errored_runs": cell.errored_runs,
         "memory_calls": cell.memory_calls,
         "verbs": list(cell.verbs),
+        "native_memory_pinned_off": cell.native_memory_pinned_off,
         "model": resolve_model(model) or "cli-default",
     }
 
@@ -1547,10 +1695,11 @@ def resume_cells(
     """The cells a partial ``--out`` artifact contributes to a resumed fire.
 
     Admissible only when EVERY identity field matches the rig now running — the model, the tool
-    surface, the execution protocol, the CLI binary, the corpus, and the repeat count. Each of
-    them changes what a leg measures, so a mismatch on any one would land two measurements in one
-    grid and report them as one. A blank field is a mismatch, not a pass: an artifact that cannot
-    say what produced it cannot be shown to have been produced by this.
+    surface, the per-rung settings pin, the execution protocol, the CLI binary, the corpus, and
+    the repeat count. Each of them changes what a leg measures, so a mismatch on any one would
+    land two measurements in one grid and report them as one. A blank field is a mismatch, not a
+    pass: an artifact that cannot say what produced it cannot be shown to have been produced by
+    this.
 
     Rows are then filtered to what is admissible AS EVIDENCE:
 
@@ -1566,6 +1715,7 @@ def resume_cells(
     want: dict[str, object] = {
         "model": resolve_model(model) or "cli-default",
         "surface_fingerprint": surface_fingerprint(),
+        "settings_fingerprint": rung_settings_fingerprint(),
         "execution_protocol": EXECUTION_PROTOCOL_VERSION,
         "cli_version": cli_version,
         "corpus_fingerprint": corpus,

@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import tempfile
+import types
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -58,10 +59,12 @@ from membench.runner.headless_agent import (
     MemoryChannel,
     assistant_event,
     result_event,
+    seed_config_dir,
     serialize_stream,
     tool_result_event,
 )
 from membench.runner.sandbox import CorpusReachableError
+from membench.runner.tool_surface import surface_fingerprint
 from membench.runner.toolreq_corpus import load_twin_corpus
 from membench.runner.toolreq_realagent import VARIANT_NECESSARY, VARIANT_UNNECESSARY
 from membench.spawn import with_child
@@ -2440,3 +2443,203 @@ def test_a_halt_leaves_out_holding_the_grid_the_resume_will_start_from(
     assert [(c["rung"], c["variant"], c["metrics"]["runs"]) for c in kept["cells"]] == [
         ("R0", VARIANT_NECESSARY, 1)
     ]
+
+
+# --------------------------------------------------------------------------------------
+# mem-2vyej: R0 is silent by PIN — autoMemoryEnabled:false in the minted CLAUDE_CONFIG_DIR
+# --------------------------------------------------------------------------------------
+
+
+def _config_dir_witness() -> tuple[Any, list[dict[str, Any]]]:
+    """A ``claude -p`` stand-in that reads the minted config dir AT SPAWN TIME — the only moment
+    it exists — and keeps what it found there: the listing, and the parsed ``settings.json`` when
+    one is present. The path is read off the env the cell handed the runner, so the fixture
+    witnesses the dir the agent would have read, not one it chose."""
+    seen: list[dict[str, Any]] = []
+
+    def runner(argv: Any, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        env = kwargs.get("env")
+        assert isinstance(env, dict)
+        config = Path(env["CLAUDE_CONFIG_DIR"])
+        settings = config / "settings.json"
+        seen.append(
+            {
+                "entries": sorted(p.name for p in config.iterdir()),
+                "settings": (
+                    json.loads(settings.read_text(encoding="utf-8")) if settings.exists() else None
+                ),
+            }
+        )
+        return subprocess.CompletedProcess(list(argv), 0, serialize_stream([result_event()]), "")
+
+    return runner, seen
+
+
+def test_r0_pins_native_memory_off_in_its_minted_config_dir(tmp_path: Any) -> None:
+    """RULED "pin R0 off" (2026-09-03). An EMPTY config dir leaves the CLI's own auto-memory
+    system prompt ON, so the floor rung was never silent: the first paid R4 cycle read the native
+    memory path directly (mem-gj0pc), and at R0 that reach would be scored as unprompted
+    disposition while a standing native instruction about memory prompted it (mem-zfm0m item 5).
+    The pin is the same config-dir-local key the probe seeds false and the builtin arm seeds true,
+    written through the same seeder, and it is read BACK off disk onto the leg and the cell."""
+    _seqs, tasks = corpus_one(tmp_path)
+    runner, seen = _config_dir_witness()
+    legs: list[LegRecord] = []
+    cell = e1_grid.run_rung_cell(
+        tasks[0],
+        rung="R0",
+        repeats=2,
+        model=MODEL,
+        dry_run=False,
+        runner=runner,
+        on_leg=legs.append,
+    )
+    assert [s["settings"] for s in seen] == [{"autoMemoryEnabled": False}] * 2
+    assert [s["entries"] for s in seen] == [["settings.json"]] * 2
+    assert cell.native_memory_pinned_off is True
+    assert [leg.native_memory_pinned_off for leg in legs] == [True, True]
+    assert legs[0].row()["native_memory_pinned_off"] is True
+
+
+@pytest.mark.parametrize("rung", RUNG_IDS[1:])
+def test_the_guided_rungs_mint_an_empty_config_dir(tmp_path: Any, rung: str) -> None:
+    """R1..R4 stay EXACTLY as they were: no settings.json, native memory at the CLI's default.
+    They measure guidance on top of native memory, and pinning them would change what they
+    measure. The read-back says so from disk, not from the table."""
+    _seqs, tasks = corpus_one(tmp_path)
+    runner, seen = _config_dir_witness()
+    cell = e1_grid.run_rung_cell(
+        tasks[0], rung=rung, repeats=1, model=MODEL, dry_run=False, runner=runner
+    )
+    assert seen == [{"entries": [], "settings": None}]
+    assert cell.native_memory_pinned_off is False
+
+
+def test_rung_settings_pins_only_the_floor_and_is_frozen() -> None:
+    """The table covers every rung, pins exactly R0, and refuses an in-place edit — the same
+    ``MappingProxyType`` discipline as ``toolreq_builtin.BUILTIN_SETTINGS``, for the same reason:
+    a mutated table would diverge what is WRITTEN from what the identity HASHES."""
+    assert tuple(e1_grid.RUNG_SETTINGS) == RUNG_IDS
+    assert dict(e1_grid.rung_settings("R0")) == {"autoMemoryEnabled": False}
+    assert all(not e1_grid.rung_settings(rung) for rung in RUNG_IDS[1:])
+    with pytest.raises(TypeError):
+        e1_grid.RUNG_SETTINGS["R0"]["autoMemoryEnabled"] = True  # type: ignore[index]
+    with pytest.raises(TypeError):
+        e1_grid.RUNG_SETTINGS["R1"] = {"autoMemoryEnabled": False}  # type: ignore[index]
+    with pytest.raises(ValueError, match="unknown rung"):
+        e1_grid.rung_settings("R9")
+
+
+def test_the_pin_is_read_back_off_disk_not_off_the_intent(tmp_path: Any) -> None:
+    """``native_memory_pinned_off`` is a READ of the minted dir: absent file, key true, and key
+    false are three different answers, and only the last one is the pin."""
+    config = tmp_path / "config"
+    config.mkdir()
+    assert e1_grid.native_memory_pinned_off(config) is False
+    seed_config_dir(config, {"autoMemoryEnabled": True})
+    assert e1_grid.native_memory_pinned_off(config) is False
+    seed_config_dir(config, {"autoMemoryEnabled": False})
+    assert e1_grid.native_memory_pinned_off(config) is True
+
+
+def _unpinned(monkeypatch: Any) -> None:
+    """The ladder as the 160-leg grid was bought: every rung minted EMPTY, R0 included."""
+    monkeypatch.setattr(
+        e1_grid,
+        "RUNG_SETTINGS",
+        types.MappingProxyType({rung: types.MappingProxyType({}) for rung in RUNG_IDS}),
+    )
+
+
+def test_the_pin_moves_the_settings_fingerprint_and_nothing_else(monkeypatch: Any) -> None:
+    """Checked against ``headless_agent.seed_config_dir``, not assumed: the seed writes a FILE.
+    Nothing in E1's identity read that file — ``surface_fingerprint`` digests the recognizer
+    policy, ``execution_protocol`` is a hand-bumped integer, and the model, binary and corpus
+    fields are what they say — so before this field an R0 bought pinned and an R0 bought unpinned
+    hashed to ONE identity. The pin needs its own field, and toggling it moves exactly that one."""
+    cell = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")
+    pinned = _identified([cell])
+    surface_before = surface_fingerprint()
+    protocol_before = e1_grid.EXECUTION_PROTOCOL_VERSION
+    _unpinned(monkeypatch)
+    unpinned = _identified([cell])
+    assert surface_fingerprint() == surface_before
+    assert protocol_before == e1_grid.EXECUTION_PROTOCOL_VERSION
+    assert pinned["settings_fingerprint"] != unpinned["settings_fingerprint"]
+    assert unpinned["settings_fingerprint"] == e1_grid.rung_settings_fingerprint()
+    assert {k for k in pinned if pinned[k] != unpinned[k]} == {"settings_fingerprint"}
+
+
+def test_resume_refuses_an_artifact_counted_with_r0_unpinned(monkeypatch: Any) -> None:
+    """An R0 cell bought before the ruling measured the agent under the CLI's own memory prompt;
+    pooled into a pinned grid it would publish two floors as one. Both shapes of that artifact are
+    refused — one hashed under the unpinned table, and one from before the field existed."""
+    cell = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")
+    current = _identified([cell])
+    with monkeypatch.context() as m:
+        _unpinned(m)
+        stale = _identified([cell])
+    assert resume_cells(current, model=MODEL, **IDENTITY) == [cell]
+    with pytest.raises(ResumeMismatchError, match="settings_fingerprint"):
+        resume_cells(stale, model=MODEL, **IDENTITY)
+    with pytest.raises(ResumeMismatchError, match="settings_fingerprint"):
+        resume_cells(
+            {k: v for k, v in current.items() if k != "settings_fingerprint"},
+            model=MODEL,
+            **IDENTITY,
+        )
+
+
+def test_the_pin_rides_on_the_cell_row_and_a_row_without_it_cannot_resume() -> None:
+    cell = RungCell(
+        rung="R0",
+        variant=VARIANT_NECESSARY,
+        runs=5,
+        calling_runs=1,
+        memory_calls=1,
+        read_calls=1,
+        write_calls=0,
+        reading_runs=1,
+        writing_runs=0,
+        paid=True,
+        work_id="w-0",
+        native_memory_pinned_off=True,
+    )
+    row = cell.row()
+    assert row["native_memory_pinned_off"] is True
+    assert "native_memory_pinned_off" not in row["metrics"]
+    assert RungCell.from_row(row) == cell
+    with pytest.raises(ValueError, match="native_memory_pinned_off"):
+        RungCell.from_row({k: v for k, v in row.items() if k != "native_memory_pinned_off"})
+
+
+def test_the_preflight_row_records_the_pin_read_off_disk(tmp_path: Any, monkeypatch: Any) -> None:
+    """``preflight.json`` is the gated preflight row, so the row carries what the minted dir said
+    for the rung it ran — through the cell, which is the only thing that saw the dir."""
+    _seqs, tasks = corpus_one(tmp_path)
+    for pinned in (True, False):
+        fired = RungCell(
+            rung="R0",
+            variant=tasks[0].variant,
+            runs=1,
+            calling_runs=1,
+            memory_calls=1,
+            read_calls=1,
+            write_calls=0,
+            reading_runs=1,
+            writing_runs=0,
+            paid=True,
+            work_id=tasks[0].work_id,
+            native_memory_pinned_off=pinned,
+        )
+        # `fired` bound as a default: a bare closure over the loop variable would make both
+        # iterations return whichever cell the loop ended on (ruff B023).
+        monkeypatch.setattr(
+            e1_grid,
+            "run_rung_cell",
+            lambda *a, _cell=fired, **k: _cell,
+            raising=True,
+        )
+        row = e1_grid.preflight(tasks[0], model=MODEL, corpus_dir=tmp_path / "corpus", rung="R0")
+        assert row["native_memory_pinned_off"] is pinned
+        assert preflight_gate(row)["native_memory_pinned_off"] is pinned
