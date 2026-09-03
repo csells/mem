@@ -114,11 +114,13 @@ __all__ = [
     "RUNG_IDS",
     "RUNG_SETTINGS",
     "RUNG_TEXT",
+    "SCOREABLE_VARIANTS",
     "STAGED_REPEATS",
     "STAGED_RUNGS",
     "STAGED_SLICES",
     "STAGED_TASKS",
     "SUMMARY_NAME",
+    "CorpusShapeError",
     "LegRecord",
     "LegScore",
     "MonotonicityViolation",
@@ -128,6 +130,7 @@ __all__ = [
     "RungCell",
     "UnmeasuredStreak",
     "assert_gates_ride_outside_metrics",
+    "assert_scoreable_corpus",
     "call_rate_gates",
     "corpus_fingerprint",
     "discrimination_margins",
@@ -1532,6 +1535,51 @@ def staged_plan(
     }
 
 
+# The variant labels the grading stack has an arm for. `discrimination_margins` and
+# `pooled_rates` compare P(call | necessary) against P(call | unnecessary) and score nothing else,
+# so this set is not a convention the corpus is expected to follow -- it is the full domain of the
+# only question the grid exists to ask.
+SCOREABLE_VARIANTS: frozenset[str] = frozenset({VARIANT_NECESSARY, VARIANT_UNNECESSARY})
+
+
+class CorpusShapeError(RuntimeError):
+    """A corpus that would be priced correctly and spent correctly, and still answer nothing."""
+
+
+def assert_scoreable_corpus(tasks: Sequence[ToolReqRealAgentTask]) -> None:
+    """Refuse a corpus whose variant set cannot support a discrimination margin.
+
+    ``staged_cells`` iterates ``sorted(by_variant)`` and buys every label present, and
+    ``priced_plan`` now prices whatever it finds, so both halves of the money contract hold for ANY
+    variant set. That is the hazard: a corpus carrying only ``necessary`` prices correctly, spends
+    the full authorization, and produces an artifact with no d() in it; a corpus carrying a third
+    label spends more than the twin design and pools rates over an arm the grading stack does not
+    have. Neither is a pricing bug, which is why this is a separate refusal from ``priced_plan``.
+
+    Anything but the exact scoreable pair is a REFUSAL naming what was observed -- not a warning,
+    and not a silent drop of the extra labels, because dropping them would spend the operator's
+    money on a grid they did not authorize and report it as the one they did.
+
+    Deliberately NOT called from ``staged_cells`` or ``grid_keys``. Those are derivations, and unit
+    tests legitimately drive them over a single rung or a synthetic label; a refusal buried in one
+    of them would fire on the tests rather than on the spend."""
+    observed = {task.variant for task in tasks}
+    if observed == SCOREABLE_VARIANTS:
+        return
+    missing = sorted(SCOREABLE_VARIANTS - observed)
+    extra = sorted(observed - SCOREABLE_VARIANTS)
+    detail = []
+    if missing:
+        detail.append(f"missing {', '.join(missing)}")
+    if extra:
+        detail.append(f"unscored {', '.join(extra)}")
+    raise CorpusShapeError(
+        f"corpus carries variants {sorted(observed)} ({'; '.join(detail)}), but the grading stack "
+        f"scores exactly {sorted(SCOREABLE_VARIANTS)}. This grid would price and spend correctly "
+        "and still produce no discrimination margin, so it is not bought."
+    )
+
+
 def priced_plan(
     tasks: Sequence[ToolReqRealAgentTask], *, stage: str = DEFAULT_STAGE
 ) -> dict[str, Any]:
@@ -2149,8 +2197,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return EXIT_NO_CORPUS
 
+    if args.preflight or args.fire_staged:
+        # The one gate for both paid entries, and only for them: `--staged` prices without
+        # spending, so a shape it cannot buy is still a number worth printing. Placed here rather
+        # than inside `_fire_staged` so the preflight -- which is what AUTHORIZES the fire -- does
+        # not spend its cycle proving out a corpus the fire would then refuse.
+        try:
+            assert_scoreable_corpus(tasks)
+        except CorpusShapeError as exc:
+            print(f"REFUSING to spend: {exc}", file=sys.stderr)
+            return EXIT_REFUSED
+
     if args.preflight:
-        anchor = next((t for t in tasks if t.variant == VARIANT_NECESSARY), tasks[0])
+        # `assert_scoreable_corpus` above proves the necessary half is present, so this is a
+        # lookup and not a search with a fallback.
+        anchor = next(t for t in tasks if t.variant == VARIANT_NECESSARY)
         result = preflight(anchor, model=args.model, corpus_dir=args.corpus_dir, rung=args.rung)
         try:
             gated = preflight_gate(result)

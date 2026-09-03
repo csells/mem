@@ -33,11 +33,13 @@ from membench.runner.e1_grid import (
     STAGED_REPEATS,
     STAGED_RUNGS,
     STAGED_TASKS,
+    CorpusShapeError,
     LegRecord,
     PreflightHaltError,
     ResumeMismatchError,
     RungCell,
     assert_gates_ride_outside_metrics,
+    assert_scoreable_corpus,
     call_rate_gates,
     corpus_fingerprint,
     discrimination_margins,
@@ -3072,3 +3074,89 @@ def test_the_preflight_refuses_a_stage_it_would_ignore(
         )
     assert exc.value.code == 2
     assert "--rung" in capsys.readouterr().err
+
+
+class _Variant:
+    """A task stand-in carrying the variant the shape guard reads and the ``work_id`` the
+    derivations key on, so the same object can be handed to both."""
+
+    def __init__(self, variant: str, work_id: str = "w-0") -> None:
+        self.variant = variant
+        self.work_id = work_id
+
+
+def test_a_corpus_that_cannot_produce_a_margin_is_refused() -> None:
+    """`discrimination_margins` compares P(call | necessary) against P(call | unnecessary), so a
+    corpus that is not exactly that pair prices correctly, spends the full authorization, and
+    yields an artifact with no d() in it. The refusal names what it observed."""
+    both = [_Variant(VARIANT_NECESSARY), _Variant(VARIANT_UNNECESSARY)]
+    assert assert_scoreable_corpus(both) is None
+    # Repeats of the same two labels are still the scoreable pair.
+    assert assert_scoreable_corpus(both * 4) is None
+
+    with pytest.raises(CorpusShapeError) as one_half:
+        assert_scoreable_corpus([_Variant(VARIANT_NECESSARY)] * 8)
+    assert VARIANT_UNNECESSARY in str(one_half.value)
+
+    with pytest.raises(CorpusShapeError) as third:
+        assert_scoreable_corpus([*both, _Variant("ambiguous")])
+    assert "ambiguous" in str(third.value)
+
+    with pytest.raises(CorpusShapeError):
+        assert_scoreable_corpus([])
+
+
+def test_the_shape_guard_is_not_wired_into_the_derivations() -> None:
+    """`staged_cells` and `grid_keys` are derivations that unit tests legitimately drive over a
+    single label; a refusal buried in one of them would fire on the tests rather than on the
+    spend. They still enumerate whatever they are handed."""
+    one_half = [_Variant(VARIANT_NECESSARY)]
+    with pytest.raises(CorpusShapeError):
+        assert_scoreable_corpus(one_half)
+    assert grid_keys(one_half, rungs=("R0",), n_tasks=1) == [("R0", VARIANT_NECESSARY, "w-0")]
+    assert e1_grid.per_variant_task_count(one_half) == 1
+
+
+def test_a_one_half_corpus_refuses_the_fire_before_the_first_leg(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The guard sits on the paid entries, so an unscoreable corpus costs nothing. Unreachable
+    through `load_twin_corpus` today, which always emits two equal halves — but `variant` is an
+    unrestricted str and `--corpus-dir` points at a directory on disk."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
+    seqs, tasks = corpus_one(tmp_path)
+    # `corpus_one` loads the authored half only; `load_twin_corpus` is what mints the twin. So
+    # this IS the one-half shape, and stubbing the loader is how it reaches the paid entries.
+    assert {t.variant for t in tasks} == {VARIANT_NECESSARY}
+    monkeypatch.setattr(e1_grid, "load_twin_corpus", lambda _dir: (seqs, tasks))
+
+    spent = {"legs": 0}
+
+    def counting(task: Any, **kwargs: Any) -> RungCell:
+        spent["legs"] += int(kwargs["repeats"])
+        return _fake_cells(tasks)(task, **kwargs)
+
+    monkeypatch.setattr(e1_grid, "run_rung_cell", counting)
+    argv = ["--corpus-dir", str(tmp_path / "corpus"), "--model", MODEL]
+    assert e1_grid.main([*argv, "--fire-staged", "--out", str(tmp_path / "o.json")]) == (
+        e1_grid.EXIT_REFUSED
+    )
+    assert e1_grid.main([*argv, "--preflight", "--rung", "R4"]) == e1_grid.EXIT_REFUSED
+    assert spent["legs"] == 0
+    assert VARIANT_UNNECESSARY in capsys.readouterr().err
+    assert not (tmp_path / "o.json").exists()
+
+
+def test_pricing_a_corpus_the_fire_would_refuse_is_still_allowed(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--staged` prices and spends nothing, so a shape it cannot buy is still a number worth
+    printing — the guard must not turn a free disclosure into a refusal."""
+    seqs, tasks = corpus_one(tmp_path)
+    assert {t.variant for t in tasks} == {VARIANT_NECESSARY}
+    monkeypatch.setattr(e1_grid, "load_twin_corpus", lambda _dir: (seqs, tasks))
+    code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
+    assert code == e1_grid.EXIT_OK
+    assert json.loads(capsys.readouterr().out)["staged_plan"]["calls"] > 0
