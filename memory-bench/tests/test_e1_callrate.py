@@ -2530,6 +2530,34 @@ def test_rung_settings_pins_only_the_floor_and_is_frozen() -> None:
         e1_grid.rung_settings("R9")
 
 
+def test_legs_that_disagree_about_the_pin_halt_and_keep_what_was_paid_for(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """A cell whose legs ran under different pin states is TWO floors, so it is not a rate.
+
+    Reachable only through a fault -- every leg of a cell seeds the same rung table -- which is
+    exactly why the refusal needs a test: nothing in normal operation exercises it, so a later
+    change that softened it to `any(pinned)` would look green. The legs already bought are
+    asserted to have reached the caller BEFORE the raise: a refusal that discarded them would
+    throw away the paid evidence it is refusing to average (mem-zfm0m)."""
+    _seqs, tasks = corpus_one(tmp_path)
+    runner, _seen = _config_dir_witness()
+    reads = iter([True, False])
+    monkeypatch.setattr(e1_grid, "native_memory_pinned_off", lambda _dir: next(reads))
+    legs: list[LegRecord] = []
+    with pytest.raises(e1_grid.RigHaltError, match="two different floors"):
+        e1_grid.run_rung_cell(
+            tasks[0],
+            rung="R0",
+            repeats=2,
+            model=MODEL,
+            dry_run=False,
+            runner=runner,
+            on_leg=legs.append,
+        )
+    assert [leg.native_memory_pinned_off for leg in legs] == [True, False]
+
+
 def test_the_pin_is_read_back_off_disk_not_off_the_intent(tmp_path: Any) -> None:
     """``native_memory_pinned_off`` is a READ of the minted dir: absent file, key true, and key
     false are three different answers, and only the last one is the pin."""
@@ -2613,9 +2641,15 @@ def test_the_pin_rides_on_the_cell_row_and_a_row_without_it_cannot_resume() -> N
         RungCell.from_row({k: v for k, v in row.items() if k != "native_memory_pinned_off"})
 
 
-def test_the_preflight_row_records_the_pin_read_off_disk(tmp_path: Any, monkeypatch: Any) -> None:
-    """``preflight.json`` is the gated preflight row, so the row carries what the minted dir said
-    for the rung it ran — through the cell, which is the only thing that saw the dir."""
+def test_the_preflight_row_carries_the_cells_pin(tmp_path: Any, monkeypatch: Any) -> None:
+    """The gated preflight row reports the pin, so a preflight artifact says which floor the
+    mechanism check ran on.
+
+    The CELL is what reads the config dir; `preflight` has no free path (no `dry_run`, no
+    `runner`) and cannot be driven without spending, so `run_rung_cell` is replaced here and
+    this test covers only the plumbing from cell to row to gate. The disk read itself is
+    covered by `test_the_pin_is_read_back_off_disk_not_off_the_intent` and by the per-rung
+    witnesses."""
     _seqs, tasks = corpus_one(tmp_path)
     for pinned in (True, False):
         fired = RungCell(
