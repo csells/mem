@@ -1484,14 +1484,32 @@ def per_variant_task_count(tasks: Sequence[ToolReqRealAgentTask]) -> int:
     return min(by_variant.values()) if by_variant else 0
 
 
+def _halt_rule(rungs: Sequence[str]) -> str:
+    """What a fire over ``rungs`` may state about the zero-call halt without overpromising."""
+    rule = (
+        f"if {RUNG_IDS[-1]} shows ZERO memory calls, the interior rungs are NOT run and the "
+        "null is the result"
+    )
+    if not set(rungs) & set(STAGED_SLICES["interior"]):
+        return rule
+    return (
+        f"{rule}; this slice buys interior rungs BEFORE it observes {RUNG_IDS[-1]}, so that "
+        f"evidence must ALREADY exist (the {RUNG_IDS[-1]} preflight, or a landed ends fire) -- "
+        "this fire does not enforce it"
+    )
+
+
 def staged_plan(n_tasks: int, *, n_variants: int, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
     """What the staged fire WOULD spend, priced before anything runs.
 
     ``n_tasks`` is PER VARIANT (``per_variant_task_count``), because that is the slice
     ``staged_cells`` takes, and ``n_variants`` is how many labels it takes that slice FROM.
-    The halt rule is the same sentence for every slice on purpose: it
-    describes the R4 PREFLIGHT that authorizes any staged spend, not the contents of the slice, so
-    a slice that skips R4 still presumes that preflight cleared."""
+
+    The halt rule is NOT the same sentence for every slice. ``staged_cells`` runs the rungs in
+    order and there is no mid-fire zero-call halt, so a slice holding an interior rung buys it
+    before this fire has any R4 result to read: ``interior`` never sees one, and ``full`` sees its
+    own last. For those the rule is a PREREQUISITE on evidence that already exists, and it says so
+    rather than promising a halt the fire cannot perform."""
     rungs = staged_rungs(stage)
     tasks = min(n_tasks, STAGED_TASKS)
     return {
@@ -1503,10 +1521,7 @@ def staged_plan(n_tasks: int, *, n_variants: int, stage: str = DEFAULT_STAGE) ->
         "calls": planned_call_count(
             rungs=rungs, n_tasks=tasks, repeats=STAGED_REPEATS, n_variants=n_variants
         ),
-        "halt_rule": (
-            f"if {RUNG_IDS[-1]} shows ZERO memory calls, the interior rungs are NOT run and the "
-            "null is the result"
-        ),
+        "halt_rule": _halt_rule(rungs),
     }
 
 

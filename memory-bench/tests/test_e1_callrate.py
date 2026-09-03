@@ -2718,10 +2718,12 @@ def test_staged_plan_prices_the_slice_it_is_asked_for() -> None:
     full = staged_plan(64, n_variants=2, stage="full")
     assert full["rungs"] == list(RUNG_IDS)
     assert full["calls"] == 400
-    # The gate is the R4 preflight for EVERY slice, including the one that does not contain R4:
-    # a slice that skips R4 still presumes the preflight that authorized the spend cleared.
-    assert interior["halt_rule"] == staged_plan(64, n_variants=2)["halt_rule"]
-    assert "R4" in interior["halt_rule"]
+    # Every slice's rule turns on R4, and the two that buy an interior rung before observing it
+    # extend the ends sentence rather than restating it. See the prerequisite test below.
+    ends_rule = str(staged_plan(64, n_variants=2)["halt_rule"])
+    assert str(interior["halt_rule"]).startswith(ends_rule)
+    assert interior["halt_rule"] != ends_rule
+    assert "R4" in ends_rule
 
 
 def test_the_priced_plan_and_the_fired_plan_count_the_same_grid(
@@ -2943,3 +2945,32 @@ def test_pricing_counts_the_variant_labels_the_corpus_actually_has(tmp_path: Any
     # Hand-written, so the loop above is comparing two different derivations and not one constant
     # to itself: 2 ends rungs x 3 tasks x 5 repeats, times the labels the corpus carries.
     assert ends_calls == {"twin": 60, "one half only": 30, "a third label": 90}
+
+
+def test_the_halt_rule_is_a_prerequisite_on_the_slices_that_cannot_enforce_it(
+    tmp_path: Any,
+) -> None:
+    """``staged_cells`` runs the rungs IN ORDER and has no mid-fire zero-call halt.
+
+    So ``full`` buys R0-R3 before its own R4 lands and ``interior`` never observes R4 at all: for
+    both, "if R4 shows zero the interior is not run" is a promise the fire cannot keep. Their rule
+    has to name PRIOR evidence -- the R4 preflight, or a landed ends fire -- and say plainly that
+    this fire does not enforce it. ``ends`` buys no interior rung, so there the sentence is a
+    statement about the NEXT fire and stays exactly as the module comment writes it."""
+    rules = {
+        name: str(staged_plan(8, n_variants=2, stage=name)["halt_rule"])
+        for name in e1_grid.STAGED_SLICES
+    }
+    assert all(RUNG_IDS[-1] in rule for rule in rules.values())
+    for name in ("interior", "full"):
+        assert "ALREADY" in rules[name], name
+        assert "this fire does not enforce it" in rules[name], name
+    assert "ALREADY" not in rules["ends"]
+    # The ordering that makes the promise unkeepable, asserted rather than assumed: under `full`
+    # the interior cells are bought before the first R4 cell is.
+    corpus_one(tmp_path)
+    _, twins = load_twin_corpus(tmp_path / "corpus")
+    order = [
+        rung for rung, _v, _w in grid_keys(twins, rungs=e1_grid.staged_rungs("full"), n_tasks=1)
+    ]
+    assert order.index("R1") < order.index(RUNG_IDS[-1])
