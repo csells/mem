@@ -489,7 +489,7 @@ def test_preflight_runs_at_the_top_rung_and_has_no_free_path() -> None:
 def test_staged_plan_is_priced_not_quoted() -> None:
     """T=8, R=5, the two ends of the ladder, both corpus halves: 160 real calls."""
     assert STAGED_RUNGS == ("R0", "R4")
-    plan = staged_plan(64, n_variants=2)
+    plan = staged_plan(n_tasks_per_variant=64, n_variants=2)
     assert plan == {
         "stage": "ends",
         "rungs": ["R0", "R4"],
@@ -503,7 +503,7 @@ def test_staged_plan_is_priced_not_quoted() -> None:
     # Priced by product over what is actually run, so adding a rung moves the disclosed cost.
     assert planned_call_count(rungs=RUNG_IDS, n_tasks=8, repeats=5, n_variants=2) == 400
     # A corpus smaller than the staged size is priced at the corpus, never at the constant.
-    assert staged_plan(3, n_variants=2)["calls"] == 60
+    assert staged_plan(n_tasks_per_variant=3, n_variants=2)["calls"] == 60
 
 
 def test_cli_refuses_to_spend_without_a_pinned_model(
@@ -2277,7 +2277,10 @@ def test_the_plan_prices_the_smaller_variant_half() -> None:
     assert e1_grid.per_variant_task_count([]) == 0
     assert e1_grid.per_variant_task_count([_T(VARIANT_NECESSARY), _T(VARIANT_UNNECESSARY)]) == 1
     # Priced per variant, and the plan doubles it back for the two halves.
-    assert staged_plan(1, n_variants=2)["calls"] == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2
+    assert (
+        staged_plan(n_tasks_per_variant=1, n_variants=2)["calls"]
+        == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2
+    )
 
 
 def test_fire_staged_without_an_out_refuses_before_it_spends(
@@ -2694,11 +2697,9 @@ def test_the_authorized_ladder_slices_are_a_frozen_table() -> None:
     assert e1_grid.STAGED_SLICES["ends"] == ("R0", "R4") == STAGED_RUNGS
     assert e1_grid.STAGED_SLICES["interior"] == ("R1", "R2", "R3")
     assert e1_grid.STAGED_SLICES["full"] == RUNG_IDS
-    # ends + interior partition full: no rung is unreachable, and none is bought twice by a
-    # caller who runs both slices.
-    assert sorted((*e1_grid.STAGED_SLICES["ends"], *e1_grid.STAGED_SLICES["interior"])) == sorted(
-        RUNG_IDS
-    )
+    # ends + interior partition full. Not asserted here: the three literals above already imply
+    # it, so a check on them cannot fail on its own. It is asserted where it can fail, over prices
+    # computed separately per slice, in test_the_plan_path_prices_every_authorized_slice.
     assert e1_grid.staged_rungs("interior") == ("R1", "R2", "R3")
     assert e1_grid.staged_rungs(e1_grid.DEFAULT_STAGE) == STAGED_RUNGS
     with pytest.raises(ValueError, match="unknown stage"):
@@ -2709,18 +2710,18 @@ def test_the_authorized_ladder_slices_are_a_frozen_table() -> None:
 
 def test_staged_plan_prices_the_slice_it_is_asked_for() -> None:
     """The disclosed cost is a product over the rungs actually run, so naming a slice moves it."""
-    assert staged_plan(64, n_variants=2)["stage"] == "ends"
-    assert staged_plan(64, n_variants=2)["calls"] == 160
-    interior = staged_plan(64, n_variants=2, stage="interior")
+    assert staged_plan(n_tasks_per_variant=64, n_variants=2)["stage"] == "ends"
+    assert staged_plan(n_tasks_per_variant=64, n_variants=2)["calls"] == 160
+    interior = staged_plan(n_tasks_per_variant=64, n_variants=2, stage="interior")
     assert interior["stage"] == "interior"
     assert interior["rungs"] == ["R1", "R2", "R3"]
     assert interior["calls"] == 240
-    full = staged_plan(64, n_variants=2, stage="full")
+    full = staged_plan(n_tasks_per_variant=64, n_variants=2, stage="full")
     assert full["rungs"] == list(RUNG_IDS)
     assert full["calls"] == 400
     # Every slice's rule turns on R4, and the two that buy an interior rung before observing it
     # extend the ends sentence rather than restating it. See the prerequisite test below.
-    ends_rule = str(staged_plan(64, n_variants=2)["halt_rule"])
+    ends_rule = str(staged_plan(n_tasks_per_variant=64, n_variants=2)["halt_rule"])
     assert str(interior["halt_rule"]).startswith(ends_rule)
     assert interior["halt_rule"] != ends_rule
     assert "R4" in ends_rule
@@ -2886,7 +2887,11 @@ def test_an_ends_artifact_is_refused_by_the_interior_stage(
     )
     assert code == e1_grid.EXIT_REFUSED
     err = capsys.readouterr().err
-    assert "REFUSED" in err and "R0" in err
+    # "REFUSED" and "R0" both predate this change (the prefix, and `cell.key` inside the
+    # out-of-grid message), so neither pins the suffix. `--stage interior` does: it is the only
+    # part of the message that tells the operator which slice refused and that `full` is the one
+    # that would take this artifact.
+    assert "REFUSED" in err and "R0" in err and "--stage interior" in err
     # Nothing was bought: the refusal happens before the first leg.
     assert not out.with_suffix(".json.legs").exists()
 
@@ -2901,11 +2906,25 @@ def test_the_plan_path_prices_every_authorized_slice(
     plan = json.loads(capsys.readouterr().out)
     assert set(plan["staged_plans"]) == {"ends", "interior", "full"}
     assert plan["staged_plans"]["ends"]["rungs"] == ["R0", "R4"]
-    assert [plan["staged_plans"][s]["calls"] for s in ("ends", "interior", "full")] == [
-        plan["staged_plans"]["ends"]["calls"],
-        plan["staged_plans"]["interior"]["calls"],
-        plan["staged_plans"]["ends"]["calls"] + plan["staged_plans"]["interior"]["calls"],
-    ]
+    # Hand-written: `corpus_one` is 1 task per variant, so 2/3/5 rungs x 1 x 5 repeats x 2 halves.
+    calls = [plan["staged_plans"][s]["calls"] for s in ("ends", "interior", "full")]
+    assert calls == [20, 30, 50]
+    # And the partition holds in the prices, not just in the rung table.
+    assert calls[2] == calls[0] + calls[1]
+
+
+def test_an_unknown_stage_is_rejected_before_anything_is_priced(
+    tmp_path: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``staged_rungs``' ValueError is defense-in-depth for programmatic callers; on the CLI the
+    guard that actually fires is argparse's ``choices``, bound to ``STAGED_SLICES`` so the two
+    cannot drift. A typo must not reach a default and price the wrong grid."""
+    corpus_one(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--json", "--stage", "endz"])
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "invalid choice" in err and "'endz'" in err
 
 
 # --- mem-k36dc (Codex review): priced == spent over the corpus actually loaded ---
@@ -2958,7 +2977,7 @@ def test_the_halt_rule_is_a_prerequisite_on_the_slices_that_cannot_enforce_it(
     this fire does not enforce it. ``ends`` buys no interior rung, so there the sentence is a
     statement about the NEXT fire and stays exactly as the module comment writes it."""
     rules = {
-        name: str(staged_plan(8, n_variants=2, stage=name)["halt_rule"])
+        name: str(staged_plan(n_tasks_per_variant=8, n_variants=2, stage=name)["halt_rule"])
         for name in e1_grid.STAGED_SLICES
     }
     assert all(RUNG_IDS[-1] in rule for rule in rules.values())

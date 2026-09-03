@@ -1499,11 +1499,16 @@ def _halt_rule(rungs: Sequence[str]) -> str:
     )
 
 
-def staged_plan(n_tasks: int, *, n_variants: int, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
+def staged_plan(
+    *, n_tasks_per_variant: int, n_variants: int, stage: str = DEFAULT_STAGE
+) -> dict[str, Any]:
     """What the staged fire WOULD spend, priced before anything runs.
 
-    ``n_tasks`` is PER VARIANT (``per_variant_task_count``), because that is the slice
-    ``staged_cells`` takes, and ``n_variants`` is how many labels it takes that slice FROM.
+    Both counts are keyword-only and named for what they are. ``staged_cells`` slices
+    ``[:n_tasks]`` PER VARIANT and iterates every variant label present, so a bare positional int
+    that turned out to be a corpus total (or a variant count that turned out to be an assumption)
+    prices a different grid than the one that runs. This function is exported, and being unable to
+    spell the wrong call is worth more here than brevity.
 
     The halt rule is NOT the same sentence for every slice. ``staged_cells`` runs the rungs in
     order and there is no mid-fire zero-call halt, so a slice holding an interior rung buys it
@@ -1511,7 +1516,7 @@ def staged_plan(n_tasks: int, *, n_variants: int, stage: str = DEFAULT_STAGE) ->
     own last. For those the rule is a PREREQUISITE on evidence that already exists, and it says so
     rather than promising a halt the fire cannot perform."""
     rungs = staged_rungs(stage)
-    tasks = min(n_tasks, STAGED_TASKS)
+    tasks = min(n_tasks_per_variant, STAGED_TASKS)
     return {
         "stage": stage,
         "rungs": list(rungs),
@@ -1531,12 +1536,13 @@ def priced_plan(
     """``staged_plan`` for a real corpus, priced off the PER-VARIANT count the fire slices to.
 
     ``--staged`` priced off ``len(tasks)`` while ``--fire-staged`` priced off
-    ``per_variant_task_count``; on the 16-task corpus both cap at STAGED_TASKS and agree, and on an
-    uneven one they diverge by 2x, so the number a human authorized money against was the wrong
-    one. Priced and spent go through here now, over the variant labels the corpus carries rather
-    than the two the twin design assumes."""
+    ``per_variant_task_count``. They agree only where BOTH cap at STAGED_TASKS, which the 16-task
+    production corpus does — that is why it survived; below the cap they diverge by the variant
+    count (4x on a 3+1 corpus), and the number a human authorized money against was the wrong one.
+    Priced and spent go through here now, over the variant labels the corpus carries rather than
+    the two the twin design assumes."""
     return staged_plan(
-        per_variant_task_count(tasks),
+        n_tasks_per_variant=per_variant_task_count(tasks),
         n_variants=len({task.variant for task in tasks}),
         stage=stage,
     )
@@ -2147,7 +2153,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         "guidance_words_by_rung": {rung: guidance_words(rung) for rung in RUNG_IDS},
         "staged_plan": priced_plan(tasks, stage=args.stage),
         "staged_plans": {name: priced_plan(tasks, stage=name) for name in STAGED_SLICES},
-        "full_ladder_calls": priced_plan(tasks, stage="full")["calls"],
     }
     if args.json:
         print(json.dumps(plan, indent=2))
