@@ -2016,6 +2016,7 @@ def test_the_unmeasured_streak_survives_a_cell_boundary(tmp_path: Any) -> None:
             tasks,
             model=MODEL,
             corpus_dir=tmp_path / "corpus",
+            rungs=STAGED_RUNGS,
             n_tasks=1,
             repeats=2,
             runner=always_fails,
@@ -2836,13 +2837,21 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
         ]
     )
     assert code == e1_grid.EXIT_OK
-    printed = json.loads(capsys.readouterr().out)
+    captured = capsys.readouterr()
+    printed = json.loads(captured.out)
     assert [(row["rung"], row["variant"]) for row in printed["cells"]] == [
         (rung, variant) for rung in RUNG_IDS for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
     ]
     # Only the interior was bought: a leg file exists for R1-R3 and for nothing else.
     legs = sorted({path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir()})
     assert legs == ["R1", "R2", "R3"]
+    # And the fire disclosed the residual, not the whole slice's price. `plan.calls` is 10 (5
+    # rungs x 1 task x 1 repeat x 2 halves) while this fire buys 6, so an operator reading
+    # `firing.calls` alone would over-state the spend by 4 on the workflow this bead exists for.
+    announced = json.loads(captured.err[captured.err.index("{") : captured.err.rindex("}") + 1])
+    assert announced["firing"]["calls"] == 10
+    assert announced["resumed_cells"] == 4
+    assert announced["remaining_calls"] == 6
 
 
 def test_an_ends_artifact_is_refused_by_the_interior_stage(
@@ -3019,3 +3028,47 @@ def test_the_plan_only_guidance_names_the_flags_that_actually_spend(
     assert "CLAUDE_CODE_OAUTH_TOKEN" not in free
     # And the money sentence excludes the free flag rather than sweeping it in with "both".
     assert "--staged needs neither" in guidance
+
+
+def test_the_spend_paths_will_not_take_a_slice_by_omission(tmp_path: Any) -> None:
+    """A typo in a slice name raises; an omitted slice used to quietly mean ``ends``.
+
+    ``grid_keys`` decides which landed cells a resume may keep and ``staged_cells`` buys the grid,
+    so both defaulting to ``STAGED_RUNGS`` meant a caller who wrote out every other argument and
+    forgot this one bought 160 ends calls while intending 400 full ones. ``corpus_dir`` on the same
+    function is already required for this reason; once more than one slice exists, so is this."""
+    _seqs, tasks = corpus_one(tmp_path)
+    with pytest.raises(TypeError, match="rungs"):
+        grid_keys(tasks, n_tasks=1)  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="rungs"):
+        e1_grid.staged_cells(  # type: ignore[call-arg]
+            tasks,
+            model=MODEL,
+            corpus_dir=tmp_path / "corpus",
+            n_tasks=1,
+            repeats=1,
+            runner=noop_cli_runner,
+        )
+
+
+def test_the_preflight_refuses_a_stage_it_would_ignore(
+    tmp_path: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--preflight`` runs the ONE rung named by ``--rung``; ``--stage`` names a ladder slice that
+    only ``--staged`` and ``--fire-staged`` read. Accepting it here was inert on a path that spends
+    real money, which invites the reading that the interior was preflighted."""
+    corpus_one(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        e1_grid.main(
+            [
+                "--corpus-dir",
+                str(tmp_path / "corpus"),
+                "--preflight",
+                "--stage",
+                "interior",
+                "--model",
+                MODEL,
+            ]
+        )
+    assert exc.value.code == 2
+    assert "--rung" in capsys.readouterr().err

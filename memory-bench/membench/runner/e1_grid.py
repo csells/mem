@@ -27,10 +27,12 @@ What this module decides, and what it deliberately does not:
   rename moves the argv and invalidates every cached cell.
 
 **Nothing in this module spends money by itself.** ``main`` refuses to spend unless the
-operator passes ``--preflight`` or ``--staged`` with a pinned model and an OAuth token. The
+operator passes ``--preflight`` or ``--fire-staged`` with a pinned model and an OAuth token
+(``--staged`` prices a slice and returns; it buys nothing). The
 preflight is a REAL paid cycle at the TOP rung, deliberately not simulated — the same stance
 as ``toolreq_builtin_grid.preflight`` — because a simulated mechanism check proves only that
-the simulator cooperates. As of this commit BOTH paid paths are UNRUN.
+the simulator cooperates. The ends fire has been run once, at
+``results/e1-guidance-ladder/staged-160/``; the interior rungs are unbought.
 
 ZFC: rung text is authored data, the counter is ``tool_surface``'s mechanical argv scan, and
 the gates are arithmetic over counts. No semantic judgment anywhere in here.
@@ -1551,14 +1553,18 @@ def priced_plan(
 def grid_keys(
     tasks: Sequence[ToolReqRealAgentTask],
     *,
-    rungs: Sequence[str] = STAGED_RUNGS,
+    rungs: Sequence[str],
     n_tasks: int = STAGED_TASKS,
 ) -> list[tuple[str, str, str]]:
     """Every ``(rung, variant, work_id)`` cell a fire over ``tasks`` will run.
 
     Built by the same per-variant slice ``staged_cells`` executes, so the set a resume is checked
     against is the set that will actually be bought — not a second derivation of it that can drift
-    from the first."""
+    from the first.
+
+    ``rungs`` is required for the same reason an unknown ``--stage`` raises instead of falling
+    back: once more than one slice exists, an omission that silently meant ``ends`` would check a
+    resume against the wrong grid."""
     by_variant: dict[str, list[ToolReqRealAgentTask]] = {}
     for task in tasks:
         by_variant.setdefault(task.variant, []).append(task)
@@ -1575,7 +1581,7 @@ def staged_cells(
     *,
     model: str,
     corpus_dir: Path,
-    rungs: Sequence[str] = STAGED_RUNGS,
+    rungs: Sequence[str],
     n_tasks: int = STAGED_TASKS,
     repeats: int = STAGED_REPEATS,
     timeout_s: float = 600.0,
@@ -1586,6 +1592,10 @@ def staged_cells(
     expect_cli_version: str = "",
 ) -> list[RungCell]:
     """Execute the staged fire: every ``(rung, variant, task)`` cell, ``repeats`` legs each.
+
+    ``rungs`` is required, not defaulted — the same rule ``corpus_dir`` follows below. A typo in
+    a slice name raises; an omitted slice must not quietly buy ``ends`` on the one path in this
+    package that spends money.
 
     ``n_tasks`` is applied PER VARIANT, which is what makes the bill the priced one.
     ``staged_plan`` counts ``len(rungs) * n_tasks * repeats * 2``, so capping the flat list would
@@ -1976,6 +1986,10 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
             {
                 "firing": plan,
                 "resumed_cells": len(landed),
+                # `plan` prices the whole slice. On a resume the fire buys the residual, and
+                # cross-stage resume is now the primary workflow, so the operator should not have
+                # to compute this from two other fields to know what is about to be spent.
+                "remaining_calls": int(plan["calls"]) - len(landed) * repeats,
                 "cli_version": cli_version,
                 "corpus_fingerprint": corpus,
             },
@@ -2074,10 +2088,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     ap.add_argument(
         "--stage",
-        default=DEFAULT_STAGE,
+        # No default here, so an explicit --stage on the preflight (which reads --rung, not a
+        # slice) is a refusal rather than a flag the paid path silently drops. DEFAULT_STAGE is
+        # applied right after parsing.
+        default=None,
         choices=list(STAGED_SLICES),
         help=(
-            "which authorized slice of the ladder to price or fire: "
+            f"which authorized slice of the ladder --staged prices and --fire-staged buys "
+            f"(default {DEFAULT_STAGE}): "
             f"{ {name: list(rungs) for name, rungs in STAGED_SLICES.items()} }"
         ),
     )
@@ -2108,6 +2126,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(list(argv) if argv is not None else None)
+
+    if args.preflight and args.stage is not None:
+        ap.error(
+            "--stage names a ladder SLICE, which only --staged and --fire-staged buy; the "
+            "preflight runs the ONE rung named by --rung, so a stage here would be ignored"
+        )
+    args.stage = args.stage if args.stage is not None else DEFAULT_STAGE
 
     paid = args.preflight or args.fire_staged
     refusal = _refusal(dry_run=not paid, model=args.model)
