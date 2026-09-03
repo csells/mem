@@ -1462,11 +1462,13 @@ class PreflightHaltError(RuntimeError):
         self.line = line
 
 
-def planned_call_count(
-    *, rungs: Sequence[str], n_tasks: int, repeats: int, n_variants: int = 2
-) -> int:
+def planned_call_count(*, rungs: Sequence[str], n_tasks: int, repeats: int, n_variants: int) -> int:
     """The real ``claude -p`` calls a fire makes — one leg per repeat, so the product. This is the
-    number a human authorizes money against, so it is computed, not quoted."""
+    number a human authorizes money against, so it is computed, not quoted.
+
+    ``n_variants`` is not defaulted to the twin design. ``staged_cells`` iterates whatever variant
+    labels the corpus carries, and a price that assumed two of them quoted half the bill for three
+    and twice the bill for one."""
     return len(rungs) * n_tasks * repeats * n_variants
 
 
@@ -1482,11 +1484,12 @@ def per_variant_task_count(tasks: Sequence[ToolReqRealAgentTask]) -> int:
     return min(by_variant.values()) if by_variant else 0
 
 
-def staged_plan(n_tasks: int, *, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
+def staged_plan(n_tasks: int, *, n_variants: int, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
     """What the staged fire WOULD spend, priced before anything runs.
 
     ``n_tasks`` is PER VARIANT (``per_variant_task_count``), because that is the slice
-    ``staged_cells`` takes. The halt rule is the same sentence for every slice on purpose: it
+    ``staged_cells`` takes, and ``n_variants`` is how many labels it takes that slice FROM.
+    The halt rule is the same sentence for every slice on purpose: it
     describes the R4 PREFLIGHT that authorizes any staged spend, not the contents of the slice, so
     a slice that skips R4 still presumes that preflight cleared."""
     rungs = staged_rungs(stage)
@@ -1496,8 +1499,10 @@ def staged_plan(n_tasks: int, *, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
         "rungs": list(rungs),
         "n_tasks": tasks,
         "repeats": STAGED_REPEATS,
-        "n_variants": 2,
-        "calls": planned_call_count(rungs=rungs, n_tasks=tasks, repeats=STAGED_REPEATS),
+        "n_variants": n_variants,
+        "calls": planned_call_count(
+            rungs=rungs, n_tasks=tasks, repeats=STAGED_REPEATS, n_variants=n_variants
+        ),
         "halt_rule": (
             f"if {RUNG_IDS[-1]} shows ZERO memory calls, the interior rungs are NOT run and the "
             "null is the result"
@@ -1513,8 +1518,13 @@ def priced_plan(
     ``--staged`` priced off ``len(tasks)`` while ``--fire-staged`` priced off
     ``per_variant_task_count``; on the 16-task corpus both cap at STAGED_TASKS and agree, and on an
     uneven one they diverge by 2x, so the number a human authorized money against was the wrong
-    one. Priced and spent go through here now."""
-    return staged_plan(per_variant_task_count(tasks), stage=stage)
+    one. Priced and spent go through here now, over the variant labels the corpus carries rather
+    than the two the twin design assumes."""
+    return staged_plan(
+        per_variant_task_count(tasks),
+        n_variants=len({task.variant for task in tasks}),
+        stage=stage,
+    )
 
 
 def grid_keys(

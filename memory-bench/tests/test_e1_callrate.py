@@ -489,7 +489,7 @@ def test_preflight_runs_at_the_top_rung_and_has_no_free_path() -> None:
 def test_staged_plan_is_priced_not_quoted() -> None:
     """T=8, R=5, the two ends of the ladder, both corpus halves: 160 real calls."""
     assert STAGED_RUNGS == ("R0", "R4")
-    plan = staged_plan(64)
+    plan = staged_plan(64, n_variants=2)
     assert plan == {
         "stage": "ends",
         "rungs": ["R0", "R4"],
@@ -501,9 +501,9 @@ def test_staged_plan_is_priced_not_quoted() -> None:
     }
     assert "ZERO" in plan["halt_rule"] or "zero" in plan["halt_rule"]
     # Priced by product over what is actually run, so adding a rung moves the disclosed cost.
-    assert planned_call_count(rungs=RUNG_IDS, n_tasks=8, repeats=5) == 400
+    assert planned_call_count(rungs=RUNG_IDS, n_tasks=8, repeats=5, n_variants=2) == 400
     # A corpus smaller than the staged size is priced at the corpus, never at the constant.
-    assert staged_plan(3)["calls"] == 60
+    assert staged_plan(3, n_variants=2)["calls"] == 60
 
 
 def test_cli_refuses_to_spend_without_a_pinned_model(
@@ -2277,7 +2277,7 @@ def test_the_plan_prices_the_smaller_variant_half() -> None:
     assert e1_grid.per_variant_task_count([]) == 0
     assert e1_grid.per_variant_task_count([_T(VARIANT_NECESSARY), _T(VARIANT_UNNECESSARY)]) == 1
     # Priced per variant, and the plan doubles it back for the two halves.
-    assert staged_plan(1)["calls"] == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2
+    assert staged_plan(1, n_variants=2)["calls"] == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2
 
 
 def test_fire_staged_without_an_out_refuses_before_it_spends(
@@ -2709,18 +2709,18 @@ def test_the_authorized_ladder_slices_are_a_frozen_table() -> None:
 
 def test_staged_plan_prices_the_slice_it_is_asked_for() -> None:
     """The disclosed cost is a product over the rungs actually run, so naming a slice moves it."""
-    assert staged_plan(64)["stage"] == "ends"
-    assert staged_plan(64)["calls"] == 160
-    interior = staged_plan(64, stage="interior")
+    assert staged_plan(64, n_variants=2)["stage"] == "ends"
+    assert staged_plan(64, n_variants=2)["calls"] == 160
+    interior = staged_plan(64, n_variants=2, stage="interior")
     assert interior["stage"] == "interior"
     assert interior["rungs"] == ["R1", "R2", "R3"]
     assert interior["calls"] == 240
-    full = staged_plan(64, stage="full")
+    full = staged_plan(64, n_variants=2, stage="full")
     assert full["rungs"] == list(RUNG_IDS)
     assert full["calls"] == 400
     # The gate is the R4 preflight for EVERY slice, including the one that does not contain R4:
     # a slice that skips R4 still presumes the preflight that authorized the spend cleared.
-    assert interior["halt_rule"] == staged_plan(64)["halt_rule"]
+    assert interior["halt_rule"] == staged_plan(64, n_variants=2)["halt_rule"]
     assert "R4" in interior["halt_rule"]
 
 
@@ -2904,3 +2904,42 @@ def test_the_plan_path_prices_every_authorized_slice(
         plan["staged_plans"]["interior"]["calls"],
         plan["staged_plans"]["ends"]["calls"] + plan["staged_plans"]["interior"]["calls"],
     ]
+
+
+# --- mem-k36dc (Codex review): priced == spent over the corpus actually loaded ---
+
+
+def test_pricing_counts_the_variant_labels_the_corpus_actually_has(tmp_path: Any) -> None:
+    """``staged_cells`` runs every variant label present; a hard-coded two-half price does not.
+
+    ``variant`` is an unrestricted ``str`` and these helpers are exported, so a corpus carrying a
+    third label spends 1.5x its quote while one missing a half spends half of it. Both directions
+    are the defect this bead already fixed once in the other axis: an authorization written for a
+    grid other than the one that runs. The check is against ``grid_keys``, the derivation
+    ``staged_cells`` itself slices, so the price cannot drift away from the spend."""
+    corpus_one(tmp_path)
+    _, twins = load_twin_corpus(tmp_path / "corpus")
+    necessary = next(t for t in twins if t.variant == VARIANT_NECESSARY)
+    shapes = {
+        "twin": (VARIANT_NECESSARY, VARIANT_UNNECESSARY),
+        "one half only": (VARIANT_NECESSARY,),
+        "a third label": (VARIANT_NECESSARY, VARIANT_UNNECESSARY, "control"),
+    }
+    ends_calls: dict[str, int] = {}
+    for shape, variants in shapes.items():
+        tasks = [
+            replace(necessary, work_id=f"{variant}-{i}", variant=variant)
+            for variant in variants
+            for i in range(3)
+        ]
+        for stage in e1_grid.STAGED_SLICES:
+            plan = e1_grid.priced_plan(tasks, stage=stage)
+            spent = grid_keys(
+                tasks, rungs=e1_grid.staged_rungs(stage), n_tasks=int(plan["n_tasks"])
+            )
+            assert plan["n_variants"] == len(variants), (shape, stage)
+            assert plan["calls"] == len(spent) * STAGED_REPEATS, (shape, stage)
+        ends_calls[shape] = int(e1_grid.priced_plan(tasks)["calls"])
+    # Hand-written, so the loop above is comparing two different derivations and not one constant
+    # to itself: 2 ends rungs x 3 tasks x 5 repeats, times the labels the corpus carries.
+    assert ends_calls == {"twin": 60, "one half only": 30, "a third label": 90}
