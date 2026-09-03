@@ -1731,14 +1731,18 @@ EXIT_HALT = 1
 EXIT_REFUSED = 2
 EXIT_NO_CORPUS = 4
 
+# The split is `paid = args.preflight or args.fire_staged`, and this text has to match it: it
+# billed `--staged` (which prices and returns) and omitted `--fire-staged` (which buys the grid).
 _PLAN_ONLY = (
     "No fire requested. This printed the PLAN and spent nothing.\n"
-    "  paid mechanism check : python -m membench.runner.e1_grid --preflight --rung R4 "
-    "--model <id>\n"
-    "  staged spend         : python -m membench.runner.e1_grid --staged --model <id>\n"
-    "  a named ladder slice : python -m membench.runner.e1_grid --staged "
-    "--stage {ends|interior|full}\n"
-    "Both need CLAUDE_CODE_OAUTH_TOKEN and a pinned --model, and both spend real money."
+    "  price a slice (free) : python -m membench.runner.e1_grid --staged "
+    f"--stage {{{'|'.join(STAGED_SLICES)}}}\n"
+    "  paid mechanism check : python -m membench.runner.e1_grid --preflight "
+    f"--rung {PREFLIGHT_RUNG} --model <id>\n"
+    "  spend that slice     : python -m membench.runner.e1_grid --fire-staged "
+    "--stage <name> --model <id> --out <path>\n"
+    "The two paid lines need CLAUDE_CODE_OAUTH_TOKEN and a pinned --model and spend real money; "
+    "--staged needs neither and only prices."
 )
 
 

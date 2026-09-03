@@ -2993,3 +2993,29 @@ def test_the_halt_rule_is_a_prerequisite_on_the_slices_that_cannot_enforce_it(
         rung for rung, _v, _w in grid_keys(twins, rungs=e1_grid.staged_rungs("full"), n_tasks=1)
     ]
     assert order.index("R1") < order.index(RUNG_IDS[-1])
+
+
+def test_the_plan_only_guidance_names_the_flags_that_actually_spend(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``paid = args.preflight or args.fire_staged``, and the guidance disagreed with it twice.
+
+    It called ``--staged`` "the staged spend", said it needed CLAUDE_CODE_OAUTH_TOKEN, and said it
+    spent real money; ``--staged`` prices and returns. And ``--fire-staged``, the flag that does
+    buy the staged grid, appeared nowhere in it. A reader following this text either believed a
+    free dry run would bill them or could not find the command that bills."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    corpus_one(tmp_path)
+    # No token, no --model, and it still succeeds: that is the behavior the text has to describe.
+    assert e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged"]) == e1_grid.EXIT_OK
+    assert e1_grid.main(["--corpus-dir", str(tmp_path / "corpus")]) == e1_grid.EXIT_OK
+    guidance = capsys.readouterr().err
+    assert "--preflight" in guidance and "--fire-staged" in guidance
+    free = next(
+        line for line in guidance.splitlines() if "--staged" in line and "--fire-staged" not in line
+    )
+    assert "free" in free
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in free
+    # And the money sentence excludes the free flag rather than sweeping it in with "both".
+    assert "--staged needs neither" in guidance
