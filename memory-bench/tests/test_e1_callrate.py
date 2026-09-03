@@ -491,6 +491,7 @@ def test_staged_plan_is_priced_not_quoted() -> None:
     assert STAGED_RUNGS == ("R0", "R4")
     plan = staged_plan(64)
     assert plan == {
+        "stage": "ends",
         "rungs": ["R0", "R4"],
         "n_tasks": STAGED_TASKS,
         "repeats": STAGED_REPEATS,
@@ -2677,3 +2678,229 @@ def test_the_preflight_row_carries_the_cells_pin(tmp_path: Any, monkeypatch: Any
         row = e1_grid.preflight(tasks[0], model=MODEL, corpus_dir=tmp_path / "corpus", rung="R0")
         assert row["native_memory_pinned_off"] is pinned
         assert preflight_gate(row)["native_memory_pinned_off"] is pinned
+
+
+# --- mem-k36dc: the interior rungs are reachable without a source edit ----------------
+
+
+def test_the_authorized_ladder_slices_are_a_frozen_table() -> None:
+    """R1-R3 exist in RUNG_TEXT and in RUNG_SETTINGS, and every function under the fire path takes
+    a ``rungs`` argument, but the fire itself only ever passed STAGED_RUNGS. Reaching the interior
+    meant editing a module constant, on the one path in this package that spends money.
+
+    The fix is a NAMED table rather than a free-form ``--rungs``: pricing a grid stays something a
+    bead authorizes, not something a caller composes at the prompt."""
+    assert set(e1_grid.STAGED_SLICES) == {"ends", "interior", "full"}
+    assert e1_grid.STAGED_SLICES["ends"] == ("R0", "R4") == STAGED_RUNGS
+    assert e1_grid.STAGED_SLICES["interior"] == ("R1", "R2", "R3")
+    assert e1_grid.STAGED_SLICES["full"] == RUNG_IDS
+    # ends + interior partition full: no rung is unreachable, and none is bought twice by a
+    # caller who runs both slices.
+    assert sorted((*e1_grid.STAGED_SLICES["ends"], *e1_grid.STAGED_SLICES["interior"])) == sorted(
+        RUNG_IDS
+    )
+    assert e1_grid.staged_rungs("interior") == ("R1", "R2", "R3")
+    assert e1_grid.staged_rungs(e1_grid.DEFAULT_STAGE) == STAGED_RUNGS
+    with pytest.raises(ValueError, match="unknown stage"):
+        e1_grid.staged_rungs("R1")
+    with pytest.raises(TypeError):
+        e1_grid.STAGED_SLICES["ends"] = ()  # type: ignore[index]
+
+
+def test_staged_plan_prices_the_slice_it_is_asked_for() -> None:
+    """The disclosed cost is a product over the rungs actually run, so naming a slice moves it."""
+    assert staged_plan(64)["stage"] == "ends"
+    assert staged_plan(64)["calls"] == 160
+    interior = staged_plan(64, stage="interior")
+    assert interior["stage"] == "interior"
+    assert interior["rungs"] == ["R1", "R2", "R3"]
+    assert interior["calls"] == 240
+    full = staged_plan(64, stage="full")
+    assert full["rungs"] == list(RUNG_IDS)
+    assert full["calls"] == 400
+    # The gate is the R4 preflight for EVERY slice, including the one that does not contain R4:
+    # a slice that skips R4 still presumes the preflight that authorized the spend cleared.
+    assert interior["halt_rule"] == staged_plan(64)["halt_rule"]
+    assert "R4" in interior["halt_rule"]
+
+
+def test_the_priced_plan_and_the_fired_plan_count_the_same_grid(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--staged`` priced off ``len(tasks)`` while ``--fire-staged`` priced off
+    ``per_variant_task_count``. On the 16-task corpus both cap at STAGED_TASKS and agree, which is
+    why it survived a test that only ever checked ``per_variant_task_count`` in isolation; on an
+    UNEVEN corpus they diverge and the number a human authorizes money against is the wrong one.
+    Both go through ``priced_plan`` now, and this drives the CLI to say so."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _seqs, _tasks = corpus_one(tmp_path)
+    # Both halves, which is what the CLI itself loads: `corpus_one` returns the NECESSARY tasks
+    # only, and the twin half is minted by `load_twin_corpus`.
+    _, twins = load_twin_corpus(tmp_path / "corpus")
+    necessary = next(t for t in twins if t.variant == VARIANT_NECESSARY)
+    unnecessary = next(t for t in twins if t.variant == VARIANT_UNNECESSARY)
+    uneven = [replace(necessary, work_id=f"w-{i}") for i in range(3)] + [unnecessary]
+    monkeypatch.setattr(e1_grid, "load_twin_corpus", lambda _dir: ([], uneven))
+    code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
+    assert code == e1_grid.EXIT_OK
+    priced = json.loads(capsys.readouterr().out)["staged_plan"]
+    # One task per variant is what the fire slices to, so 2 rungs x 1 task x 5 repeats x 2 halves.
+    assert priced["n_tasks"] == 1
+    assert priced["calls"] == 20
+    # And it is the SAME plan object the fire path prices its spend from.
+    assert priced == e1_grid.priced_plan(uneven)
+
+
+def test_fire_staged_buys_the_slice_the_stage_flag_names(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
+    monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
+    _seqs, tasks = corpus_one(tmp_path)
+    monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
+    out = tmp_path / "interior.json"
+    code = e1_grid.main(
+        [
+            "--corpus-dir",
+            str(tmp_path / "corpus"),
+            "--fire-staged",
+            "--stage",
+            "interior",
+            "--model",
+            MODEL,
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == e1_grid.EXIT_OK
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["rungs"] == ["R1", "R2", "R3"]
+    assert printed["stage"] == "interior"
+    assert [(row["rung"], row["variant"]) for row in printed["cells"]] == [
+        (rung, variant)
+        for rung in ("R1", "R2", "R3")
+        for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+    ]
+    legs = sorted(path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir())
+    assert legs == ["R1", "R1", "R2", "R2", "R3", "R3"]
+
+
+def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interior(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The workflow the ruling implies: R0/R4 are already paid for, the interior is what is
+    missing. Under ``--stage full`` the landed ends cells are INSIDE the grid, so they are kept and
+    the six interior cells are the only ones bought."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
+    monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
+    _seqs, tasks = corpus_one(tmp_path)
+    monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
+    _, twins = load_twin_corpus(tmp_path / "corpus")
+    work_id = tasks[0].work_id
+    out = tmp_path / "summary.json"
+    out.write_text(
+        json.dumps(
+            summarize(
+                [
+                    _cell(rung, variant, calling=1, runs=1, work_id=work_id)
+                    for rung in ("R0", "R4")
+                    for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+                ],
+                model=MODEL,
+                dry_run=False,
+                repeats=1,
+                cli_version="9.9.9",
+                corpus=corpus_fingerprint(twins),
+            )
+        ),
+        encoding="utf-8",
+    )
+    code = e1_grid.main(
+        [
+            "--corpus-dir",
+            str(tmp_path / "corpus"),
+            "--fire-staged",
+            "--stage",
+            "full",
+            "--model",
+            MODEL,
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == e1_grid.EXIT_OK
+    printed = json.loads(capsys.readouterr().out)
+    assert [(row["rung"], row["variant"]) for row in printed["cells"]] == [
+        (rung, variant) for rung in RUNG_IDS for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+    ]
+    # Only the interior was bought: a leg file exists for R1-R3 and for nothing else.
+    legs = sorted({path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir()})
+    assert legs == ["R1", "R2", "R3"]
+
+
+def test_an_ends_artifact_is_refused_by_the_interior_stage(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same artifact under ``--stage interior`` carries R0/R4 cells the interior grid will not
+    run, and pooling them into interior-only rates would publish two designs as one. It is a
+    refusal, and the message has to name the stage so the operator reaches for ``full``."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
+    monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
+    _seqs, tasks = corpus_one(tmp_path)
+    monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
+    _, twins = load_twin_corpus(tmp_path / "corpus")
+    out = tmp_path / "summary.json"
+    out.write_text(
+        json.dumps(
+            summarize(
+                [_cell("R0", VARIANT_NECESSARY, calling=1, runs=1, work_id=tasks[0].work_id)],
+                model=MODEL,
+                dry_run=False,
+                repeats=1,
+                cli_version="9.9.9",
+                corpus=corpus_fingerprint(twins),
+            )
+        ),
+        encoding="utf-8",
+    )
+    code = e1_grid.main(
+        [
+            "--corpus-dir",
+            str(tmp_path / "corpus"),
+            "--fire-staged",
+            "--stage",
+            "interior",
+            "--model",
+            MODEL,
+            "--out",
+            str(out),
+        ]
+    )
+    assert code == e1_grid.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "REFUSED" in err and "R0" in err
+    # Nothing was bought: the refusal happens before the first leg.
+    assert not out.with_suffix(".json.legs").exists()
+
+
+def test_the_plan_path_prices_every_authorized_slice(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A human choosing what to authorize should see all three prices without running anything."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    _seqs, _tasks = corpus_one(tmp_path)
+    assert e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--json"]) == e1_grid.EXIT_OK
+    plan = json.loads(capsys.readouterr().out)
+    assert set(plan["staged_plans"]) == {"ends", "interior", "full"}
+    assert plan["staged_plans"]["ends"]["rungs"] == ["R0", "R4"]
+    assert [plan["staged_plans"][s]["calls"] for s in ("ends", "interior", "full")] == [
+        plan["staged_plans"]["ends"]["calls"],
+        plan["staged_plans"]["interior"]["calls"],
+        plan["staged_plans"]["ends"]["calls"] + plan["staged_plans"]["interior"]["calls"],
+    ]

@@ -102,6 +102,7 @@ from membench.spawn import (
 
 __all__ = [
     "CHANNEL",
+    "DEFAULT_STAGE",
     "EXECUTION_PROTOCOL_VERSION",
     "GATE_KEY",
     "HALT_NO_CALL",
@@ -113,6 +114,7 @@ __all__ = [
     "RUNG_TEXT",
     "STAGED_REPEATS",
     "STAGED_RUNGS",
+    "STAGED_SLICES",
     "STAGED_TASKS",
     "SUMMARY_NAME",
     "LegRecord",
@@ -136,11 +138,13 @@ __all__ = [
     "planned_call_count",
     "preflight",
     "preflight_verdict",
+    "priced_plan",
     "rung_settings",
     "rung_settings_fingerprint",
     "rung_step",
     "score_leg",
     "staged_plan",
+    "staged_rungs",
     "stream_is_error",
     "summarize",
     "write_json_new",
@@ -1420,6 +1424,31 @@ STAGED_RUNGS: tuple[str, ...] = (RUNG_IDS[0], RUNG_IDS[-1])
 STAGED_TASKS = 8
 STAGED_REPEATS = 5
 
+# The ladder slices a fire may be authorized to buy. R1-R3 exist in RUNG_TEXT and in RUNG_SETTINGS
+# and every function under the fire path already takes a `rungs` argument, but the fire itself only
+# ever passed STAGED_RUNGS: reaching the interior meant editing a module constant on the one path
+# in this package that spends money. A NAMED table rather than a free-form `--rungs` keeps what a
+# fire may buy something a bead authorizes, not something a caller composes at the prompt.
+# `ends` and `interior` partition `full`, so no rung is unreachable and none is bought twice.
+STAGED_SLICES: Mapping[str, tuple[str, ...]] = types.MappingProxyType(
+    {
+        "ends": STAGED_RUNGS,
+        "interior": tuple(RUNG_IDS[1:-1]),
+        "full": RUNG_IDS,
+    }
+)
+DEFAULT_STAGE = "ends"
+
+
+def staged_rungs(stage: str) -> tuple[str, ...]:
+    """The rungs named by an authorized slice. Unknown names are an error, never a default: a
+    typo that silently fell back to `ends` would spend the wrong grid's money."""
+    if stage not in STAGED_SLICES:
+        raise ValueError(
+            f"unknown stage {stage!r}: the authorized slices are {list(STAGED_SLICES)}"
+        )
+    return STAGED_SLICES[stage]
+
 
 class PreflightHaltError(RuntimeError):
     """The preflight's refusal to authorize the interior sweep, carrying its diagnosis.
@@ -1453,23 +1482,39 @@ def per_variant_task_count(tasks: Sequence[ToolReqRealAgentTask]) -> int:
     return min(by_variant.values()) if by_variant else 0
 
 
-def staged_plan(n_tasks: int) -> dict[str, Any]:
+def staged_plan(n_tasks: int, *, stage: str = DEFAULT_STAGE) -> dict[str, Any]:
     """What the staged fire WOULD spend, priced before anything runs.
 
     ``n_tasks`` is PER VARIANT (``per_variant_task_count``), because that is the slice
-    ``staged_cells`` takes."""
+    ``staged_cells`` takes. The halt rule is the same sentence for every slice on purpose: it
+    describes the R4 PREFLIGHT that authorizes any staged spend, not the contents of the slice, so
+    a slice that skips R4 still presumes that preflight cleared."""
+    rungs = staged_rungs(stage)
     tasks = min(n_tasks, STAGED_TASKS)
     return {
-        "rungs": list(STAGED_RUNGS),
+        "stage": stage,
+        "rungs": list(rungs),
         "n_tasks": tasks,
         "repeats": STAGED_REPEATS,
         "n_variants": 2,
-        "calls": planned_call_count(rungs=STAGED_RUNGS, n_tasks=tasks, repeats=STAGED_REPEATS),
+        "calls": planned_call_count(rungs=rungs, n_tasks=tasks, repeats=STAGED_REPEATS),
         "halt_rule": (
             f"if {RUNG_IDS[-1]} shows ZERO memory calls, the interior rungs are NOT run and the "
             "null is the result"
         ),
     }
+
+
+def priced_plan(
+    tasks: Sequence[ToolReqRealAgentTask], *, stage: str = DEFAULT_STAGE
+) -> dict[str, Any]:
+    """``staged_plan`` for a real corpus, priced off the PER-VARIANT count the fire slices to.
+
+    ``--staged`` priced off ``len(tasks)`` while ``--fire-staged`` priced off
+    ``per_variant_task_count``; on the 16-task corpus both cap at STAGED_TASKS and agree, and on an
+    uneven one they diverge by 2x, so the number a human authorized money against was the wrong
+    one. Priced and spent go through here now."""
+    return staged_plan(per_variant_task_count(tasks), stage=stage)
 
 
 def grid_keys(
@@ -1660,6 +1705,8 @@ _PLAN_ONLY = (
     "  paid mechanism check : python -m membench.runner.e1_grid --preflight --rung R4 "
     "--model <id>\n"
     "  staged spend         : python -m membench.runner.e1_grid --staged --model <id>\n"
+    "  a named ladder slice : python -m membench.runner.e1_grid --staged "
+    "--stage {ends|interior|full}\n"
     "Both need CLAUDE_CODE_OAUTH_TOKEN and a pinned --model, and both spend real money."
 )
 
@@ -1852,7 +1899,8 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
         )
         return EXIT_REFUSED
     out = args.out
-    plan = staged_plan(per_variant_task_count(tasks))
+    plan = priced_plan(tasks, stage=args.stage)
+    rungs = staged_rungs(args.stage)
     repeats = int(plan["repeats"])
     corpus = corpus_fingerprint(tasks)
     try:
@@ -1879,11 +1927,11 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
                     cli_version=cli_version,
                     corpus=corpus,
                     repeats=repeats,
-                    grid=grid_keys(tasks, n_tasks=int(plan["n_tasks"])),
+                    grid=grid_keys(tasks, rungs=rungs, n_tasks=int(plan["n_tasks"])),
                 )
             )
         except ResumeMismatchError as exc:
-            print(f"REFUSED: {exc}", file=sys.stderr)
+            print(f"REFUSED: {exc} (this fire is --stage {args.stage})", file=sys.stderr)
             return EXIT_REFUSED
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             print(f"{out}: not a readable partial artifact: {exc}", file=sys.stderr)
@@ -1905,13 +1953,19 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
     legs_dir.mkdir(parents=True, exist_ok=True)
 
     def _summary(cells: Sequence[RungCell]) -> dict[str, Any]:
-        return carried | summarize(
-            cells,
-            model=args.model,
-            dry_run=False,
-            repeats=repeats,
-            cli_version=cli_version,
-            corpus=corpus,
+        return (
+            carried
+            | summarize(
+                cells,
+                model=args.model,
+                dry_run=False,
+                repeats=repeats,
+                cli_version=cli_version,
+                corpus=corpus,
+            )
+            # Which slice bought this artifact, so a reader of the file does not have to infer the
+            # design from the rungs that happen to be present in it.
+            | {"stage": args.stage}
         )
 
     def _persist() -> None:
@@ -1942,6 +1996,7 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
                 tasks,
                 model=args.model,
                 corpus_dir=args.corpus_dir,
+                rungs=rungs,
                 n_tasks=int(plan["n_tasks"]),
                 repeats=repeats,
                 on_cell=_record,
@@ -1983,11 +2038,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="ONE real paid cycle at --rung; asserts >=1 memory tool call. Zero is a HALT.",
     )
     ap.add_argument(
+        "--stage",
+        default=DEFAULT_STAGE,
+        choices=list(STAGED_SLICES),
+        help=(
+            "which authorized slice of the ladder to price or fire: "
+            f"{ {name: list(rungs) for name, rungs in STAGED_SLICES.items()} }"
+        ),
+    )
+    ap.add_argument(
         "--staged",
         action="store_true",
         help=(
-            f"the staged spend: rungs {list(STAGED_RUNGS)} at "
-            f"T={STAGED_TASKS}, R={STAGED_REPEATS}"
+            f"price the staged spend for --stage at T={STAGED_TASKS}, R={STAGED_REPEATS} over "
+            "both corpus halves; spends nothing"
         ),
     )
     ap.add_argument(
@@ -2044,7 +2108,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Reachable, and deliberately not run here: the staged fire is the orchestrator's to
         # trigger after the preflight clears. Wiring it to run off the same flag that prices it
         # would make an authorization and an execution the same keystroke.
-        print(json.dumps({"staged_plan": staged_plan(len(tasks))}, indent=2))
+        print(json.dumps({"staged_plan": priced_plan(tasks, stage=args.stage)}, indent=2))
         print(
             "STAGED PLAN PRICED, NOT FIRED: run the preflight first; the staged fire is "
             "authorized separately.",
@@ -2056,10 +2120,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "n_tasks": len(tasks),
         "rungs": list(RUNG_IDS),
         "guidance_words_by_rung": {rung: guidance_words(rung) for rung in RUNG_IDS},
-        "staged_plan": staged_plan(len(tasks)),
-        "full_ladder_calls": planned_call_count(
-            rungs=RUNG_IDS, n_tasks=min(len(tasks), STAGED_TASKS), repeats=STAGED_REPEATS
-        ),
+        "staged_plan": priced_plan(tasks, stage=args.stage),
+        "staged_plans": {name: priced_plan(tasks, stage=name) for name in STAGED_SLICES},
+        "full_ladder_calls": priced_plan(tasks, stage="full")["calls"],
     }
     if args.json:
         print(json.dumps(plan, indent=2))
