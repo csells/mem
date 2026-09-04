@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from membench.generators.enterprise_workflow import _SUBJECTS, materialize_world
+from membench.generators.enterprise_workflow import (
+    _SUBJECTS,
+    fact_subject,
+    fact_value,
+    materialize_world,
+)
 from membench.grading.paired_ci import paired_delta_ci
 from membench.metrics.scorers import states_value
 from membench.runner import e1_necessity_preflight, toolreq_corpus
@@ -83,6 +88,26 @@ def test_the_unnecessary_twin_states_the_current_value_and_never_a_stale_one(
     assert unnecessary.goal_step.memory_necessary is False
 
 
+def _subject_value_pairs(necessary: ToolReqRealAgentTask) -> list[tuple[str, str]]:
+    """The (subject, value) pairs the twin's context block should carry, rebuilt HERE from the
+    necessary half's oracle facts rather than imported from the builder -- so a builder that
+    started pairing values with the wrong subjects reds this suite instead of agreeing with it.
+
+    Sorted on the rendered line, which is how the block orders itself."""
+    pairs = [
+        (fact_subject(content), fact_value(content))
+        for content in necessary.oracle_memory.values()
+    ]
+    return sorted(pairs, key=lambda pair: f"- {pair[0]} is {pair[1]}")
+
+
+def _requested_subjects(necessary: ToolReqRealAgentTask) -> list[str]:
+    """The subjects the goal request names, in the order it names them -- the order a positional
+    pairing would use, and the reason this fixture authors ``arg_values`` against it."""
+    head = necessary.goal_step.user_request.split("apply the current value of:", 1)[1]
+    return [subject.strip() for subject in head.split(".", 1)[0].split(",")]
+
+
 def test_the_non_value_text_of_a_twin_pair_is_identical(tmp_path: Path) -> None:
     # The confound this corpus must not carry (arXiv 2605.09252). E1's endpoint is P(agent
     # chooses to consult memory), so ANY wording present in one half only and absent from the
@@ -98,8 +123,21 @@ def test_the_non_value_text_of_a_twin_pair_is_identical(tmp_path: Path) -> None:
     )
     assert separator, unnecessary.goal_step.user_request
     assert prefix == necessary.goal_step.user_request
-    # ...and the block is the VALUES and nothing else — no provenance prose, no framing.
-    assert block.splitlines() == [f"- {v}" for v in necessary.current_opaque_values]
+    # ...and the block is the values, each under the subject it belongs to, and nothing else —
+    # no provenance prose, no framing. The subject is not new wording: the necessary request
+    # already names it, so the twin repeats a phrase rather than introducing one, which is what
+    # keeps the pair's non-value text a fixed scaffold.
+    #
+    # This assertion used to demand BARE values, and that was the defect, not the guarantee: a
+    # line reading `- toolreq-efc91a631a8d` does not read as a value, and the arm built to be the
+    # easy half refused every leg of the staged fire. The property worth holding is that the twin
+    # adds no behaviour-directing text, not that it adds no text.
+    assert block.splitlines() == [
+        f"- {subject} is {value}"
+        for subject, value in _subject_value_pairs(necessary)
+    ]
+    for subject, _value in _subject_value_pairs(necessary):
+        assert subject in necessary.goal_step.user_request
 
 
 def test_twins_are_distinct_worlds_to_the_cache(tmp_path: Path) -> None:
@@ -296,9 +334,21 @@ def test_the_multi_value_context_block_states_no_positional_mapping(tmp_path: Pa
         CONTEXT_SEPARATOR + "Current state:\n"
     )
     assert separator, unnecessary.goal_step.user_request
-    assert block.splitlines() == [f"- {v}" for v in sorted(necessary.current_opaque_values)]
-    # ...which, on this fixture, is NOT the authored order — so this test reds if the sort goes.
-    assert block.splitlines() != [f"- {v}" for v in necessary.current_opaque_values]
+    assert block.splitlines() == [
+        f"- {subject} is {value}"
+        for subject, value in _subject_value_pairs(necessary)
+    ]
+
+    # The pairing is read off the FACT that carries each value, so it is the authored one. On
+    # this fixture that is demonstrably not what zipping the request's subject order against
+    # ``arg_values`` would produce -- which is the whole reason the block cannot be built that
+    # way, and why an unlabelled list was the first cut.
+    subjects = _requested_subjects(necessary)
+    positional = [
+        f"- {subject} is {value}"
+        for subject, value in zip(subjects, necessary.current_opaque_values, strict=True)
+    ]
+    assert block.splitlines() != positional
 
 
 def test_the_non_value_text_of_a_multi_value_twin_pair_is_identical(tmp_path: Path) -> None:
@@ -311,7 +361,9 @@ def test_the_non_value_text_of_a_multi_value_twin_pair_is_identical(tmp_path: Pa
     )
     assert separator, unnecessary.goal_step.user_request
     assert prefix == necessary.goal_step.user_request
-    assert all(line.startswith("- toolreq-") for line in block.splitlines())
+    assert all(" is toolreq-" in line for line in block.splitlines())
+    for subject, _value in _subject_value_pairs(necessary):
+        assert subject in necessary.goal_step.user_request
 
 
 def test_the_multi_value_twin_is_solvable_with_an_empty_store(tmp_path: Path) -> None:

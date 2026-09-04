@@ -175,13 +175,24 @@ def task_fingerprint(task: ToolReqRealAgentTask) -> str:
     )
 
 
-def _opaque(sequence_id: str, value: str, kind: str) -> str:
+def _opaque(sequence_id: str, value: str) -> str:
     """A deterministic, unguessable token for ``value`` within ``sequence_id``. Hashing
     ``(sequence_id, value)`` makes the SAME value in different sequences distinct (no
-    cross-task collision) while staying reproducible (no wall clock, no RNG). ``kind``
-    (CURRENT / STALE) is a human-readable tag only; the hash carries the uniqueness."""
+    cross-task collision) while staying reproducible (no wall clock, no RNG).
+
+    NO ``kind`` suffix. Tokens used to end in ``-CURRENT`` or ``-STALE``, described in this
+    docstring as "a human-readable tag only" — but the human reading it is the agent under test,
+    and it is the ANSWER. The necessary arm's whole task is to tell a current fact from the
+    superseded one it supersedes; a suffix spelling out which is which lets that be done by
+    reading the token, with no recall and no reasoning about supersession. The suffix was also
+    never load-bearing for uniqueness: the current and stale values differ, so their hashes
+    already do.
+
+    It cost twice. In the unnecessary arm the twin inlines the value, and
+    ``toolreq-<hash>-CURRENT`` does not read as a value at all — it reads as a status-tagged
+    identifier for one, so the arm that is supposed to be the easy half refused 40 of 40 legs."""
     hashed = hashlib.sha1(f"{sequence_id}|{value}".encode()).hexdigest()[:12]
-    return f"{_OPAQUE_PREFIX}-{hashed}-{kind}"
+    return f"{_OPAQUE_PREFIX}-{hashed}"
 
 
 def _substitute(text: str, value_map: dict[str, str]) -> str:
@@ -233,17 +244,20 @@ _WORK_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 def _value_map(sequence_id: str, action: ExpectedAction) -> dict[str, str]:
     """Map each reward-bearing value to its opaque token. A value that is authored as BOTH
     current and stale is a self-contradictory (malformed) reward, so raise rather than
-    silently letting the CURRENT tag win — the whole leak firewall rests on this map."""
+    silently letting one reading win — the whole leak firewall rests on this map.
+
+    Both halves mint through the same one-argument ``_opaque``: the token says WHICH value it
+    stands for and never WHICH KIND it is (see ``_opaque``)."""
     value_map: dict[str, str] = {}
     for value in action.arg_values:
-        value_map[value] = _opaque(sequence_id, value, "CURRENT")
+        value_map[value] = _opaque(sequence_id, value)
     for value in action.forbidden_values:
         if value in value_map:
             raise ValueError(
                 f"{sequence_id}: value {value!r} is both a current and a superseded (stale) "
                 "reward value — the sequence's reward is self-contradictory"
             )
-        value_map[value] = _opaque(sequence_id, value, "STALE")
+        value_map[value] = _opaque(sequence_id, value)
     return value_map
 
 

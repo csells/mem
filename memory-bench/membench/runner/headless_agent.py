@@ -606,6 +606,14 @@ def _tool_result_text(block: Mapping[str, Any]) -> str:
     return ""
 
 
+def _answer(results: Mapping[str, tuple[str, bool]], block_id: object) -> tuple[str, bool] | None:
+    """The (text, is_error) the stream answered one ``tool_use`` with, or ``None`` when it carries
+    no answer at all — a stream truncated before the tool returned. ``None`` is not ``is_error``:
+    an unobserved outcome and a failed one are different facts and neither may be read as the
+    other."""
+    return results.get(block_id) if isinstance(block_id, str) else None
+
+
 def tool_calls_from_stream(stream_text: str) -> list[ToolCall]:
     """One `ToolCall` per ``tool_use`` block, in stream order — the same tolerant walk
     `bbon.extract.steps_from_stream` uses, so the structured tool_calls and the derived
@@ -617,7 +625,7 @@ def tool_calls_from_stream(stream_text: str) -> list[ToolCall]:
     160-leg staged fire's only "endogenous write" was a ``bd remember list`` that bd REFUSED, and
     only the result can say so (mem-8fv4t)."""
     results = {
-        block["tool_use_id"]: _tool_result_text(block)
+        block["tool_use_id"]: (_tool_result_text(block), bool(block.get("is_error", False)))
         for block in _iter_tool_result_blocks(stream_text)
         if isinstance(block.get("tool_use_id"), str)
     }
@@ -630,7 +638,8 @@ def tool_calls_from_stream(stream_text: str) -> list[ToolCall]:
             ToolCall(
                 name=name if isinstance(name, str) and name else "unknown",
                 arguments=dict(raw_input) if isinstance(raw_input, dict) else {},
-                result=results.get(block_id) if isinstance(block_id, str) else None,
+                result=answered[0] if (answered := _answer(results, block_id)) else None,
+                is_error=bool(answered[1]) if answered else False,
             )
         )
     return calls

@@ -78,6 +78,8 @@ from membench.runner.headless_agent import (
     stream_cli_version,
     tool_calls_from_stream,
 )
+from membench.runner.native_memory_hook import hook_reaches as read_hook_reaches
+from membench.runner.native_memory_hook import install_native_memory_hook
 from membench.runner.resume_cache import digest
 from membench.runner.sandbox import assert_corpus_unreachable, paid_sandbox
 from membench.runner.tool_surface import (
@@ -900,6 +902,11 @@ class LegRecord:
     # that function's docstring for why widening the resume identity is a budget ruling and not
     # this module's default. Defaults to "" so every pre-guard row still reads back.
     pin_precedence_fingerprint: str = ""
+    # How many native-memory reaches the PreToolUse hook saw while this leg ran. An INDEPENDENT
+    # instrument, not a second opinion to reconcile: the stream count is what a re-score can
+    # reproduce, and this one is what was observable at the moment of the call — so a leg whose
+    # stream was cut by the timeout bound still says whether the agent turned to the native files.
+    hook_reaches: int = 0
 
     def row(self) -> dict[str, Any]:
         return {
@@ -918,6 +925,7 @@ class LegRecord:
             "truncated": self.truncated,
             "native_memory_pinned_off": self.native_memory_pinned_off,
             "pin_precedence_fingerprint": self.pin_precedence_fingerprint,
+            "hook_reaches": self.hook_reaches,
         }
 
     @property
@@ -1283,6 +1291,7 @@ class _LegOutcome:
     cause: HeadlessAgentError | None = None
     native_memory_pinned_off: bool = False
     pin_precedence_fingerprint: str = ""
+    hook_reaches: int = 0
 
 
 def _run_leg(
@@ -1324,6 +1333,12 @@ def _run_leg(
         settings = rung_settings(rung)
         if settings:
             seed_config_dir(config_dir, settings)
+        # AFTER the seed, and merging into it rather than replacing it: the hook is an instrument
+        # on top of whatever the rung pinned, not a rung of its own. Installed in `observe` mode
+        # for every rung, so it is byte-identical across the ladder and cancels in every contrast;
+        # what it buys is a record of the reach made AT the reach, which a truncated or unscored
+        # leg would otherwise not leave behind.
+        hook_log = install_native_memory_hook(config_dir)
         pinned_off = native_memory_pinned_off(config_dir)
         probe = pin_precedence_fingerprint(cwd=sandbox)
 
@@ -1334,6 +1349,9 @@ def _run_leg(
             return _LegOutcome(
                 native_memory_pinned_off=pinned_off,
                 pin_precedence_fingerprint=probe,
+                # Read HERE rather than at one exit: the log is complete only once the agent has
+                # stopped, and every exit from this leg is after that.
+                hook_reaches=len(read_hook_reaches(hook_log)),
                 **fields,
             )
 
@@ -1529,7 +1547,16 @@ def run_rung_cell(
     verbs: list[str] = []
     step = rung_step(task, rung)
 
+    # Every leg this cell PAYS FOR must leave a record. Counted rather than trusted: the emit
+    # sites are three (ok, unmeasured, quota) and a fourth outcome added without one would drop
+    # its leg silently -- and a leg with no file is a leg that was bought and cannot be re-scored,
+    # which is the entire reason the directory exists. The staged fire's own artifact carries 60
+    # leg files for 160 paid legs, because a RESUMED cell re-runs nothing and emits nothing; the
+    # count below is over the legs this run actually spends, which is the number it can promise.
+    emitted: list[str] = []
+
     def _emit(record: LegRecord) -> None:
+        emitted.append(record.filename)
         if on_leg is not None:
             on_leg(record)
 
@@ -1559,6 +1586,7 @@ def run_rung_cell(
                 detail=outcome.detail,
                 truncated=outcome.truncated,
                 native_memory_pinned_off=outcome.native_memory_pinned_off,
+                hook_reaches=outcome.hook_reaches,
                 pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
             )
         )
@@ -1594,6 +1622,7 @@ def run_rung_cell(
                     detail=outcome.detail,
                     stream=redact_credentials(outcome.stream),
                     native_memory_pinned_off=outcome.native_memory_pinned_off,
+                    hook_reaches=outcome.hook_reaches,
                     pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
                 )
             )
@@ -1631,8 +1660,16 @@ def run_rung_cell(
                 stream=redact_credentials(outcome.stream),
                 cli_version=outcome.cli_version,
                 native_memory_pinned_off=outcome.native_memory_pinned_off,
+                hook_reaches=outcome.hook_reaches,
                 pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
             )
+        )
+    if len(emitted) != repeats:
+        raise RigHaltError(
+            f"{rung}/{task.variant}/{task.work_id}: {repeats} leg(s) paid for but "
+            f"{len(emitted)} recorded ({emitted}). A leg with no record cannot be re-scored, and "
+            "re-scoring is the only thing that makes a paid grid answerable to a question it was "
+            "not fired to answer."
         )
     return RungCell(
         rung=rung,
@@ -1904,6 +1941,12 @@ def staged_plan(
 # only question the grid exists to ask.
 SCOREABLE_VARIANTS: frozenset[str] = frozenset({VARIANT_NECESSARY, VARIANT_UNNECESSARY})
 
+# The floor on tasks per arm. Two, not one: a single task per arm makes the margin a comparison of
+# two individual legs, where task identity and variant are the same axis and nothing separates
+# them. Set here rather than at STAGED_TASKS (8) because that is the SLICE the fire buys, not a
+# statement about what is scoreable -- a 4-task corpus is a small grid, not a broken one.
+MIN_TASKS_PER_ARM = 2
+
 
 class CorpusShapeError(RuntimeError):
     """A corpus that would be priced correctly and spent correctly, and still answer nothing."""
@@ -1928,6 +1971,7 @@ def assert_scoreable_corpus(tasks: Sequence[ToolReqRealAgentTask]) -> None:
     of them would fire on the tests rather than on the spend."""
     observed = {task.variant for task in tasks}
     if observed == SCOREABLE_VARIANTS:
+        _assert_scoreable_geometry(tasks)
         return
     missing = sorted(SCOREABLE_VARIANTS - observed)
     extra = sorted(observed - SCOREABLE_VARIANTS)
@@ -1941,6 +1985,64 @@ def assert_scoreable_corpus(tasks: Sequence[ToolReqRealAgentTask]) -> None:
         f"scores exactly {sorted(SCOREABLE_VARIANTS)}. This grid would price and spend correctly "
         "and still produce no discrimination margin, so it is not bought."
     )
+
+
+def _assert_scoreable_geometry(tasks: Sequence[ToolReqRealAgentTask]) -> None:
+    """Refuse a corpus whose labels are right and whose GEOMETRY is not (mem-7t60p).
+
+    The label set is necessary and not sufficient. Three shapes carry the exact scoreable pair,
+    price correctly, spend the full authorization, and still cannot answer:
+
+    1. DUPLICATE ``(variant, work_id)`` WITHIN ONE ARM. Twin generation keys a cell on that pair,
+       so duplicates collapse onto identical cell keys AFTER the calls are bought -- and
+       ``resume_cells`` REFUSES an artifact carrying duplicate keys. The money is spent into a file
+       the rig will not resume from, which is the worst of the three: not a weak result, an
+       unrecoverable one.
+    2. UNMATCHED ARMS. ``necessary`` keyed n0..n7 against ``unnecessary`` keyed u0..u7 passes the
+       set check and reports a pooled margin in which no task has a twin, confounding task
+       difficulty with the variant effect the margin is read as.
+    3. DEGENERATE COUNTS. 15 necessary against 1 unnecessary reduces the fire to one task per arm,
+       and the margin rests on a single observation per variant.
+
+    All three are currently unreachable through ``load_twin_corpus``, which always emits matched
+    halves. Each becomes reachable on loader drift or an alternate ``--corpus-dir`` on disk, and
+    ``variant`` is an unrestricted ``str``. Found by Codex cross-provider review of 68355a7, which
+    verified 1 and 2 by derivation and priced 3 at 20 calls.
+
+    Split from ``assert_scoreable_corpus`` rather than inlined so the label refusal keeps its own
+    message: "you brought the wrong labels" and "your twins are not twinned" are different repairs
+    for the operator."""
+    by_variant: dict[str, list[str]] = {}
+    for task in tasks:
+        by_variant.setdefault(task.variant, []).append(task.work_id)
+
+    for variant in sorted(by_variant):
+        ids = by_variant[variant]
+        duplicated = sorted({wid for wid in ids if ids.count(wid) > 1})
+        if duplicated:
+            raise CorpusShapeError(
+                f"variant {variant!r} carries duplicate work_ids {duplicated}. The fire buys each "
+                "one and they collapse onto identical cell keys, which resume_cells then refuses: "
+                "the calls are spent into an artifact the rig cannot resume from."
+            )
+
+    keys = {variant: set(ids) for variant, ids in by_variant.items()}
+    necessary, unnecessary = (keys[variant] for variant in sorted(SCOREABLE_VARIANTS))
+    unmatched = sorted(necessary ^ unnecessary)
+    if unmatched:
+        raise CorpusShapeError(
+            f"the two arms are not twinned: work_ids {unmatched} appear in one arm and not the "
+            "other. A margin pooled over unmatched arms confounds task difficulty with the variant "
+            "effect it is read as measuring."
+        )
+
+    per_arm = min(len(ids) for ids in keys.values())
+    if per_arm < MIN_TASKS_PER_ARM:
+        raise CorpusShapeError(
+            f"each arm carries {per_arm} task(s), below the {MIN_TASKS_PER_ARM} this grid needs. "
+            "The fire would price and spend, and its margin would rest on too few observations "
+            "per variant to separate from noise."
+        )
 
 
 def priced_plan(

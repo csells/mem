@@ -49,6 +49,8 @@ from membench.runner.headless_agent import (
     render_cell_calls,
     result_event,
     serialize_stream,
+    tool_calls_from_stream,
+    tool_result_event,
 )
 from membench.runner.metrics import compute_metrics
 from membench.runner.tool_surface import (
@@ -56,10 +58,12 @@ from membench.runner.tool_surface import (
     MEMORY_ALLOWED_TOOLS,
     MEMORY_COMMAND,
     NATIVE_MEMORY_TOOL_NAMES,
+    STORE_FORBIDDEN_GUIDANCE,
     MemoryInvocation,
     MemoryToolError,
     NativeMemoryAccess,
     assert_store_outside,
+    call_satisfied,
     command_segments,
     endogenous_memory_tool_calls,
     endogenous_memory_verbs,
@@ -70,12 +74,14 @@ from membench.runner.tool_surface import (
     memory_verbs_in_command,
     native_memory_accesses,
     native_memory_calls,
+    native_memory_calls_satisfied,
     partition_memory_calls,
     provision_memory_tool,
     recognizer_policy,
     remember_was_a_recall,
     remember_was_accepted,
     resolve_bd_binary,
+    scrub_store_guidance,
     settings_fingerprint,
     surface_fingerprint,
 )
@@ -475,6 +481,109 @@ def test_store_survives_wipe(tmp_path: Path) -> None:
 
 
 @requires_bd
+def test_a_mint_survives_an_initialized_beads_workspace_in_an_ancestor(tmp_path: Path) -> None:
+    """The store is minted under a temp root, so its ancestors include `/tmp` -- and bd discovers
+    its workspace by walking UP from cwd. A stray `bd init` rooted at any ancestor therefore
+    captures every store minted afterwards: init aborts with "This workspace is already
+    initialized" and creates nothing, and the rig has no memory tool at all.
+
+    Not hypothetical. mem-pkglb: a real `bd init` landed at `/tmp` on 2026-09-03 and reddened 57
+    tests until it was removed. It fails closed, so it costs CI time rather than validity -- but a
+    fire that cannot mint a store is a fire that measures wiring.
+
+    The ancestor here is planted INSIDE tmp_path so the test owns it: `tmp_path/.beads` is a real
+    initialized workspace, and the mint root sits under it.
+
+    Survives an isolated revert of the `git init` boundary in `provision_memory_tool`: without it,
+    this raises MemoryToolError and no `.beads` is created under the store."""
+    subprocess.run(
+        [resolve_bd_binary(None), "init", "--prefix", "anc", "--quiet"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    assert (tmp_path / ".beads").is_dir(), "the planted ancestor workspace did not initialize"
+
+    root = tmp_path / "nested" / "surface"
+    root.mkdir(parents=True)
+    surface = provision_memory_tool(root, sandbox=None)
+
+    # The store exists AND is functional -- a `.beads` directory alone would pass while pointing at
+    # the ancestor's database, which is the capture this boundary exists to prevent.
+    assert (surface.store_dir / ".beads").is_dir()
+    harness_call(surface, ["remember", SMOKE_VALUE, "--key", SMOKE_KEY])
+    assert SMOKE_VALUE in harness_call(surface, ["recall", SMOKE_KEY])
+
+
+@requires_bd
+def test_a_minted_store_carries_no_guidance_about_the_memory_tool(tmp_path: Path) -> None:
+    """`bd init` writes `CLAUDE.md`, `AGENTS.md` and a beads skill beside the store, and two of
+    them say "Use `bd remember` for persistent knowledge". That text is the ladder's TOP rung,
+    authored by the tooling, sitting inside an artifact an R0 leg is supposed to reach with no
+    guidance at all -- and the agent holds Read, Bash, and a shim whose body spells the store path.
+
+    Asserts on the store as it actually lands, not on the removal list: a drop-in bd adds in a
+    later release is the case that matters, and only a scan of what survived can see it.
+
+    Survives an isolated revert of the `scrub_store_guidance` call in `provision_memory_tool`."""
+    surface = provision_memory_tool(tmp_path, sandbox=None)
+
+    survivors = [
+        path
+        for path in sorted(surface.store_dir.rglob("*"))
+        if path.is_file() and path.relative_to(surface.store_dir).parts[0] not in {".beads", ".git"}
+    ]
+    assert survivors, "the scrub emptied the store of everything, including its own boundary"
+    for path in survivors:
+        text = path.read_text(encoding="utf-8", errors="replace").lower()
+        for token in STORE_FORBIDDEN_GUIDANCE:
+            assert token not in text, f"{path.relative_to(surface.store_dir)} still names {token}"
+
+    # The store is still a store: neutrality that broke the memory tool would pass the scan above.
+    harness_call(surface, ["remember", SMOKE_VALUE, "--key", SMOKE_KEY])
+    assert SMOKE_VALUE in harness_call(surface, ["recall", SMOKE_KEY])
+
+
+def test_a_guidance_file_the_drop_in_list_does_not_name_is_refused(tmp_path: Path) -> None:
+    """The removal list is a snapshot of what bd wrote on the day it was read. The scan is what
+    makes the guarantee hold across a bd upgrade: a NEW file naming the verbs must stop the run,
+    not be silently provisioned into every leg.
+
+    Refuses rather than removes, deliberately. Deleting an unrecognized file would let the surface
+    drift under the rig without anyone deciding it should.
+
+    Survives an isolated revert of the `rglob` scan in `scrub_store_guidance` (the plant would be
+    provisioned), and of the `STORE_FORBIDDEN_GUIDANCE` loop."""
+    store = tmp_path / "store"
+    (store / ".beads").mkdir(parents=True)
+    (store / ".beads" / "notes.md").write_text("recall whatever", encoding="utf-8")
+    (store / "ONBOARDING.md").write_text(
+        "Keep project memory in beads: use bd remember.", encoding="utf-8"
+    )
+
+    with pytest.raises(MemoryToolError) as raised:
+        scrub_store_guidance(store)
+    assert "ONBOARDING.md" in str(raised.value)
+
+
+def test_an_undecodable_file_in_the_store_is_refused_rather_than_assumed_neutral(
+    tmp_path: Path,
+) -> None:
+    """Fails CLOSED. A file whose bytes will not decode cannot be shown not to instruct the agent,
+    and `UnicodeDecodeError` is not an `OSError`, so an `except OSError` here would let it through
+    as a raw crash rather than a refusal.
+
+    Survives an isolated revert of `UnicodeDecodeError` out of the except clause."""
+    store = tmp_path / "store"
+    store.mkdir(parents=True)
+    (store / "notes.bin").write_bytes(b"\xff\xfe\x00remember\x80")
+
+    with pytest.raises(MemoryToolError) as raised:
+        scrub_store_guidance(store)
+    assert "notes.bin" in str(raised.value)
+
+
+@requires_bd
 def test_provisioned_shim_is_executable_and_pins_the_store(tmp_path: Path) -> None:
     surface = provision_memory_tool(tmp_path, sandbox=None)
     shim = surface.bin_dir / MEMORY_COMMAND
@@ -839,6 +948,81 @@ def test_native_memory_access_is_recognized_under_the_pinned_config_dir(tmp_path
     accesses = native_memory_accesses(calls, config_dir=config)
     assert [a.verb for a in accesses] == ["native_read"]
     assert native_memory_calls(calls, config_dir=config) == 1
+
+
+def test_a_read_the_harness_answered_with_an_error_reached_but_obtained_nothing(
+    tmp_path: Path,
+) -> None:
+    """The staged fire's read endpoint, exactly: 59 of 59 native reads were answered "File does
+    not exist" and every one was published as `native_read`. The reach is real and must stay
+    counted -- the agent DID turn to memory, which is the behaviour the ladder moves -- but it is
+    not evidence memory was used, and one number cannot carry both facts.
+
+    Survives an isolated revert of `satisfied=call_satisfied(call)` in `native_memory_accesses`
+    (the errored read would count as obtained), and of `call_satisfied` returning `not
+    call.is_error`."""
+    config = tmp_path / "config"
+    memory = config / "projects" / "-tmp" / "memory"
+    memory.mkdir(parents=True)
+    missed = ToolCall(
+        name="Read",
+        arguments={"file_path": str(memory / "MEMORY.md")},
+        result="File does not exist.",
+        is_error=True,
+    )
+    got = ToolCall(
+        name="Read",
+        arguments={"file_path": str(memory / "notes.md")},
+        result="the deploy port is 48317",
+    )
+
+    assert [a.satisfied for a in native_memory_accesses([missed], config_dir=config)] == [False]
+    assert native_memory_calls([missed], config_dir=config) == 1
+    assert native_memory_calls_satisfied([missed], config_dir=config) == 0
+
+    both = [missed, got]
+    assert native_memory_calls(both, config_dir=config) == 2
+    assert native_memory_calls_satisfied(both, config_dir=config) == 1
+
+
+def test_a_call_the_stream_never_answered_is_unobserved_not_failed(tmp_path: Path) -> None:
+    """A stream truncated before the tool returned carries no answer. That is a different fact
+    from an error, and collapsing it to "not satisfied" would report a definite failure the run
+    never observed.
+
+    Survives an isolated revert of the `call.result is None` branch in `call_satisfied` to
+    `return not call.is_error`."""
+    config = tmp_path / "config"
+    memory = config / "projects" / "-tmp" / "memory"
+    memory.mkdir(parents=True)
+    unanswered = _read_call(str(memory / "MEMORY.md"))
+    assert unanswered.result is None
+
+    assert [a.satisfied for a in native_memory_accesses([unanswered], config_dir=config)] == [None]
+    assert native_memory_calls([unanswered], config_dir=config) == 1
+    assert native_memory_calls_satisfied([unanswered], config_dir=config) == 0
+
+
+def test_the_stream_parser_carries_the_tool_results_error_flag() -> None:
+    """`satisfied` is only as good as the flag it reads, and that flag was being dropped on the
+    floor: `tool_calls_from_stream` joined the result TEXT and discarded `is_error`.
+
+    Survives an isolated revert of `is_error=` in `tool_calls_from_stream`'s `ToolCall(...)`."""
+    stream = serialize_stream(
+        [
+            assistant_event(
+                [
+                    ("Read", {"file_path": "a"}, "t1"),
+                    ("Read", {"file_path": "b"}, "t2"),
+                ]
+            ),
+            tool_result_event("t1", "File does not exist.", is_error=True),
+            tool_result_event("t2", "the port is 48317"),
+            result_event(),
+        ]
+    )
+    calls = tool_calls_from_stream(stream)
+    assert [(c.is_error, call_satisfied(c)) for c in calls] == [(True, False), (False, True)]
 
 
 def test_a_settings_read_under_the_config_dir_is_not_a_memory_call(tmp_path: Path) -> None:

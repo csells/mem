@@ -214,3 +214,16 @@ def multi_value_corpus(
         json.dumps([toolreq_seq_two_subjects(seq_id).model_dump()]), encoding="utf-8"
     )
     return load_corpus_with_sequences(corpus_dir)
+
+
+def corpus_scoreable(
+    tmp_path: Path,
+) -> tuple[list[BenchmarkSequence], list[ToolReqRealAgentTask]]:
+    """The smallest frozen corpus a PAID entry will accept: two work_ids, so each arm carries two
+    tasks and clears ``MIN_TASKS_PER_ARM``.
+
+    ``corpus_one`` cannot be used to drive a paid entrypoint any more. It seeds one work_id, so
+    every arm holds a single task and the geometry guard refuses the fire before any other guard
+    is reached — a test aimed at a different refusal would then assert its own message against the
+    geometry message and fail for a reason that has nothing to do with what it is testing."""
+    return corpus(tmp_path, "w-0", "w-1")

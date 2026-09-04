@@ -16,6 +16,11 @@ class ToolCall(BaseModel):
     name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
     result: str | None = None
+    # The `tool_result` block's own `is_error`. Structural, not a read of the result prose: a
+    # reach that the harness answered with an error obtained nothing, and a recognizer that
+    # cannot tell the two apart reports "the agent used memory" for 59 reads of a file that did
+    # not exist.
+    is_error: bool = False
     latency_ms: float = 0.0
     is_memory_tool: bool = False
 

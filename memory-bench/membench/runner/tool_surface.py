@@ -335,6 +335,87 @@ BD_VALUE_FLAGS: frozenset[str] = frozenset(
 STORE_SCOPE = "external-per-repeat-tempdir"
 STORE_PREFIX = "membench-memory-"
 
+# `bd init` does not only create a store. It also drops agent-instruction files into the same
+# directory — `CLAUDE.md` and `AGENTS.md` both say "Use `bd remember` for persistent knowledge —
+# do NOT use MEMORY.md files", and `.agents/skills/beads/SKILL.md` teaches the verbs outright.
+# That is the STRONGEST rung of the guidance ladder, written into the artifact by the tooling,
+# and it sits there at R0 where the design says the agent is told nothing at all. An agent that
+# reaches any of it is no longer on the rung the run reports.
+#
+# Scrubbed rather than tolerated-because-unreachable: reachability is not a property this rig
+# controls. The shim on PATH spells the store path in its own body, the agent holds Read and
+# Bash, and "it probably will not look" is the kind of assumption that turns a treatment leak
+# into a published number. `.beads` (the store) and `.git` (the workspace boundary) stay.
+STORE_AGENT_DROP_INS: tuple[str, ...] = (
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".agents",
+    ".claude",
+    ".codex",
+    ".cursor",
+)
+
+# What must not survive the scrub anywhere in the store outside `.beads`/`.git`. Deliberately the
+# verbs themselves: a drop-in this rig has not seen yet is still a leak if it names them, and the
+# check has to fail on the file bd adds NEXT release, not only on the ones enumerated above.
+STORE_FORBIDDEN_GUIDANCE: tuple[str, ...] = ("remember", "recall", "memories")
+
+# --------------------------------------------------------------------------------------
+# native-memory interception (the PreToolUse hook)
+# --------------------------------------------------------------------------------------
+#
+# The question this answers: CAN the harness see, at the moment it happens, that the agent is
+# about to reach for the CLI's own memory files, and say "call bd instead"? A stream-scored leg
+# answers it only afterwards, and only for legs that survived to be scored.
+#
+# It is a `PreToolUse` hook seeded into the leg's own `CLAUDE_CONFIG_DIR`, so it lives and dies
+# with the leg. Two modes, and the difference between them is the difference between an
+# instrument and a treatment:
+#
+#   observe  -- appends one JSON line per reach and exits 0. The call proceeds untouched and the
+#               agent is told nothing, so the leg still measures the agent's own disposition. This
+#               is what a ladder rung may run under.
+#   redirect -- exits 2 with the reason on stderr, which the CLI feeds back to the model and the
+#               call does not happen. That is GUIDANCE delivered at the moment of the reach, and
+#               a stronger rung than R4's block: it arrives when it is acted on rather than at the
+#               top of the prompt. A ladder that mixed it into one rung would publish an
+#               intervention as a disposition, so it is opt-in, never the default, and the mode is
+#               in `recognizer_policy` (below) precisely so a resume cannot serve one mode's legs
+#               for the other's.
+NATIVE_MEMORY_HOOK_EVENT = "PreToolUse"
+# Every tool a native-memory access can arrive through — the file tools and Bash, i.e. exactly
+# the surface `native_memory_accesses` recognises. Kept as a tuple and rendered into the settings
+# matcher, so the hook cannot come to watch a different set than the recognizer scores.
+NATIVE_MEMORY_HOOK_TOOLS: tuple[str, ...] = (
+    *NATIVE_MEMORY_TOOL_NAMES,
+    NATIVE_MEMORY_BASH_TOOL,
+)
+NATIVE_MEMORY_HOOK_SCRIPT_NAME = "native-memory-hook.py"
+NATIVE_MEMORY_HOOK_LOG_NAME = "native-memory-reaches.jsonl"
+NATIVE_MEMORY_HOOK_MODE_OBSERVE = "observe"
+NATIVE_MEMORY_HOOK_MODE_REDIRECT = "redirect"
+NATIVE_MEMORY_HOOK_MODES: tuple[str, ...] = (
+    NATIVE_MEMORY_HOOK_MODE_OBSERVE,
+    NATIVE_MEMORY_HOOK_MODE_REDIRECT,
+)
+# What a paid grid installs unless it says otherwise. `observe`: the instrument, not the
+# treatment.
+NATIVE_MEMORY_HOOK_MODE_DEFAULT = NATIVE_MEMORY_HOOK_MODE_OBSERVE
+# The text `redirect` puts on stderr. It names the command and the verbs, which is why it is
+# guidance and why it is a policy constant: change the wording and every leg run under it is a
+# different treatment, so the fingerprint has to move with it.
+NATIVE_MEMORY_HOOK_REDIRECT_REASON = (
+    "This project's memory does not live in these files. Use the `{command}` command for "
+    "memory instead: `{command} {write} <text>` to record something and `{command} {read} "
+    "<query>` to look something up."
+)
+# The hook's own exit codes. 2 is the CLI's "block this tool call and show the model stderr";
+# 0 is "proceed". A hook that failed for its own reasons must not silently become a block, so
+# the script's own faults exit 0 and leave a `hook_error` line in the log.
+NATIVE_MEMORY_HOOK_EXIT_ALLOW = 0
+NATIVE_MEMORY_HOOK_EXIT_BLOCK = 2
+
+
 # The bd a shim wraps, overridable so an operator can pin a patched build (the beads_ordering rig
 # pins its own binary this way) without editing code.
 ENV_BD_BINARY = "MEMBENCH_BD_BINARY"
@@ -766,8 +847,9 @@ _POLICY_PREFIXES: tuple[str, ...] = (
 # RECOGNIZER LOGIC THAT IS NOT A CONSTANT (review G5). History: 1 = the F2 path-decided
 # recognizer; 2 = G1 (mutating writes, wrapper option values), G2 (every operand anchors inside
 # the pin), G3 (non-accessing command operands); 3 = H1 (inside the pin only PATH operands
-# anchor: value words and leading value operands are policy-enumerated and never anchored).
-RECOGNIZER_IMPLEMENTATION_VERSION = 3
+# anchor: value words and leading value operands are policy-enumerated and never anchored);
+# 4 = every access carries `satisfied`, so a leg scores reached-for and obtained separately.
+RECOGNIZER_IMPLEMENTATION_VERSION = 4
 
 
 def _policy_value(name: str, value: object) -> object:
@@ -922,6 +1004,28 @@ def provision_memory_tool(
         assert_store_outside(sandbox, store_dir)
     binary = resolve_bd_binary(bd_binary, refuse_under=bin_dir)
 
+    # A workspace BOUNDARY, planted before `bd init` so the store cannot be captured by somebody
+    # else's workspace. bd discovers its workspace by walking UP from cwd, and an initialized
+    # `.beads` in ANY ancestor makes init abort ("This workspace is already initialized") without
+    # creating a store. Every store this rig mints lives under a temp root, so the ancestor set
+    # includes `/tmp` — and a stray `bd init` rooted there (which has happened: mem-pkglb, 57 red
+    # tests) captures every store minted afterwards.
+    #
+    # A `.git` at the store stops that walk. It is not an addition to the artifact: `bd init`
+    # creates one here anyway, so this only moves it EARLIER, to before the discovery that needs
+    # it. `BEADS_DIR` and `-C` were both measured and neither stops the walk (init consults
+    # discovery before either); `--reinit-local` exits 0 while creating no `.beads` at all.
+    run_checked(
+        ["git", "init", "--quiet", str(store_dir)],
+        what="git init (memory tool store workspace boundary)",
+        not_found_hint="install git — without a boundary the store is captured by any ancestor "
+        "`.beads` workspace and `bd init` refuses to create it",
+        timeout_s=PROVISION_TIMEOUT_S,
+        error=MemoryToolError,
+        runner=runner,
+        cwd=store_dir,
+    )
+
     run_checked(
         [binary, "init", "--prefix", "mem", "--quiet"],
         what=f"{binary} init (memory tool store)",
@@ -933,6 +1037,8 @@ def provision_memory_tool(
         cwd=store_dir,
     )
 
+    scrub_store_guidance(store_dir)
+
     shim = bin_dir / MEMORY_COMMAND
     shim.write_text(f'#!/bin/sh\nexec "{binary}" -C "{store_dir}" "$@"\n', encoding="utf-8")
     shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -943,6 +1049,48 @@ def provision_memory_tool(
         mcp_config=mcp_config,
         config_dir=config_dir,
     )
+
+
+def scrub_store_guidance(store_dir: Path) -> list[str]:
+    """Remove the agent-instruction drop-ins `bd init` leaves beside the store, and REFUSE if any
+    guidance survives. Returns the relative names actually removed.
+
+    Fails closed on an unreadable file: a byte sequence that cannot be decoded cannot be shown not
+    to name the verbs, and the whole point of the check is that an unexamined file is a treatment
+    of unknown strength. `.beads` and `.git` are skipped by name — the store's own records legibly
+    contain whatever the harness seeded, and refusing on them would refuse every run."""
+    removed: list[str] = []
+    for name in STORE_AGENT_DROP_INS:
+        target = store_dir / name
+        if target.is_dir():
+            shutil.rmtree(target)
+            removed.append(name)
+        elif target.exists():
+            target.unlink()
+            removed.append(name)
+
+    for path in sorted(store_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(store_dir)
+        if relative.parts[0] in {".beads", ".git"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8").lower()
+        except (OSError, UnicodeDecodeError) as exc:
+            raise MemoryToolError(
+                f"{relative}: survives in the minted store and cannot be read ({exc}), so it "
+                "cannot be shown not to instruct the agent about the memory tool. A store that "
+                "carries guidance is the ladder's top rung written into the artifact."
+            ) from exc
+        for token in STORE_FORBIDDEN_GUIDANCE:
+            if token in text:
+                raise MemoryToolError(
+                    f"{relative}: the minted store still names `{token}`. `bd init` writes agent "
+                    "instructions beside the store; extend STORE_AGENT_DROP_INS to remove this "
+                    "one. Left in place it is guidance the R0 leg was never supposed to receive."
+                )
+    return removed
 
 
 def harness_call(
@@ -1417,6 +1565,12 @@ class NativeMemoryAccess:
     # a whitespace split instead. The access stands — the path is in the command — but a reader
     # knows the direction and segment structure were not vouched for by the shell's own grammar.
     tokenizer_failed: bool = False
+    # Whether the call this access came from was ANSWERED, or answered with an error. A reach is
+    # not an acquisition: 59 of the staged fire's 59 native reads were answered "File does not
+    # exist" and were still published as `native_read`, which reads as "the agent used its memory"
+    # for a file that was never there. ``None`` means the stream carried no answer at all (a
+    # truncated stream) and is deliberately distinct from ``False``: unobserved is not failed.
+    satisfied: bool | None = None
 
     @property
     def is_read(self) -> bool:
@@ -1678,7 +1832,9 @@ def _pinned_paths(
     ]
 
 
-def _bash_accesses(command: str, *, config_dir: Path, call_index: int) -> list[NativeMemoryAccess]:
+def _bash_accesses(
+    command: str, *, config_dir: Path, call_index: int, satisfied: bool | None
+) -> list[NativeMemoryAccess]:
     """Every native-memory access one shell command makes, segment by segment.
 
     Expansion is of the pinned variable only and is NOT quote-aware: `'$CLAUDE_CONFIG_DIR/...'`
@@ -1715,9 +1871,28 @@ def _bash_accesses(command: str, *, config_dir: Path, call_index: int) -> list[N
                         is_write=use.is_write,
                         call_index=call_index,
                         tokenizer_failed=tokenizer_failed,
+                        satisfied=satisfied,
                     )
                 )
     return found
+
+
+def call_satisfied(call: ToolCall) -> bool | None:
+    """Whether the harness answered this call with something other than an error.
+
+    Reads the stream's OWN ``is_error`` flag, never the result prose — a substring rule over an
+    error message is exactly the semantic heuristic this layer is not allowed to carry, and it
+    would move with every wording change upstream. ``None`` when the stream recorded no answer.
+
+    Necessary, not sufficient, and the gap is not the same on both surfaces. For the file tools a
+    read of an absent path IS flagged, which is the case this exists for. For ``Bash`` the flag
+    follows the exit status, so a miss swallowed by a pipe (`cat missing 2>&1 | head`) arrives
+    ``is_error=false`` — the same hole ``tool_result_event`` documents for bd refusals (mem-8fv4t).
+    So a ``False`` here is proof nothing was obtained; a ``True`` is only the absence of proof
+    that nothing was."""
+    if call.result is None:
+        return None
+    return not call.is_error
 
 
 def native_memory_accesses(
@@ -1735,7 +1910,14 @@ def native_memory_accesses(
     found: list[NativeMemoryAccess] = []
     for index, call in enumerate(calls):
         if call.name == NATIVE_MEMORY_BASH_TOOL:
-            found.extend(_bash_accesses(_command_of(call), config_dir=config_dir, call_index=index))
+            found.extend(
+                _bash_accesses(
+                    _command_of(call),
+                    config_dir=config_dir,
+                    call_index=index,
+                    satisfied=call_satisfied(call),
+                )
+            )
             continue
         if call.name not in NATIVE_MEMORY_TOOL_NAMES:
             continue
@@ -1748,6 +1930,7 @@ def native_memory_accesses(
                 path=path,
                 is_write=call.name in NATIVE_MEMORY_WRITE_TOOLS,
                 call_index=index,
+                satisfied=call_satisfied(call),
             )
         )
     return found
@@ -1759,6 +1942,24 @@ def native_memory_calls(calls: Iterable[ToolCall], *, config_dir: Path | None) -
     ``endogenous_memory_tool_calls``'s block-not-verb rule so the two are summable.
     """
     return len({a.call_index for a in native_memory_accesses(calls, config_dir=config_dir)})
+
+
+def native_memory_calls_satisfied(calls: Iterable[ToolCall], *, config_dir: Path | None) -> int:
+    """How many of the calls that reached the native surface actually GOT something — the harness
+    answered them without an error.
+
+    Published alongside ``native_memory_calls``, never instead of it. Both numbers are wanted and
+    they answer different questions: the reach count is the behavioural endpoint (did the agent
+    turn to memory), and this one is whether the surface had anything to give. Reporting only the
+    first turned 59 reads of an absent file into evidence of memory use; reporting only the second
+    would erase the reach, which is the thing the ladder moves."""
+    return len(
+        {
+            access.call_index
+            for access in native_memory_accesses(calls, config_dir=config_dir)
+            if access.satisfied is True
+        }
+    )
 
 
 def memory_reaching_calls(calls: Sequence[ToolCall], *, config_dir: Path | None) -> int:

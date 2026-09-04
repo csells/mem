@@ -44,7 +44,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from membench.generators.enterprise_workflow import fact_value
+from membench.generators.enterprise_workflow import fact_subject, fact_value
 from membench.metrics.scorers import states_value
 from membench.runner.toolreq_realagent import (
     DEFAULT_CORPUS,
@@ -116,22 +116,30 @@ def unnecessary_twin(task: ToolReqRealAgentTask) -> ToolReqRealAgentTask:
             f"{task.work_id}: necessary task scores no current value, so its unnecessary "
             "twin would withhold the same value it is supposed to state"
         )
-    # SORTED, not in the action's authored order, and only at >1 value does the difference
-    # exist at all. The necessary request names its subjects in an order the materialiser chose
-    # ("apply the current value of: <p1>, <p2>."); ``arg_values`` is authored separately and is
-    # not promised to follow it. Emitting the values in authored order next to that subject list
-    # therefore IMPLIES a positional pairing nothing guarantees, and a wrong implied pairing is
-    # worse than none: it invites the agent to attach a value to the wrong subject in exactly the
-    # half that is supposed to be the easy one. A canonical order states no mapping at all, which
-    # is the truth, and matches ``task_fingerprint``'s own treatment of these values as unordered.
+    # SUBJECT-LABELLED, and each label comes from the FACT that carries the value, never from
+    # the position the request happens to name its subjects in. The distinction is the whole
+    # correction here. The request's subject list and ``arg_values`` are authored separately, so
+    # pairing them positionally would state a mapping nothing guarantees, and a wrong mapping is
+    # worse than none. ``fact_subject`` reads the pairing off the same template ``fact_value``
+    # reads the value off, so the label is the one the corpus actually authored.
     #
-    # No mapping is NEEDED to solve the twin: the bridged instruction asks for "the required
-    # current value(s)" in one file, and ``score_goal_action`` tests membership of every
-    # ``arg_values`` entry, never their order or their attachment to a subject.
-    values = sorted(
-        {*task.current_opaque_values, *(fact_value(c) for c in task.oracle_memory.values())}
+    # Bare values were the first cut, on the argument that a canonical order "states no mapping
+    # at all, which is the truth". The truth was not the problem: legibility was. An unlabelled
+    # `- toolreq-efc91a631a8d` under "Current state:" does not read as a VALUE, it reads as an
+    # identifier FOR one, and the arm built to be the easy half refused 40 legs out of 40. A
+    # value the agent will not recognise as a value is not an inlined value.
+    #
+    # A current value with no backing fact still renders bare — there is no authored subject to
+    # name — and the lines are sorted as rendered, so the order stays canonical either way.
+    subject_of = {
+        fact_value(content): fact_subject(content) for content in task.oracle_memory.values()
+    }
+    values = sorted({*task.current_opaque_values, *subject_of})
+    lines = sorted(
+        f"- {subject_of[value]} is {value}" if value in subject_of else f"- {value}"
+        for value in values
     )
-    block = "\n".join([CONTEXT_HEADING, *(f"- {value}" for value in values)])
+    block = "\n".join([CONTEXT_HEADING, *lines])
     request = task.goal_step.user_request + CONTEXT_SEPARATOR + block
     for value in values:
         if not states_value(request, value):

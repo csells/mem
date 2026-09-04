@@ -150,6 +150,19 @@ def fact_value(content: str) -> str:
     return match.group("value")
 
 
+def fact_subject(content: str) -> str:
+    """The SUBJECT a ``_fact``-shaped memory content states a value for — the same
+    format-anchored parse as ``fact_value``, off the template's other named group.
+
+    The unnecessary twin needs it to say WHICH subject each value it inlines belongs to. Without
+    it the twin can only emit a bare list of opaque tokens, which does not read as a set of
+    values at all."""
+    match = _FACT_RE.fullmatch(content)
+    if match is None:
+        raise ValueError(f"not a fact-shaped memory content: {content!r}")
+    return match.group("prompt")
+
+
 def _assert_no_forbidden_value_leak(
     forbidden_values: list[str], surfaced_contents: list[str]
 ) -> None:

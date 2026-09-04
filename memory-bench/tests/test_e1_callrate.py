@@ -70,7 +70,7 @@ from membench.runner.tool_surface import surface_fingerprint
 from membench.runner.toolreq_corpus import load_twin_corpus
 from membench.runner.toolreq_realagent import VARIANT_NECESSARY, VARIANT_UNNECESSARY
 from membench.spawn import with_child
-from tests.toolreq_helpers import corpus_one, noop_cli_runner
+from tests.toolreq_helpers import corpus_one, corpus_scoreable, noop_cli_runner
 
 MODEL = "claude-test-model-1"
 
@@ -1642,7 +1642,7 @@ def test_fire_staged_resumes_from_its_own_out_file(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
-    _seqs, _tasks = corpus_one(tmp_path)
+    _seqs, _tasks = corpus_scoreable(tmp_path)
     out = tmp_path / "partial.json"
     cell = _cell("R0", VARIANT_NECESSARY, calling=1, work_id="w-0")
     summary = _identified([cell])
@@ -1663,7 +1663,7 @@ def test_a_fire_publishes_the_grid_it_ran_and_the_legs_under_it(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     out = tmp_path / "summary.json"
     code = e1_grid.main(
@@ -1685,17 +1685,20 @@ def test_a_fire_publishes_the_grid_it_ran_and_the_legs_under_it(
     assert printed["corpus_fingerprint"] == corpus_fingerprint(twins)
     assert printed["rungs"] == ["R0", "R4"]
     # Both halves of the twin, at both ends of the ladder: the grid the fire actually buys.
+    work_ids = sorted({task.work_id for task in tasks})
     assert [(row["rung"], row["variant"]) for row in printed["cells"]] == [
         (rung, variant)
         for rung in ("R0", "R4")
         for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        for _work_id in work_ids
     ]
     assert not (tmp_path / "summary.json.lock").exists()
     legs = sorted(path.name for path in (tmp_path / "summary.json.legs").iterdir())
     assert legs == sorted(
-        f"{rung}__{variant}__{tasks[0].work_id}__0.json"
+        f"{rung}__{variant}__{work_id}__0.json"
         for rung in ("R0", "R4")
         for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        for work_id in work_ids
     )
 
 
@@ -1711,7 +1714,7 @@ def test_a_resumed_fire_publishes_the_grid_order_not_the_order_it_bought_them_in
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     _, twins = load_twin_corpus(tmp_path / "corpus")
     work_id = tasks[0].work_id
@@ -1753,12 +1756,13 @@ def test_a_resumed_fire_publishes_the_grid_order_not_the_order_it_bought_them_in
         (rung, variant)
         for rung in ("R0", "R4")
         for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        for _work_id in tasks
     ]
     assert [(row["rung"], row["variant"]) for row in printed["cells"]] == grid_order
     # The whole point: the file and the pipe agree, and both hold the grid.
     assert json.loads(out.read_text(encoding="utf-8")) == printed
-    # Only the two R0 cells were bought; the R4 pair came back from the artifact untouched.
-    assert sum(1 for row in printed["cells"] if row["rung"] == "R4") == 2
+    # Only the R0 cells were bought; the R4 half came back from the artifact untouched.
+    assert sum(1 for row in printed["cells"] if row["rung"] == "R4") == 2 * len(tasks)
 
 
 def test_a_halt_on_the_very_first_cell_still_leaves_an_artifact(
@@ -1772,7 +1776,7 @@ def test_a_halt_on_the_very_first_cell_still_leaves_an_artifact(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, _tasks = corpus_one(tmp_path)
+    _seqs, _tasks = corpus_scoreable(tmp_path)
 
     def refuse_immediately(task: Any, **kwargs: Any) -> RungCell:
         raise e1_grid.QuotaHaltError("the account refused the call")
@@ -1810,7 +1814,7 @@ def test_a_quota_refusal_mid_fire_keeps_what_it_bought(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     made = _fake_cells(tasks)
 
     def quota_on_the_second(task: Any, **kwargs: Any) -> RungCell:
@@ -1834,7 +1838,8 @@ def test_a_quota_refusal_mid_fire_keeps_what_it_bought(
     assert code == e1_grid.EXIT_HALT
     assert "HALT" in capsys.readouterr().err
     kept = json.loads(out.read_text(encoding="utf-8"))
-    assert [row["rung"] for row in kept["cells"]] == ["R0", "R0"]
+    # Two work_ids per arm (`corpus_scoreable`), so a rung is four cells, not two.
+    assert [row["rung"] for row in kept["cells"]] == ["R0"] * 4
     assert kept["cli_version"] == "9.9.9"
     assert not (tmp_path / "summary.json.lock").exists()
 
@@ -2296,7 +2301,7 @@ def test_fire_staged_without_an_out_refuses_before_it_spends(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     spent = {"legs": 0}
 
     def counting(task: Any, **kwargs: Any) -> RungCell:
@@ -2324,7 +2329,7 @@ def test_a_resume_keeps_the_provenance_the_prior_artifact_carried(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     _, twins = load_twin_corpus(tmp_path / "corpus")
     landed = RungCell(
@@ -2373,7 +2378,7 @@ def test_a_resume_keeps_the_provenance_the_prior_artifact_carried(
     assert json.loads(out.read_text(encoding="utf-8"))["identity_backfilled"] == note
     # And the carry does not fabricate the fields `summarize` owns.
     assert printed["cli_version"] == "9.9.9"
-    assert len(printed["cells"]) == len(STAGED_RUNGS) * 2
+    assert len(printed["cells"]) == len(STAGED_RUNGS) * 2 * 2
 
 
 def test_a_halt_leaves_out_holding_the_grid_the_resume_will_start_from(
@@ -2392,7 +2397,7 @@ def test_a_halt_leaves_out_holding_the_grid_the_resume_will_start_from(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     _, twins = load_twin_corpus(tmp_path / "corpus")
     work_id = tasks[0].work_id
 
@@ -2501,8 +2506,12 @@ def test_r0_pins_native_memory_off_in_its_minted_config_dir(tmp_path: Any) -> No
         runner=runner,
         on_leg=legs.append,
     )
-    assert [s["settings"] for s in seen] == [{"autoMemoryEnabled": False}] * 2
-    assert [s["entries"] for s in seen] == [["settings.json"]] * 2
+    assert [s["settings"]["autoMemoryEnabled"] for s in seen] == [False, False]
+    # The interception hook rides on top of the pin at every rung, so the dir is no longer bare.
+    # The pin surviving the hook install is the load-bearing half of this: an install that had
+    # REPLACED settings.json rather than merged into it would drop exactly this key, on exactly
+    # the rung whose job is to run without it.
+    assert [s["entries"] for s in seen] == [["native-memory-hook.py", "settings.json"]] * 2
     assert cell.native_memory_pinned_off is True
     assert [leg.native_memory_pinned_off for leg in legs] == [True, True]
     assert legs[0].row()["native_memory_pinned_off"] is True
@@ -2518,7 +2527,14 @@ def test_the_guided_rungs_mint_an_empty_config_dir(tmp_path: Any, rung: str) -> 
     cell = e1_grid.run_rung_cell(
         tasks[0], rung=rung, repeats=1, model=MODEL, dry_run=False, runner=runner
     )
-    assert seen == [{"entries": [], "settings": None}]
+    # No `autoMemoryEnabled` key at all: these rungs measure guidance ON TOP OF the CLI's own
+    # memory system, and a pin would change what they measure. The interception hook is present
+    # here as it is at R0 — byte-identical across the ladder but for the tempdir path it names, so
+    # it cancels in every contrast rather than becoming a rung of its own.
+    (witnessed,) = seen
+    assert list(witnessed["settings"]) == ["hooks"]
+    assert e1_grid.NATIVE_MEMORY_SETTING not in witnessed["settings"]
+    assert witnessed["entries"] == ["native-memory-hook.py", "settings.json"]
     assert cell.native_memory_pinned_off is False
 
 
@@ -2764,7 +2780,7 @@ def test_fire_staged_buys_the_slice_the_stage_flag_names(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     out = tmp_path / "interior.json"
     code = e1_grid.main(
@@ -2788,9 +2804,10 @@ def test_fire_staged_buys_the_slice_the_stage_flag_names(
         (rung, variant)
         for rung in ("R1", "R2", "R3")
         for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        for _work_id in range(2)
     ]
     legs = sorted(path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir())
-    assert legs == ["R1", "R1", "R2", "R2", "R3", "R3"]
+    assert legs == ["R1"] * 4 + ["R2"] * 4 + ["R3"] * 4
 
 
 def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interior(
@@ -2803,18 +2820,18 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     _, twins = load_twin_corpus(tmp_path / "corpus")
-    work_id = tasks[0].work_id
     out = tmp_path / "summary.json"
     out.write_text(
         json.dumps(
             summarize(
                 [
-                    _cell(rung, variant, calling=1, runs=1, work_id=work_id)
+                    _cell(rung, variant, calling=1, runs=1, work_id=task.work_id)
                     for rung in ("R0", "R4")
                     for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+                    for task in tasks
                 ],
                 model=MODEL,
                 dry_run=False,
@@ -2842,7 +2859,10 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
     captured = capsys.readouterr()
     printed = json.loads(captured.out)
     assert [(row["rung"], row["variant"]) for row in printed["cells"]] == [
-        (rung, variant) for rung in RUNG_IDS for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        (rung, variant)
+        for rung in RUNG_IDS
+        for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+        for _work_id in tasks
     ]
     # Only the interior was bought: a leg file exists for R1-R3 and for nothing else.
     legs = sorted({path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir()})
@@ -2851,9 +2871,10 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
     # rungs x 1 task x 1 repeat x 2 halves) while this fire buys 6, so an operator reading
     # `firing.calls` alone would over-state the spend by 4 on the workflow this bead exists for.
     announced = json.loads(captured.err[captured.err.index("{") : captured.err.rindex("}") + 1])
-    assert announced["firing"]["calls"] == 10
-    assert announced["resumed_cells"] == 4
-    assert announced["remaining_calls"] == 6
+    # 5 rungs x 2 work_ids x 1 repeat x 2 halves = 20; the landed ends are 8 of those cells.
+    assert announced["firing"]["calls"] == 20
+    assert announced["resumed_cells"] == 8
+    assert announced["remaining_calls"] == 12
 
 
 def test_an_ends_artifact_is_refused_by_the_interior_stage(
@@ -2866,7 +2887,7 @@ def test_an_ends_artifact_is_refused_by_the_interior_stage(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
     monkeypatch.setattr(e1_grid, "STAGED_REPEATS", 1)
-    _seqs, tasks = corpus_one(tmp_path)
+    _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     _, twins = load_twin_corpus(tmp_path / "corpus")
     out = tmp_path / "summary.json"
@@ -3017,7 +3038,7 @@ def test_the_plan_only_guidance_names_the_flags_that_actually_spend(
     free dry run would bill them or could not find the command that bills."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
-    corpus_one(tmp_path)
+    corpus_scoreable(tmp_path)
     # No token, no --model, and it still succeeds: that is the behavior the text has to describe.
     assert e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged"]) == e1_grid.EXIT_OK
     assert e1_grid.main(["--corpus-dir", str(tmp_path / "corpus")]) == e1_grid.EXIT_OK
@@ -3059,7 +3080,7 @@ def test_the_preflight_refuses_a_stage_it_would_ignore(
     """``--preflight`` runs the ONE rung named by ``--rung``; ``--stage`` names a ladder slice that
     only ``--staged`` and ``--fire-staged`` read. Accepting it here was inert on a path that spends
     real money, which invites the reading that the interior was preflighted."""
-    corpus_one(tmp_path)
+    corpus_scoreable(tmp_path)
     with pytest.raises(SystemExit) as exc:
         e1_grid.main(
             [
@@ -3085,25 +3106,99 @@ class _Variant:
         self.work_id = work_id
 
 
+def _twinned(n: int) -> list[_Variant]:
+    """``n`` tasks per arm, each `work_id` appearing once in EACH arm and once only.
+
+    A helper rather than `[nec, unnec] * n`, which was what the guard test used before the
+    geometry check landed: repeating the same object list gives every arm the same `work_id` n
+    times, which is the duplicate-key hazard mem-7t60p is about, not a bigger corpus."""
+    return [
+        _Variant(variant, f"w-{i}")
+        for i in range(n)
+        for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
+    ]
+
+
 def test_a_corpus_that_cannot_produce_a_margin_is_refused() -> None:
     """`discrimination_margins` compares P(call | necessary) against P(call | unnecessary), so a
     corpus that is not exactly that pair prices correctly, spends the full authorization, and
     yields an artifact with no d() in it. The refusal names what it observed."""
-    both = [_Variant(VARIANT_NECESSARY), _Variant(VARIANT_UNNECESSARY)]
+    both = _twinned(2)
     assert assert_scoreable_corpus(both) is None
-    # Repeats of the same two labels are still the scoreable pair.
-    assert assert_scoreable_corpus(both * 4) is None
+    # More matched twins are still the scoreable pair.
+    assert assert_scoreable_corpus(_twinned(8)) is None
 
     with pytest.raises(CorpusShapeError) as one_half:
         assert_scoreable_corpus([_Variant(VARIANT_NECESSARY)] * 8)
     assert VARIANT_UNNECESSARY in str(one_half.value)
 
     with pytest.raises(CorpusShapeError) as third:
-        assert_scoreable_corpus([*both, _Variant("ambiguous")])
+        assert_scoreable_corpus([*both, _Variant("ambiguous", "w-9")])
     assert "ambiguous" in str(third.value)
 
     with pytest.raises(CorpusShapeError):
         assert_scoreable_corpus([])
+
+
+def test_duplicate_work_ids_within_one_arm_are_refused() -> None:
+    """The worst of the three geometry hazards, because the loss is unrecoverable rather than
+    weak. Cells key on `(variant, work_id)`. Duplicates inside one arm pass the label check, get
+    BOUGHT, then collapse onto identical keys in the artifact -- and `resume_cells` refuses an
+    artifact with duplicate keys. Up to 160 paid calls land in a file the rig will not resume from.
+
+    Sharing a `work_id` ACROSS the two arms is the intended pairing and must stay legal; this
+    asserts both halves of that distinction.
+
+    Survives an isolated revert of the duplicate loop in `_assert_scoreable_geometry`."""
+    twins = _twinned(3)
+    assert assert_scoreable_corpus(twins) is None
+
+    with pytest.raises(CorpusShapeError) as dup:
+        assert_scoreable_corpus(
+            [
+                *twins,
+                _Variant(VARIANT_NECESSARY, "w-1"),
+                _Variant(VARIANT_UNNECESSARY, "w-3"),
+            ]
+        )
+    assert "w-1" in str(dup.value)
+    # It names the refusal's consequence, because the operator's repair depends on it: this one is
+    # not "your grid is weak", it is "your money lands somewhere unresumable".
+    assert "resume" in str(dup.value)
+
+
+def test_unmatched_arms_are_refused() -> None:
+    """necessary keyed n0..n2 against unnecessary keyed u0..u2 carries the exact scoreable pair and
+    the same count in each arm, so both the label check and the count floor pass. No task has a
+    twin, and the pooled margin then confounds task difficulty with the variant effect it is read
+    as measuring -- a plausible number that answers a different question.
+
+    Survives an isolated revert of the symmetric-difference check to `pass`."""
+    with pytest.raises(CorpusShapeError) as unmatched:
+        assert_scoreable_corpus(
+            [_Variant(VARIANT_NECESSARY, f"n-{i}") for i in range(3)]
+            + [_Variant(VARIANT_UNNECESSARY, f"u-{i}") for i in range(3)]
+        )
+    message = str(unmatched.value)
+    assert "n-0" in message and "u-0" in message
+    assert "confound" in message
+
+
+def test_a_single_task_per_arm_is_refused() -> None:
+    """15 necessary and 1 unnecessary passes the label check, and `per_variant_task_count` then
+    reduces the whole fire to one task per arm: a priced 20-call plan whose margin rests on one
+    observation per variant, where task identity and variant are the same axis.
+
+    The floor is 2, not `STAGED_TASKS`: a 4-task corpus is a small grid, not a broken one, and a
+    guard that refused it would refuse legitimate work.
+
+    Survives an isolated revert of the `per_arm` floor check."""
+    with pytest.raises(CorpusShapeError) as degenerate:
+        assert_scoreable_corpus([*_twinned(1)])
+    assert "1 task(s)" in str(degenerate.value)
+
+    # Exactly at the floor is allowed -- the refusal is below it, not at it.
+    assert assert_scoreable_corpus(_twinned(2)) is None
 
 
 def test_the_shape_guard_is_not_wired_into_the_derivations() -> None:
@@ -3126,7 +3221,7 @@ def test_a_one_half_corpus_refuses_the_fire_before_the_first_leg(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     monkeypatch.setattr(e1_grid, "resolve_cli_version", lambda: "9.9.9")
-    seqs, tasks = corpus_one(tmp_path)
+    seqs, tasks = corpus_scoreable(tmp_path)
     # `corpus_one` loads the authored half only; `load_twin_corpus` is what mints the twin. So
     # this IS the one-half shape, and stubbing the loader is how it reaches the paid entries.
     assert {t.variant for t in tasks} == {VARIANT_NECESSARY}
@@ -3154,7 +3249,7 @@ def test_pricing_a_corpus_the_fire_would_refuse_is_still_allowed(
 ) -> None:
     """`--staged` prices and spends nothing, so a shape it cannot buy is still a number worth
     printing — the guard must not turn a free disclosure into a refusal."""
-    seqs, tasks = corpus_one(tmp_path)
+    seqs, tasks = corpus_scoreable(tmp_path)
     assert {t.variant for t in tasks} == {VARIANT_NECESSARY}
     monkeypatch.setattr(e1_grid, "load_twin_corpus", lambda _dir: (seqs, tasks))
     code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
@@ -3221,7 +3316,7 @@ def test_an_env_inlet_the_child_still_sees_refuses_the_fire(
     and of `env_inlets_present` returning [] (the fire would run)."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token-for-refusal-test")
-    _seqs, _tasks = corpus_one(tmp_path)
+    _seqs, _tasks = corpus_scoreable(tmp_path)
 
     def landmine(*_args: object, **_kwargs: object) -> NoReturn:
         raise AssertionError("a refused fire spawned a claude -p")
@@ -3459,7 +3554,7 @@ def test_a_policy_drop_in_file_carrying_the_setting_refuses_the_fire(
     Survives an isolated revert of the `assert_pin_precedence` call added to `main`'s paid block."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token-for-policy-test")
-    _seqs, _tasks = corpus_one(tmp_path)
+    _seqs, _tasks = corpus_scoreable(tmp_path)
     drop_in = empty_policy_root / "managed-settings.d"
     drop_in.mkdir(parents=True)
     (drop_in / "10-memory.json").write_text(
