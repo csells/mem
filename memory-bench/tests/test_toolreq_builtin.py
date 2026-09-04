@@ -59,11 +59,11 @@ from membench.runner.toolreq_builtin import (
     BuiltinDiagnostics,
     _establish_step,
     _memory_engaged,
-    _wipe_cwd_contents,
     cell_calls,
     cell_legs,
     run_builtin_arm,
     simulated_builtin_runner,
+    wipe_cwd_contents,
 )
 from membench.runner.toolreq_realagent import (
     ToolReqRealAgentTask,
@@ -1950,7 +1950,7 @@ def _ancestor_scavenging_runner(value: str, *, plant: bool):
     accounting is blind to, and the reason the guard is fail-closed rather than recorded.
 
     ``plant`` makes the unclamped establish leg write that ancestor file itself (the
-    between-legs window ``_wipe_cwd_contents`` covers for the cwd but structurally cannot
+    between-legs window ``wipe_cwd_contents`` covers for the cwd but structurally cannot
     cover for a parent); otherwise the ancestor is the operator's, via ``TMPDIR``."""
 
     def run(argv, **kwargs):
@@ -1984,7 +1984,7 @@ def _ancestor_scavenging_runner(value: str, *, plant: bool):
 
 def test_wipe_cannot_reach_an_ancestor_claude_md(tmp_path: Path) -> None:
     # Locks the STRUCTURAL claim that makes the ancestor guard a separate defense rather
-    # than a wider wipe: `_wipe_cwd_contents` iterates cwd.iterdir(), which by construction
+    # than a wider wipe: `wipe_cwd_contents` iterates cwd.iterdir(), which by construction
     # never ascends. Emptying the cwd is still right (the slug, hence the memory path, must
     # survive) — it just cannot be where the parent chain is handled.
     ancestor = tmp_path / "CLAUDE.md"
@@ -1993,7 +1993,7 @@ def test_wipe_cannot_reach_an_ancestor_claude_md(tmp_path: Path) -> None:
     sandbox.mkdir()
     (sandbox / "CLAUDE.md").write_text("in the cwd", encoding="utf-8")
 
-    _wipe_cwd_contents(sandbox)
+    wipe_cwd_contents(sandbox)
 
     assert list(sandbox.iterdir()) == []  # the cwd channel: closed
     assert ancestor.is_file()  # the ancestor channel: untouched, and unreachable from here
@@ -2033,7 +2033,7 @@ def test_an_establish_leg_that_plants_an_ancestor_claude_md_cannot_reach_the_goa
 ) -> None:
     # The construction-time scan is not enough on its own. The establish leg is
     # deliberately unclamped (available_tools=[], so no --allowedTools), which is why
-    # `_wipe_cwd_contents` runs BETWEEN the legs rather than at construction — and the same
+    # `wipe_cwd_contents` runs BETWEEN the legs rather than at construction — and the same
     # window is open one directory up, where the wipe cannot reach. A leg that writes an
     # ancestor CLAUDE.md *and* engages native memory would otherwise publish as SEPARATES
     # (engaged=True, pass), the exact silent inflation this arm exists to avoid. So the

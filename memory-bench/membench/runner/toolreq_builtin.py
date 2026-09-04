@@ -179,7 +179,7 @@ def mechanism_fingerprint() -> str:
     return digest(BUILTIN_SETTINGS)
 
 
-def _wipe_cwd_contents(cwd: Path) -> None:
+def wipe_cwd_contents(cwd: Path) -> None:
     """Empty the shared sandbox cwd between the establish and goal legs, closing the
     scavenge channel that ``--allowedTools`` cannot (an auto-loaded ``CLAUDE.md`` is not a
     Read tool call). The DIRECTORY survives: native memory is keyed on the cwd slug, so
@@ -362,7 +362,7 @@ def run_builtin_arm(
             # does not. Engagement is read above, off the config dir, so the wipe cannot
             # affect it. This is why the legs are a PAIR and not a loop, and why their order
             # is a measured input (`cell_legs`).
-            _wipe_cwd_contents(sandbox)
+            wipe_cwd_contents(sandbox)
 
             # The wipe's blind spot, one directory up (docstring step 2). Re-scanned rather
             # than trusted from the mint: refusing here costs the establish call, already

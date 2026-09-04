@@ -415,9 +415,9 @@ def test_run_rung_cell_counts_reading_and_writing_legs_separately(tmp_path: Any)
         dry_run=False,
         runner=_calling_runner(("bd remember 'a value' --key k", REMEMBERED)),
     )
-    assert (necessary.reading_runs, necessary.writing_runs) == (2, 2)
-    assert (unnecessary.reading_runs, unnecessary.writing_runs) == (0, 2)
-    assert (necessary.calling_runs, unnecessary.calling_runs) == (2, 2)
+    assert (necessary.reading_runs, necessary.writing_runs) == (4, 4)
+    assert (unnecessary.reading_runs, unnecessary.writing_runs) == (0, 4)
+    assert (necessary.calling_runs, unnecessary.calling_runs) == (4, 4)
     cells = [necessary, unnecessary]
     assert discrimination_margins(cells) == {"R2": pytest.approx(1.0)}
     assert discrimination_margins(cells, kind="call") == {"R2": pytest.approx(0.0)}
@@ -489,7 +489,7 @@ def test_preflight_runs_at_the_top_rung_and_has_no_free_path() -> None:
 
 
 def test_staged_plan_is_priced_not_quoted() -> None:
-    """T=8, R=5, the two ends of the ladder, both corpus halves: 160 real calls."""
+    """T=8, R=5, the two ends of the ladder, both corpus halves, two legs a cell: 320 calls."""
     assert STAGED_RUNGS == ("R0", "R4")
     plan = staged_plan(n_tasks_per_variant=64, n_variants=2)
     assert plan == {
@@ -498,14 +498,14 @@ def test_staged_plan_is_priced_not_quoted() -> None:
         "n_tasks": STAGED_TASKS,
         "repeats": STAGED_REPEATS,
         "n_variants": 2,
-        "calls": 160,
+        "calls": 320,
         "halt_rule": plan["halt_rule"],
     }
     assert "ZERO" in plan["halt_rule"] or "zero" in plan["halt_rule"]
     # Priced by product over what is actually run, so adding a rung moves the disclosed cost.
-    assert planned_call_count(rungs=RUNG_IDS, n_tasks=8, repeats=5, n_variants=2) == 400
+    assert planned_call_count(rungs=RUNG_IDS, n_tasks=8, repeats=5, n_variants=2) == 800
     # A corpus smaller than the staged size is priced at the corpus, never at the constant.
-    assert staged_plan(n_tasks_per_variant=3, n_variants=2)["calls"] == 60
+    assert staged_plan(n_tasks_per_variant=3, n_variants=2)["calls"] == 120
 
 
 def test_cli_refuses_to_spend_without_a_pinned_model(
@@ -620,11 +620,11 @@ def test_run_rung_cell_counts_the_memory_calls_its_stream_carries(tmp_path: Any)
             ("bd remember 'a value' --key k", REMEMBERED), "bd recall k", "bd recall other"
         ),
     )
-    assert cell.runs == 2
-    assert cell.calling_runs == 2
-    assert cell.memory_calls == 6
-    assert cell.read_calls == 4
-    assert cell.write_calls == 2
+    assert cell.runs == 4
+    assert cell.calling_runs == 4
+    assert cell.memory_calls == 12
+    assert cell.read_calls == 8
+    assert cell.write_calls == 4
     assert set(cell.verbs) == {"remember", "recall"}
     assert cell.paid is False
 
@@ -664,11 +664,11 @@ def test_a_native_memory_reach_counts_as_a_memory_call(tmp_path: Any) -> None:
     cell = e1_grid.run_rung_cell(
         tasks[0], rung="R4", repeats=1, model=MODEL, dry_run=False, runner=_native_reach_runner()
     )
-    assert cell.memory_calls == 1
-    assert cell.calling_runs == 1
-    assert cell.read_calls == 1
+    assert cell.memory_calls == 2
+    assert cell.calling_runs == 2
+    assert cell.read_calls == 2
     assert cell.write_calls == 0
-    assert list(cell.verbs) == ["native_read"]
+    assert list(cell.verbs) == ["native_read", "native_read"]
 
 
 def _bash_reach_runner(template: str) -> Any:
@@ -710,9 +710,9 @@ def test_a_bash_reach_into_the_native_memory_file_counts_by_direction(
         dry_run=False,
         runner=_bash_reach_runner(template),
     )
-    assert (cell.memory_calls, cell.calling_runs) == (1, 1)
-    assert (cell.read_calls, cell.write_calls) == (reads, writes)
-    assert list(cell.verbs) == verbs
+    assert (cell.memory_calls, cell.calling_runs) == (2, 2)
+    assert (cell.read_calls, cell.write_calls) == (2 * reads, 2 * writes)
+    assert list(cell.verbs) == verbs * 2
 
 
 def test_a_bash_call_that_runs_bd_and_cats_the_memory_file_is_one_memory_call(
@@ -729,9 +729,9 @@ def test_a_bash_call_that_runs_bd_and_cats_the_memory_file_is_one_memory_call(
         dry_run=False,
         runner=_bash_reach_runner("bd recall k; cat {m}"),
     )
-    assert (cell.memory_calls, cell.calling_runs) == (1, 1)
-    assert (cell.read_calls, cell.write_calls) == (2, 0)
-    assert list(cell.verbs) == ["recall", "native_read"]
+    assert (cell.memory_calls, cell.calling_runs) == (2, 2)
+    assert (cell.read_calls, cell.write_calls) == (4, 0)
+    assert list(cell.verbs) == ["recall", "native_read"] * 2
 
 
 def test_a_bash_command_that_mentions_memory_but_touches_no_pinned_path_is_not_a_call(
@@ -870,9 +870,9 @@ def test_a_timed_out_leg_is_scored_from_its_partial_stream_and_stays_unmeasured(
         runner=_partial_stream_runner(1, partial.encode() if encode else partial),
         on_leg=legs.append,
     )
-    # The cell: two measured legs, one call each. The timed-out leg's two calls are NOT in here.
-    assert (cell.runs, cell.timed_out_runs, cell.measured_runs) == (3, 1, 2)
-    assert (cell.calling_runs, cell.memory_calls, cell.read_calls) == (2, 2, 2)
+    # The cell: five measured legs, one call each. The timed-out leg's two calls are NOT in here.
+    assert (cell.runs, cell.timed_out_runs, cell.measured_runs) == (6, 1, 5)
+    assert (cell.calling_runs, cell.memory_calls, cell.read_calls) == (5, 5, 5)
     assert cell.call_rate == pytest.approx(1.0)
     # The leg: scored, persisted with its events, marked truncated.
     truncated = legs[1]
@@ -882,7 +882,7 @@ def test_a_timed_out_leg_is_scored_from_its_partial_stream_and_stays_unmeasured(
     assert list(truncated.verbs) == ["recall", "recall"]
     assert "bd recall other" in truncated.stream
     assert "did not finish" in truncated.detail
-    assert [leg.truncated for leg in legs] == [False, True, False]
+    assert [leg.truncated for leg in legs] == [False, True, False, False, False, False]
 
 
 def test_a_leg_cannot_reach_the_corpus_from_its_env_or_its_cwd_tree(
@@ -919,7 +919,7 @@ def test_a_leg_cannot_reach_the_corpus_from_its_env_or_its_cwd_tree(
         runner=capturing,
         corpus_dir=tmp_path / "corpus",
     )
-    assert len(seen) == 2
+    assert len(seen) == 4
     for leg in seen:
         assert leg["env"]["PWD"] == str(leg["cwd"])
         for key, value in leg["env"].items():
@@ -1007,12 +1007,12 @@ def test_the_paid_spawn_starts_the_child_in_its_own_session(
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "t")
     cell = e1_grid.run_rung_cell(tasks[0], rung="R0", repeats=1, model=MODEL, dry_run=False)
     assert cell.paid is True
-    assert len(seen) == 1 and seen[0][0].endswith("claude")
+    assert len(seen) == 2 and all(argv[0].endswith("claude") for argv in seen)
 
 
 def test_a_timed_out_leg_is_unmeasured_not_a_non_calling_run(tmp_path: Any) -> None:
-    """Three legs, the middle one times out, the other two call: the rate is 2/2, not 2/3, and
-    the timeout is REPORTED on the cell rather than folded into the zero side of the rate."""
+    """Six legs, one times out, the other five call: the rate is 5/5, not 5/6, and the timeout is
+    REPORTED on the cell rather than folded into the zero side of the rate."""
     _seqs, tasks = corpus_one(tmp_path)
     cell = e1_grid.run_rung_cell(
         tasks[0],
@@ -1022,10 +1022,10 @@ def test_a_timed_out_leg_is_unmeasured_not_a_non_calling_run(tmp_path: Any) -> N
         dry_run=False,
         runner=_timing_out_runner({1}, "bd recall k"),
     )
-    assert cell.runs == 3
+    assert cell.runs == 6
     assert cell.timed_out_runs == 1
-    assert cell.measured_runs == 2
-    assert cell.calling_runs == 2
+    assert cell.measured_runs == 5
+    assert cell.calling_runs == 5
     assert cell.call_rate == pytest.approx(1.0)
     assert cell.work_id == tasks[0].work_id
     assert cell.metrics()["timed_out_runs"] == 1
@@ -1048,9 +1048,9 @@ def test_an_isolated_failed_leg_is_unmeasured_and_kept_apart_from_a_timeout(
     cell = e1_grid.run_rung_cell(
         tasks[0], rung="R0", repeats=3, model=MODEL, dry_run=False, runner=flaky
     )
-    assert (cell.runs, cell.errored_runs, cell.timed_out_runs) == (3, 1, 0)
-    assert cell.measured_runs == 2
-    assert cell.calling_runs == 2
+    assert (cell.runs, cell.errored_runs, cell.timed_out_runs) == (6, 1, 0)
+    assert cell.measured_runs == 5
+    assert cell.calling_runs == 5
     assert cell.call_rate == pytest.approx(1.0)
     assert cell.metrics()["errored_runs"] == 1
 
@@ -1080,7 +1080,7 @@ def test_consecutive_failed_legs_halt_rather_than_filling_the_grid(tmp_path: Any
     cell = e1_grid.run_rung_cell(
         tasks[0], rung="R0", repeats=5, model=MODEL, dry_run=False, runner=every_other
     )
-    assert (cell.errored_runs, cell.measured_runs, cell.calling_runs) == (2, 3, 3)
+    assert (cell.errored_runs, cell.measured_runs, cell.calling_runs) == (5, 5, 5)
 
 
 def test_a_quota_refusal_halts_the_fire_and_is_read_off_the_stream_not_the_message(
@@ -1264,7 +1264,7 @@ def test_staged_cells_keeps_landed_cells_and_buys_only_the_rest(tmp_path: Any) -
     assert [c.key for c in cells] == [("R0", *key), ("R4", *key)]
     assert cells[0] is prior
     assert cells[1].memory_calls == 0
-    assert len(spawned) == 1
+    assert len(spawned) == e1_grid.LEGS_PER_CELL
 
 
 IDENTITY = {"cli_version": "9.9.9", "corpus": "corpus-abc", "repeats": 5}
@@ -1474,8 +1474,8 @@ def test_every_leg_is_persisted_with_the_stream_it_was_counted_from(tmp_path: An
         runner=_timing_out_runner({1}, "bd recall k", ("bd remember k=v", "Remembered [k]: v")),
         on_leg=legs.append,
     )
-    assert [leg.status for leg in legs] == ["ok", "timeout", "ok"]
-    assert [leg.leg for leg in legs] == [0, 1, 2]
+    assert [leg.status for leg in legs] == ["ok", "timeout", "ok", "ok", "ok", "ok"]
+    assert [leg.leg for leg in legs] == [0, 1, 2, 3, 4, 5]
     assert {leg.work_id for leg in legs} == {tasks[0].work_id}
     ok = [leg for leg in legs if leg.status == "ok"]
     # The legs RECONSTRUCT the cell: same calls, same read/write split. A per-leg record that
@@ -1505,7 +1505,7 @@ def test_a_refused_bd_remember_is_a_memory_call_but_never_a_write(tmp_path: Any)
         dry_run=False,
         runner=_calling_runner((REFUSED_REMEMBER_LIST, REFUSED_REMEMBER_LIST_RESULT)),
     )
-    assert (cell.memory_calls, cell.calling_runs) == (1, 1)
+    assert (cell.memory_calls, cell.calling_runs) == (2, 2)
     assert cell.write_calls == 0
     assert cell.read_calls == 0
 
@@ -1523,8 +1523,8 @@ def test_an_acknowledged_bd_remember_is_scored_a_write(tmp_path: Any) -> None:
         dry_run=False,
         runner=_calling_runner(("bd remember 'a value' --key k", REMEMBERED)),
     )
-    assert (cell.memory_calls, cell.calling_runs) == (1, 1)
-    assert cell.write_calls == 1
+    assert (cell.memory_calls, cell.calling_runs) == (2, 2)
+    assert cell.write_calls == 2
     assert cell.read_calls == 0
 
 
@@ -1543,7 +1543,7 @@ def test_a_bare_key_bd_remember_that_bd_recalled_is_scored_a_read(tmp_path: Any)
         dry_run=False,
         runner=_calling_runner(("bd remember k", recalled)),
     )
-    assert (cell.memory_calls, cell.read_calls, cell.write_calls) == (1, 1, 0)
+    assert (cell.memory_calls, cell.read_calls, cell.write_calls) == (2, 2, 0)
 
 
 def test_a_bd_remember_with_no_tool_result_in_the_stream_is_not_a_write(tmp_path: Any) -> None:
@@ -1558,7 +1558,7 @@ def test_a_bd_remember_with_no_tool_result_in_the_stream_is_not_a_write(tmp_path
         dry_run=False,
         runner=_calling_runner("bd remember 'a value' --key k"),
     )
-    assert (cell.memory_calls, cell.write_calls) == (1, 0)
+    assert (cell.memory_calls, cell.write_calls) == (2, 0)
 
 
 def test_a_json_acknowledged_bd_remember_is_scored_a_write(tmp_path: Any) -> None:
@@ -1573,7 +1573,7 @@ def test_a_json_acknowledged_bd_remember_is_scored_a_write(tmp_path: Any) -> Non
         dry_run=False,
         runner=_calling_runner(("bd remember 'a value' --key k --json", ack)),
     )
-    assert cell.write_calls == 1
+    assert cell.write_calls == 2
 
 
 def test_a_secret_in_a_leg_stream_is_redacted_before_it_is_persisted(tmp_path: Any) -> None:
@@ -1913,11 +1913,11 @@ def test_a_leg_that_exits_zero_declaring_its_own_failure_is_unmeasured_not_silen
     cell = e1_grid.run_rung_cell(
         tasks[0], rung="R0", repeats=3, model=MODEL, dry_run=False, runner=mixed
     )
-    assert cell.runs == 3
+    assert cell.runs == 6
     assert cell.errored_runs == 1
     assert cell.timed_out_runs == 0
-    assert cell.measured_runs == 2
-    assert cell.calling_runs == 2
+    assert cell.measured_runs == 5
+    assert cell.calling_runs == 5
     assert cell.call_rate == pytest.approx(1.0)
 
 
@@ -1981,7 +1981,7 @@ def test_alternating_failures_halt_even_though_neither_kind_repeats(tmp_path: An
 
 
 def test_a_measured_leg_clears_the_streak(tmp_path: Any) -> None:
-    """Two failures, a good leg, two more failures: five legs, four unmeasured, no halt.
+    """Two failures, a good leg, two more failures, a good leg: six legs, four unmeasured, no halt.
 
     The limit is CONSECUTIVE, and a rig that still returns streams is flaky, not broken. Without
     the reset a merely flaky account halts a fire that was working."""
@@ -1992,17 +1992,17 @@ def test_a_measured_leg_clears_the_streak(tmp_path: Any) -> None:
     def flaky(argv: Any, **kwargs: object) -> subprocess.CompletedProcess[str]:
         i = legs["n"]
         legs["n"] += 1
-        if i == 2:
+        if i in (2, 5):
             result: subprocess.CompletedProcess[str] = calling(argv, **kwargs)
             return result
         raise HeadlessAgentError("claude -p failed (exit 1): transient")
 
     cell = e1_grid.run_rung_cell(
-        tasks[0], rung="R0", repeats=5, model=MODEL, dry_run=False, runner=flaky
+        tasks[0], rung="R0", repeats=3, model=MODEL, dry_run=False, runner=flaky
     )
     assert cell.errored_runs == 4
-    assert cell.measured_runs == 1
-    assert cell.calling_runs == 1
+    assert cell.measured_runs == 2
+    assert cell.calling_runs == 2
 
 
 def test_the_unmeasured_streak_survives_a_cell_boundary(tmp_path: Any) -> None:
@@ -2153,7 +2153,7 @@ def test_leg_evidence_keeps_the_whole_stream_not_a_head_and_tail(tmp_path: Any) 
         runner=runner,
         on_leg=legs.append,
     )
-    assert cell.memory_calls == 1
+    assert cell.memory_calls == 2
     kept = legs[0].stream
     assert "bd recall k" in kept
     # The whole stream, so a re-count off the archive reproduces the counter that ran.
@@ -2238,7 +2238,7 @@ def test_a_binary_that_changes_mid_sweep_halts(tmp_path: Any) -> None:
         runner=_calling_runner("bd recall k"),
         expect_cli_version="2.1.258",
     )
-    assert quiet.measured_runs == 1
+    assert quiet.measured_runs == 2
 
 
 def test_a_grid_that_measured_one_rung_does_not_publish_a_passing_monotonicity() -> None:
@@ -2287,7 +2287,7 @@ def test_the_plan_prices_the_smaller_variant_half() -> None:
     # Priced per variant, and the plan doubles it back for the two halves.
     assert (
         staged_plan(n_tasks_per_variant=1, n_variants=2)["calls"]
-        == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2
+        == len(STAGED_RUNGS) * 1 * STAGED_REPEATS * 2 * e1_grid.LEGS_PER_CELL
     )
 
 
@@ -2506,14 +2506,14 @@ def test_r0_pins_native_memory_off_in_its_minted_config_dir(tmp_path: Any) -> No
         runner=runner,
         on_leg=legs.append,
     )
-    assert [s["settings"]["autoMemoryEnabled"] for s in seen] == [False, False]
+    assert [s["settings"]["autoMemoryEnabled"] for s in seen] == [False] * 4
     # The interception hook rides on top of the pin at every rung, so the dir is no longer bare.
     # The pin surviving the hook install is the load-bearing half of this: an install that had
     # REPLACED settings.json rather than merged into it would drop exactly this key, on exactly
     # the rung whose job is to run without it.
-    assert [s["entries"] for s in seen] == [["native-memory-hook.py", "settings.json"]] * 2
+    assert [s["entries"] for s in seen] == [["native-memory-hook.py", "settings.json"]] * 4
     assert cell.native_memory_pinned_off is True
-    assert [leg.native_memory_pinned_off for leg in legs] == [True, True]
+    assert [leg.native_memory_pinned_off for leg in legs] == [True] * 4
     assert legs[0].row()["native_memory_pinned_off"] is True
 
 
@@ -2531,7 +2531,11 @@ def test_the_guided_rungs_mint_an_empty_config_dir(tmp_path: Any, rung: str) -> 
     # memory system, and a pin would change what they measure. The interception hook is present
     # here as it is at R0 — byte-identical across the ladder but for the tempdir path it names, so
     # it cancels in every contrast rather than becoming a rung of its own.
-    (witnessed,) = seen
+    # Both legs of the repeat, and the same minted dir under each: the pair shares one store, so
+    # a witness that differed between them would mean the goal leg was pinned to a dir the
+    # establish leg never wrote to, and the write channel the pair exists for would be gone.
+    witnessed, second = seen
+    assert witnessed == second
     assert list(witnessed["settings"]) == ["hooks"]
     assert e1_grid.NATIVE_MEMORY_SETTING not in witnessed["settings"]
     assert witnessed["entries"] == ["native-memory-hook.py", "settings.json"]
@@ -2578,7 +2582,7 @@ def test_legs_that_disagree_about_the_pin_halt_and_keep_what_was_paid_for(
             runner=runner,
             on_leg=legs.append,
         )
-    assert [leg.native_memory_pinned_off for leg in legs] == [True, False]
+    assert [leg.native_memory_pinned_off for leg in legs] == [True, True, False, False]
 
 
 def test_the_pin_is_read_back_off_disk_not_off_the_intent(tmp_path: Any) -> None:
@@ -2730,14 +2734,14 @@ def test_the_authorized_ladder_slices_are_a_frozen_table() -> None:
 def test_staged_plan_prices_the_slice_it_is_asked_for() -> None:
     """The disclosed cost is a product over the rungs actually run, so naming a slice moves it."""
     assert staged_plan(n_tasks_per_variant=64, n_variants=2)["stage"] == "ends"
-    assert staged_plan(n_tasks_per_variant=64, n_variants=2)["calls"] == 160
+    assert staged_plan(n_tasks_per_variant=64, n_variants=2)["calls"] == 320
     interior = staged_plan(n_tasks_per_variant=64, n_variants=2, stage="interior")
     assert interior["stage"] == "interior"
     assert interior["rungs"] == ["R1", "R2", "R3"]
-    assert interior["calls"] == 240
+    assert interior["calls"] == 480
     full = staged_plan(n_tasks_per_variant=64, n_variants=2, stage="full")
     assert full["rungs"] == list(RUNG_IDS)
-    assert full["calls"] == 400
+    assert full["calls"] == 800
     # Every slice's rule turns on R4, and the two that buy an interior rung before observing it
     # extend the ends sentence rather than restating it. See the prerequisite test below.
     ends_rule = str(staged_plan(n_tasks_per_variant=64, n_variants=2)["halt_rule"])
@@ -2766,9 +2770,10 @@ def test_the_priced_plan_and_the_fired_plan_count_the_same_grid(
     code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
     assert code == e1_grid.EXIT_OK
     priced = json.loads(capsys.readouterr().out)["staged_plan"]
-    # One task per variant is what the fire slices to, so 2 rungs x 1 task x 5 repeats x 2 halves.
+    # One task per variant is what the fire slices to: 2 rungs x 1 task x 5 repeats x 2 halves x
+    # 2 legs a cell.
     assert priced["n_tasks"] == 1
-    assert priced["calls"] == 20
+    assert priced["calls"] == 40
     # And it is the SAME plan object the fire path prices its spend from.
     assert priced == e1_grid.priced_plan(uneven)
 
@@ -2867,14 +2872,15 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
     # Only the interior was bought: a leg file exists for R1-R3 and for nothing else.
     legs = sorted({path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir()})
     assert legs == ["R1", "R2", "R3"]
-    # And the fire disclosed the residual, not the whole slice's price. `plan.calls` is 10 (5
-    # rungs x 1 task x 1 repeat x 2 halves) while this fire buys 6, so an operator reading
-    # `firing.calls` alone would over-state the spend by 4 on the workflow this bead exists for.
+    # And the fire disclosed the residual, not the whole slice's price. `plan.calls` prices the
+    # whole slice while this fire buys only the unlanded cells, so an operator reading
+    # `firing.calls` alone would over-state the spend on the workflow this bead exists for.
     announced = json.loads(captured.err[captured.err.index("{") : captured.err.rindex("}") + 1])
-    # 5 rungs x 2 work_ids x 1 repeat x 2 halves = 20; the landed ends are 8 of those cells.
-    assert announced["firing"]["calls"] == 20
+    # 5 rungs x 2 work_ids x 1 repeat x 2 halves x 2 legs = 40; the landed ends are 8 cells,
+    # which is 16 of those calls.
+    assert announced["firing"]["calls"] == 40
     assert announced["resumed_cells"] == 8
-    assert announced["remaining_calls"] == 12
+    assert announced["remaining_calls"] == 24
 
 
 def test_an_ends_artifact_is_refused_by_the_interior_stage(
@@ -2938,9 +2944,10 @@ def test_the_plan_path_prices_every_authorized_slice(
     plan = json.loads(capsys.readouterr().out)
     assert set(plan["staged_plans"]) == {"ends", "interior", "full"}
     assert plan["staged_plans"]["ends"]["rungs"] == ["R0", "R4"]
-    # Hand-written: `corpus_one` is 1 task per variant, so 2/3/5 rungs x 1 x 5 repeats x 2 halves.
+    # Hand-written: `corpus_one` is 1 task per variant, so 2/3/5 rungs x 1 x 5 repeats x 2 halves
+    # x 2 legs a cell.
     calls = [plan["staged_plans"][s]["calls"] for s in ("ends", "interior", "full")]
-    assert calls == [20, 30, 50]
+    assert calls == [40, 60, 100]
     # And the partition holds in the prices, not just in the rung table.
     assert calls[2] == calls[0] + calls[1]
 
@@ -2991,11 +2998,14 @@ def test_pricing_counts_the_variant_labels_the_corpus_actually_has(tmp_path: Any
                 tasks, rungs=e1_grid.staged_rungs(stage), n_tasks=int(plan["n_tasks"])
             )
             assert plan["n_variants"] == len(variants), (shape, stage)
-            assert plan["calls"] == len(spent) * STAGED_REPEATS, (shape, stage)
+            assert plan["calls"] == len(spent) * STAGED_REPEATS * e1_grid.LEGS_PER_CELL, (
+                shape,
+                stage,
+            )
         ends_calls[shape] = int(e1_grid.priced_plan(tasks)["calls"])
     # Hand-written, so the loop above is comparing two different derivations and not one constant
-    # to itself: 2 ends rungs x 3 tasks x 5 repeats, times the labels the corpus carries.
-    assert ends_calls == {"twin": 60, "one half only": 30, "a third label": 90}
+    # to itself: 2 ends rungs x 3 tasks x 5 repeats x 2 legs, times the labels the corpus carries.
+    assert ends_calls == {"twin": 120, "one half only": 60, "a third label": 180}
 
 
 def test_the_halt_rule_is_a_prerequisite_on_the_slices_that_cannot_enforce_it(
@@ -3363,8 +3373,8 @@ def test_an_inlet_in_the_parent_env_is_scrubbed_from_the_child_and_does_not_refu
     cell = e1_grid.run_rung_cell(
         tasks[0], rung="R0", repeats=2, model=MODEL, dry_run=False, runner=capturing
     )
-    assert cell.measured_runs == 2
-    assert len(seen) == 2
+    assert cell.measured_runs == 4
+    assert len(seen) == 4
     for env in seen:
         # Assert on the INTERSECTION, never on the env dict itself. A bare `name not in env`
         # asserts against the whole child environment, so pytest's assertion rewriting dumps that
@@ -3630,7 +3640,7 @@ def test_the_guard_fingerprint_rides_on_the_leg_and_stays_out_of_the_resume_iden
         runner=calling,
         on_leg=legs.append,
     )
-    assert len(legs) == 1
+    assert len(legs) == e1_grid.LEGS_PER_CELL
     assert legs[0].pin_precedence_fingerprint
     assert legs[0].row()["pin_precedence_fingerprint"] == legs[0].pin_precedence_fingerprint
 

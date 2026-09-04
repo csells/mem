@@ -103,7 +103,7 @@ SUMMARY_NAME = "summary-toolreq-builtin.json"
 
 # The executing/scoring CODE this grid's cached cells were measured under
 # (BaseRunIdentity.protocol) — what MOVES A RESULT while every fingerprint stays identical:
-# `run_builtin_arm`'s cwd firewall (`_wipe_cwd_contents`) and its ancestor guard
+# `run_builtin_arm`'s cwd firewall (`wipe_cwd_contents`) and its ancestor guard
 # (`sandbox.assert_neutral_ancestry`, run at mint AND after the wipe),
 # `_memory_engaged` + NATIVE_MEMORY_GLOB, the stream-json parser, `score_goal_action`,
 # DEFAULT_TIMEOUT_S, and `simulated_builtin_runner` (which decides the ENTIRE dry-run measurement —

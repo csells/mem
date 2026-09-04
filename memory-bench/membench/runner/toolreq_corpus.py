@@ -84,6 +84,60 @@ def _goal_action(step: SequenceStep) -> ExpectedAction:
     raise ValueError(f"{step.step_id}: bridged goal step has no required action")
 
 
+def _subject_of(task: ToolReqRealAgentTask) -> dict[str, str]:
+    """Each required value mapped to the subject the corpus authored FOR it, read off the same
+    fact template the value itself is read off — never paired positionally with the request's
+    subject list, which is authored separately and would state a mapping nothing guarantees."""
+    return {fact_value(content): fact_subject(content) for content in task.oracle_memory.values()}
+
+
+def context_values(task: ToolReqRealAgentTask) -> list[str]:
+    """Every value the context block states, in the canonical order it states them."""
+    return sorted({*task.current_opaque_values, *_subject_of(task)})
+
+
+def context_block(task: ToolReqRealAgentTask) -> str:
+    """The ``Current state:`` block for a NECESSARY task: every required value, subject-labelled
+    where the corpus authored a subject for it, bare where it did not.
+
+    ONE definition, two consumers. ``unnecessary_twin`` appends it to the twin's request, which is
+    what makes that half memory-unnecessary; ``e1_grid`` sends it as the ESTABLISH leg of a
+    two-leg cell, where it is the only place the necessary half ever sees these values. Written
+    twice, the two would agree until the day a label or a sort order moved on one side, and the
+    E1 contrast would then be reading a prompt difference the design says does not exist."""
+    subject_of = _subject_of(task)
+    lines = sorted(
+        f"- {subject_of[value]} is {value}" if value in subject_of else f"- {value}"
+        for value in context_values(task)
+    )
+    return "\n".join([CONTEXT_HEADING, *lines])
+
+
+def established_context(task: ToolReqRealAgentTask) -> str:
+    """The context block for EITHER variant of a twin pair, and the same text for both.
+
+    The necessary half renders it from ``oracle_memory``; the unnecessary half has no
+    ``oracle_memory`` left (the twin empties it) and carries the block already appended to its own
+    request, so it is read back off that request rather than reconstructed from fields the twin
+    does not have. Both paths return what ``context_block`` produced for the necessary half — by
+    construction on one side, by extraction on the other — which is what lets a two-leg cell send
+    a byte-identical establish leg to both halves and keep the discrimination margin a statement
+    about the GOAL leg's context alone.
+
+    Raises on an unnecessary twin whose request carries no block: that task cannot be established
+    from, and guessing an empty context would silently make the easy half the hard one."""
+    if task.variant == VARIANT_NECESSARY:
+        return context_block(task)
+    marker = CONTEXT_SEPARATOR + CONTEXT_HEADING
+    _head, sep, tail = task.goal_step.user_request.rpartition(marker)
+    if not sep:
+        raise ValueError(
+            f"{task.work_id}: {task.variant!r} task states no {CONTEXT_HEADING!r} block, so the "
+            "establish leg of a two-leg cell has nothing to state and would not match its twin's"
+        )
+    return CONTEXT_HEADING + tail
+
+
 def unnecessary_twin(task: ToolReqRealAgentTask) -> ToolReqRealAgentTask:
     """The memory-UNNECESSARY twin of an adapted (necessary) task, under the SAME ``work_id``.
 
@@ -131,15 +185,8 @@ def unnecessary_twin(task: ToolReqRealAgentTask) -> ToolReqRealAgentTask:
     #
     # A current value with no backing fact still renders bare — there is no authored subject to
     # name — and the lines are sorted as rendered, so the order stays canonical either way.
-    subject_of = {
-        fact_value(content): fact_subject(content) for content in task.oracle_memory.values()
-    }
-    values = sorted({*task.current_opaque_values, *subject_of})
-    lines = sorted(
-        f"- {subject_of[value]} is {value}" if value in subject_of else f"- {value}"
-        for value in values
-    )
-    block = "\n".join([CONTEXT_HEADING, *lines])
+    block = context_block(task)
+    values = context_values(task)
     request = task.goal_step.user_request + CONTEXT_SEPARATOR + block
     for value in values:
         if not states_value(request, value):

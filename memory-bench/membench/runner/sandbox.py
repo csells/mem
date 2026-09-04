@@ -8,7 +8,7 @@ fail the session and confound the none/ours/builtin memory variable".
 
 Emptying the cwd does not establish that. Claude Code auto-loads ``CLAUDE.md`` by WALKING
 UP the directory tree from cwd at launch, with NO tool call — so an ``--allowedTools``
-clamp cannot close the channel, and neither can ``toolreq_builtin._wipe_cwd_contents``,
+clamp cannot close the channel, and neither can ``toolreq_builtin.wipe_cwd_contents``,
 which iterates ``cwd.iterdir()`` and by construction never ascends. The sandbox is rooted
 at the ambient ``TMPDIR`` (``tempfile`` resolves it), so the OPERATOR'S ENVIRONMENT decides
 the whole ancestor chain: point ``TMPDIR`` at a workspace for disk space — routine — and

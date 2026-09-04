@@ -5,7 +5,7 @@ Before this module there was no such tool. Verified on the shipped code: the goa
 to ``--allowedTools Write``; ``--strict-mcp-config`` is passed with no ``--mcp-config`` beside it,
 so every MCP tool is unreachable by construction; nothing under ``membench/runner`` puts ``bd`` or
 ``mem`` in front of the agent; a fresh sandbox ``bd`` refuses with "no beads database found"; and
-``toolreq_builtin._wipe_cwd_contents`` deletes a cwd-local ``.beads/`` between the two legs. An
+``toolreq_builtin.wipe_cwd_contents`` deletes a cwd-local ``.beads/`` between the two legs. An
 endogenous-use experiment run on that wiring reports ZERO memory calls for a wiring reason that is
 byte-identical to the finding it would publish (arXiv 2607.20972's near-zero voluntary use). This
 module exists so that null, if it comes, is about the agent.
@@ -948,7 +948,7 @@ def assert_store_outside(sandbox: Path, store_dir: Path) -> None:
     """Refuse a store the sandbox would eat, or one that would contaminate it.
 
     Two directions, both fatal and for different reasons. A store INSIDE the cwd is deleted by
-    ``toolreq_builtin._wipe_cwd_contents`` between the legs, which silently turns the second leg's
+    ``toolreq_builtin.wipe_cwd_contents`` between the legs, which silently turns the second leg's
     recall into a miss — the exact defect this module was filed to remove. A store ABOVE the cwd is
     worse: ``bd init`` writes ``CLAUDE.md``, ``AGENTS.md``, ``.agents/``, ``.claude/``, ``.cursor/``
     and a git repo into it, and Claude Code auto-loads the context files by walking up from the cwd

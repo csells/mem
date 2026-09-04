@@ -81,10 +81,11 @@ from membench.runner.headless_agent import (
 from membench.runner.native_memory_hook import hook_reaches as read_hook_reaches
 from membench.runner.native_memory_hook import install_native_memory_hook
 from membench.runner.resume_cache import digest
-from membench.runner.sandbox import assert_corpus_unreachable, paid_sandbox
+from membench.runner.sandbox import assert_corpus_unreachable, assert_neutral_ancestry, paid_sandbox
 from membench.runner.tool_surface import (
     HOST_DENIED_TOOLS,
     MEMORY_ALLOWED_TOOLS,
+    MemoryToolSurface,
     endogenous_memory_verbs,
     memory_invocations,
     memory_reaching_calls,
@@ -92,7 +93,8 @@ from membench.runner.tool_surface import (
     provision_memory_tool,
     surface_fingerprint,
 )
-from membench.runner.toolreq_corpus import load_twin_corpus
+from membench.runner.toolreq_builtin import wipe_cwd_contents
+from membench.runner.toolreq_corpus import established_context, load_twin_corpus
 from membench.runner.toolreq_realagent import (
     DEFAULT_CORPUS,
     VARIANT_NECESSARY,
@@ -118,6 +120,8 @@ __all__ = [
     "GATE_KEY",
     "HALT_NO_CALL",
     "HALT_UNMEASURED",
+    "LEGS_PER_CELL",
+    "LEG_ROLES",
     "NATIVE_MEMORY_ENV_INLETS",
     "NATIVE_MEMORY_SETTING",
     "OK_FIRED",
@@ -144,10 +148,12 @@ __all__ = [
     "assert_pin_precedence",
     "assert_scoreable_corpus",
     "call_rate_gates",
+    "cell_steps",
     "child_env_after_scrub",
     "corpus_fingerprint",
     "discrimination_margins",
     "env_inlets_present",
+    "establish_step",
     "grid_keys",
     "guidance_block",
     "guidance_words",
@@ -182,7 +188,7 @@ SUMMARY_NAME = "summary-e1.json"
 # drained), and the timeout scoring (what a leg that timed out contributes to its cell). It is one
 # number in the resume identity: bump it when any of those changes semantics, and a partial
 # artifact bought under the old number is refused rather than pooled with the new one.
-EXECUTION_PROTOCOL_VERSION = 1
+EXECUTION_PROTOCOL_VERSION = 2
 
 # The one trust framing E1 runs under. NOT a swept axis here — see the module docstring: a bare
 # arm surfaces no memory block, so both channels render the same bytes and a channel sweep would
@@ -639,6 +645,54 @@ def rung_step(task: ToolReqRealAgentTask, rung: str) -> SequenceStep:
     )
 
 
+# The two legs one cell spends, in order. A PAIR and not a loop: the store is minted before the
+# first and survives into the second, the cwd is wiped BETWEEN them, and their order is the whole
+# hypothesis — swapped, the cell establishes into a session that has already been asked to act.
+LEG_ROLES: tuple[str, ...] = ("establish", "goal")
+LEGS_PER_CELL = len(LEG_ROLES)
+
+# The establish leg's own instruction, and everything it must not say. It discloses the CELL'S
+# SHAPE (a later turn will ask for work) because that is true of every leg at every rung and
+# cancels in every contrast. It says nothing about memory, recording, remembering or durability:
+# those clauses are the ladder's treatment (`_RUNG_CLAUSES`), and putting any of them here would
+# hand R0 the guidance whose absence defines the floor.
+ESTABLISH_INSTRUCTION = (
+    "You are picking up work in this session. The current state of the system is below. "
+    "Acknowledge it; a later turn in this session will ask you to act on it."
+)
+
+
+def establish_step(task: ToolReqRealAgentTask, rung: str) -> SequenceStep:
+    """The cell's FIRST leg: the rung's guidance, a neutral instruction, and the values the goal
+    leg will need — for BOTH halves of the twin, byte-identical off the values themselves
+    (``toolreq_corpus.established_context``).
+
+    This is what makes a write payable. Until it existed, a cell minted a store, ran one leg and
+    destroyed the store, so an agent that recorded a durable fact was recording into a directory
+    nothing would ever read: a write rate of zero was the only arithmetic the rig allowed, whatever
+    the agent's disposition. Here the store outlives the leg, and the necessary half's goal request
+    states none of these values — so a write in this leg is the only thing that can put them back
+    in reach.
+
+    No memory is SURFACED (the legs run ``memory={}``, as they always have). The values arrive as
+    the session's own context, which is what the agent establishing them means: they are being
+    stated now, not recalled, and the ladder alone decides whether the agent does anything durable
+    with them."""
+    block = guidance_block(rung)
+    body = f"{ESTABLISH_INSTRUCTION}\n\n{established_context(task)}"
+    return SequenceStep(
+        step_id=f"{task.goal_step.step_id}-{rung}-establish",
+        user_request=f"{block}\n\n{body}" if block else body,
+        available_tools=list(MEMORY_ALLOWED_TOOLS),
+    )
+
+
+def cell_steps(task: ToolReqRealAgentTask, rung: str) -> tuple[SequenceStep, SequenceStep]:
+    """The two steps one cell sends, paired in the order it sends them. THE definition: the fire
+    executes these and nothing else renders them a second time."""
+    return (establish_step(task, rung), rung_step(task, rung))
+
+
 # --------------------------------------------------------------------------------------
 # the measured cell
 # --------------------------------------------------------------------------------------
@@ -885,6 +939,12 @@ class LegRecord:
     # "ok" (a stream came back and was counted), "timeout", or "error". A quota refusal never
     # lands here as a status: it halts the fire.
     status: str
+    # Which of the cell's two legs this is (``LEG_ROLES``). On the record because the leg is the
+    # re-scorable evidence and the two are not interchangeable: an establish-leg write and a
+    # goal-leg read are the two halves of the mechanism, and a rate pooled over both can be split
+    # back apart from the artifact rather than re-fired. Defaults to "" so every single-leg row
+    # from the ends fire still reads back, saying plainly that it carried no role.
+    role: str = ""
     memory_calls: int = 0
     read_calls: int = 0
     write_calls: int = 0
@@ -914,6 +974,7 @@ class LegRecord:
             "variant": self.variant,
             "work_id": self.work_id,
             "leg": self.leg,
+            "role": self.role,
             "status": self.status,
             "memory_calls": self.memory_calls,
             "read_calls": self.read_calls,
@@ -1294,42 +1355,54 @@ class _LegOutcome:
     hook_reaches: int = 0
 
 
-def _run_leg(
-    task: ToolReqRealAgentTask,
-    step: SequenceStep,
-    *,
-    rung: str,
-    leg: int,
-    model: str,
-    dry_run: bool,
-    timeout_s: float,
-    runner: Runner | None,
-    expect_cli_version: str,
-    corpus_dir: Path | None,
-) -> _LegOutcome:
-    """Spend one leg: mint the sandbox and the store, refuse a reachable corpus, run the agent,
-    and classify what came back. Nothing here counts toward the cell or writes a record; the
-    caller owns accumulation and emission. Raises ``RigHaltError`` when the leg ran on a CLI
-    other than the one the fire is pinned to."""
+@dataclass(frozen=True)
+class _CellStore:
+    """One repeat's memory store, sandbox and instrument — minted ONCE and shared by both legs.
+
+    This object IS the two-leg cell. Before it, every leg minted its own store inside itself and
+    destroyed it on the way out, so a durable fact the agent recorded was recorded into a directory
+    that nothing would ever open: the write rate the grid could report was zero by construction,
+    and the 0/160 the ends fire published was that arithmetic, not a disposition. Here the store
+    outlives the establish leg and the goal leg opens the same one.
+
+    ``pinned_off`` and ``probe`` are read at the mint rather than per leg: both are properties of
+    the config dir this seeds, and the per-leg guard that actually refuses
+    (``assert_pin_precedence``) still runs inside every leg, against the env of the agent that
+    leg spawns."""
+
+    surface: MemoryToolSurface
+    sandbox: Path
+    config_dir: Path
+    hook_log: Path
+    pinned_off: bool
+    probe: str
+
+
+@contextmanager
+def cell_store(task: ToolReqRealAgentTask, *, rung: str) -> Iterator[_CellStore]:
+    """Mint one repeat's store + sandbox, seed the rung, install the observer, and tear the whole
+    thing down when both legs have run.
+
+    Raises ``RigHaltError`` when the provisioned surface pins no config dir:
+    ``provision_memory_tool`` always pins one, so a surface without it is a rig fault rather than
+    a cell to run unpinned — silently skipping the seed would report R0 as silent while the CLI's
+    own memory prompt was still on, the exact reading the pin exists to fix."""
     with (
         tempfile.TemporaryDirectory(prefix="membench-memory-") as root,
         paid_sandbox(f"e1-{rung.lower()}-") as sandbox,
     ):
         surface = provision_memory_tool(Path(root), sandbox=sandbox)
-        # The rung's own settings.json, written into the config dir the surface just minted and
-        # BEFORE the agent is spawned -- `provision_memory_tool` mints it empty for every arm, so
-        # the pin belongs to the rung, not to the surface. Read straight back off disk: what the
-        # leg reports having run under is the file the agent would have read.
         config_dir = surface.config_dir
         if config_dir is None:
-            # `provision_memory_tool` always pins one; a surface without it is a rig fault, not a
-            # leg to run unpinned. Silently skipping the seed would report R0 as silent while the
-            # CLI's own memory prompt was still on -- the exact reading the pin exists to fix.
             raise RigHaltError(
                 f"{rung}/{task.variant}/{task.work_id}: the provisioned surface pins no config "
-                "dir, so the rung's settings cannot be seeded and this leg cannot say what the "
+                "dir, so the rung's settings cannot be seeded and this cell cannot say what the "
                 "agent's own memory system was doing while it ran."
             )
+        # The rung's own settings.json, written into the config dir the surface just minted and
+        # BEFORE any agent is spawned -- `provision_memory_tool` mints it empty for every arm, so
+        # the pin belongs to the rung, not to the surface. Read straight back off disk: what the
+        # cell reports having run under is the file the agent would have read.
         settings = rung_settings(rung)
         if settings:
             seed_config_dir(config_dir, settings)
@@ -1339,152 +1412,192 @@ def _run_leg(
         # what it buys is a record of the reach made AT the reach, which a truncated or unscored
         # leg would otherwise not leave behind.
         hook_log = install_native_memory_hook(config_dir)
-        pinned_off = native_memory_pinned_off(config_dir)
-        probe = pin_precedence_fingerprint(cwd=sandbox)
-
-        def outcome(**fields: Any) -> _LegOutcome:
-            """Every exit from this leg carries the pin it ran under, and the coverage of the
-            check around it. One factory rather than the fields repeated at six returns, so a
-            seventh cannot forget them."""
-            return _LegOutcome(
-                native_memory_pinned_off=pinned_off,
-                pin_precedence_fingerprint=probe,
-                # Read HERE rather than at one exit: the log is complete only once the agent has
-                # stopped, and every exit from this leg is after that.
-                hook_reaches=len(read_hook_reaches(hook_log)),
-                **fields,
-            )
-
-        # PWD pinned to the sandbox: the agent merges this over the operator's environment,
-        # whose PWD is the shell's cwd -- the checkout the corpus lives in. The kernel's cwd
-        # is the sandbox regardless; the variable is what a child shell reports and what
-        # this guard would otherwise refuse on every operator run.
-        env = {**surface.env(), "PWD": str(sandbox)}
-        spawn = runner if runner is not None else (_silent_runner if dry_run else None)
-        agent = HeadlessClaudeAgent(
-            model=model,
-            runner=spawn if spawn is not None else run_in_session,
-            cwd=str(sandbox),
-            env=env,
-            memory_channel=CHANNEL,
-            disallowed_tools=HOST_DENIED_TOOLS,
-            timeout_s=timeout_s,
-            # A guard proves nothing on its own: a dict merge can only ADD, so an inlet exported
-            # in the operator's shell reaches the child whatever any guard concluded. This is the
-            # removal, and it is the actual fix; the probe below is the alarm on top of it.
-            env_unset=NATIVE_MEMORY_ENV_INLETS,
+        yield _CellStore(
+            surface=surface,
+            sandbox=sandbox,
+            config_dir=config_dir,
+            hook_log=hook_log,
+            pinned_off=native_memory_pinned_off(config_dir),
+            probe=pin_precedence_fingerprint(cwd=sandbox),
         )
-        # Probed AFTER the agent exists, and against the agent's OWN `child_env()` rather than a
-        # reconstruction of it. The rig has paid for that distinction before: a check that models
-        # the artifact instead of reading it agrees with the artifact exactly until the day they
-        # diverge, which is the day the check was for. Judged against a mirror, dropping
-        # `env_unset` at THIS construction site left the probe silent and only a test's env
-        # assertion caught it; judged against `agent.child_env()`, the same edit trips the guard,
-        # because the object asked is the object spawned.
-        #
-        # Re-probed per leg rather than once at authorization: a policy drop-in or a
-        # `.claude/settings.json` appearing mid-fire outranks the pin from that leg onward, and a
-        # fire that checked once would keep publishing the pin as measured. A HALT, not a refund:
-        # `RigHaltError` is what `_fire_staged` persists the bought cells on, and the alternative
-        # discards evidence that was paid for and is still good.
-        spawned_env = agent.child_env()
-        child_env = dict(os.environ) if spawned_env is None else spawned_env
-        scrubbed = [name for name in NATIVE_MEMORY_ENV_INLETS if name in {**os.environ, **env}]
-        try:
-            assert_pin_precedence(env=child_env, cwd=sandbox)
-        except PinPrecedenceError as exc:
-            raise RigHaltError(
-                f"{rung}/{task.variant}/{task.work_id} leg {leg}: {exc} {_bought(leg)}."
-            ) from exc
-        if corpus_dir is not None:
-            assert_corpus_unreachable(env=child_env, cwd=sandbox, corpus_root=corpus_dir)
-        if scrubbed:
-            print(
-                f"[scrubbed] {rung}/{task.variant}/{task.work_id} leg {leg}: removed "
-                f"{', '.join(scrubbed)} from the child environment; each is read before the "
-                f"{NATIVE_MEMORY_SETTING} pin.",
-                file=sys.stderr,
-                flush=True,
-            )
-        ctx = StepContext(
-            trial_id=f"e1-{rung}-{task.result_id}-{leg}",
-            session_id=f"e1-{rung}-{task.result_id}",
-            step_id=step.step_id,
+
+
+def close_cwd_channel(store: _CellStore) -> None:
+    """Empty the shared sandbox cwd BETWEEN the two legs, and re-check the window above it.
+
+    The legs must share a cwd, and a shared cwd is itself a continuity channel: Claude Code
+    auto-loads ``CLAUDE.md``/``AGENTS.md`` from it at session start with no tool call, so an
+    establish leg can leave the values in a file the goal leg reads for free and the grid would
+    score a cell that never touched memory as one that did not need to. Emptying the directory
+    rather than replacing it keeps the slug, hence the memory path, hence the continuity actually
+    under test. The ancestor guard re-runs here for the window the wipe cannot reach, one
+    directory up (``toolreq_builtin``, which owns both of these and is not re-derived here)."""
+    wipe_cwd_contents(store.sandbox)
+    assert_neutral_ancestry(store.sandbox)
+
+
+def _run_leg(
+    task: ToolReqRealAgentTask,
+    step: SequenceStep,
+    *,
+    store: _CellStore,
+    rung: str,
+    leg: int,
+    model: str,
+    dry_run: bool,
+    timeout_s: float,
+    runner: Runner | None,
+    expect_cli_version: str,
+    corpus_dir: Path | None,
+) -> _LegOutcome:
+    """Spend ONE leg against an already-minted ``store``: refuse a reachable corpus, run the
+    agent, and classify what came back. Nothing here counts toward the cell or writes a record;
+    the caller owns accumulation and emission. Raises ``RigHaltError`` when the leg ran on a CLI
+    other than the one the fire is pinned to."""
+
+    def outcome(**fields: Any) -> _LegOutcome:
+        """Every exit from this leg carries the pin it ran under, and the coverage of the
+        check around it. One factory rather than the fields repeated at six returns, so a
+        seventh cannot forget them."""
+        return _LegOutcome(
+            native_memory_pinned_off=store.pinned_off,
+            pin_precedence_fingerprint=store.probe,
+            # Read HERE rather than at one exit: the log is complete only once the agent has
+            # stopped, and every exit from this leg is after that.
+            hook_reaches=len(read_hook_reaches(store.hook_log)),
+            **fields,
         )
-        try:
-            result = agent.run_step(step, {}, ctx)
-        except HeadlessAgentError as exc:
-            # THREE outcomes, and which one this is decides whether the fire continues:
-            #   quota   -> the account is out, every further leg would fail the same way and
-            #              be billed as nothing. Halt CLEANLY so the caller persists what it
-            #              bought (the second staged fire lost cell 21's legs to this).
-            #   timeout -> the leg is UNMEASURED, not silent. Scoring it as a non-calling run
-            #              biases the rate toward the null this series exists to refuse.
-            #   other   -> also unmeasured, tolerated per leg, but a rig that is simply broken
-            #              fails EVERY leg, so a run of them halts rather than filling the
-            #              grid with "errors" that read as measured zeros.
-            if is_quota_halt(exc):
-                return outcome(
-                    status="error",
-                    detail=str(exc),
-                    quota_refusal=f"the account refused the call ({exc})",
-                    cause=exc,
-                )
-            timeout = spawn_timeout_of(exc)
-            if timeout is None:
-                return outcome(status="error", detail=str(exc))
-            # The bound cut the stream, it did not erase it. What the agent did BEFORE the
-            # bound is scored and persisted (the first fire threw it away and a leg that had
-            # reached for memory twice was persisted as an empty stream, mem-zfm0m); the leg
-            # still stays out of the cell, whose rates pool only streams that ended.
-            partial = timeout_partial_stdout(timeout)
+
+    # PWD pinned to the sandbox: the agent merges this over the operator's environment,
+    # whose PWD is the shell's cwd -- the checkout the corpus lives in. The kernel's cwd
+    # is the sandbox regardless; the variable is what a child shell reports and what
+    # this guard would otherwise refuse on every operator run.
+    env = {**store.surface.env(), "PWD": str(store.sandbox)}
+    spawn = runner if runner is not None else (_silent_runner if dry_run else None)
+    agent = HeadlessClaudeAgent(
+        model=model,
+        runner=spawn if spawn is not None else run_in_session,
+        cwd=str(store.sandbox),
+        env=env,
+        memory_channel=CHANNEL,
+        disallowed_tools=HOST_DENIED_TOOLS,
+        timeout_s=timeout_s,
+        # A guard proves nothing on its own: a dict merge can only ADD, so an inlet exported
+        # in the operator's shell reaches the child whatever any guard concluded. This is the
+        # removal, and it is the actual fix; the probe below is the alarm on top of it.
+        env_unset=NATIVE_MEMORY_ENV_INLETS,
+    )
+    # Probed AFTER the agent exists, and against the agent's OWN `child_env()` rather than a
+    # reconstruction of it. The rig has paid for that distinction before: a check that models
+    # the artifact instead of reading it agrees with the artifact exactly until the day they
+    # diverge, which is the day the check was for. Judged against a mirror, dropping
+    # `env_unset` at THIS construction site left the probe silent and only a test's env
+    # assertion caught it; judged against `agent.child_env()`, the same edit trips the guard,
+    # because the object asked is the object spawned.
+    #
+    # Re-probed per leg rather than once at authorization: a policy drop-in or a
+    # `.claude/settings.json` appearing mid-fire outranks the pin from that leg onward, and a
+    # fire that checked once would keep publishing the pin as measured. A HALT, not a refund:
+    # `RigHaltError` is what `_fire_staged` persists the bought cells on, and the alternative
+    # discards evidence that was paid for and is still good.
+    spawned_env = agent.child_env()
+    child_env = dict(os.environ) if spawned_env is None else spawned_env
+    scrubbed = [name for name in NATIVE_MEMORY_ENV_INLETS if name in {**os.environ, **env}]
+    try:
+        assert_pin_precedence(env=child_env, cwd=store.sandbox)
+    except PinPrecedenceError as exc:
+        raise RigHaltError(
+            f"{rung}/{task.variant}/{task.work_id} leg {leg}: {exc} {_bought(leg)}."
+        ) from exc
+    if corpus_dir is not None:
+        assert_corpus_unreachable(env=child_env, cwd=store.sandbox, corpus_root=corpus_dir)
+    if scrubbed:
+        print(
+            f"[scrubbed] {rung}/{task.variant}/{task.work_id} leg {leg}: removed "
+            f"{', '.join(scrubbed)} from the child environment; each is read before the "
+            f"{NATIVE_MEMORY_SETTING} pin.",
+            file=sys.stderr,
+            flush=True,
+        )
+    ctx = StepContext(
+        trial_id=f"e1-{rung}-{task.result_id}-{leg}",
+        session_id=f"e1-{rung}-{task.result_id}",
+        step_id=step.step_id,
+    )
+    try:
+        result = agent.run_step(step, {}, ctx)
+    except HeadlessAgentError as exc:
+        # THREE outcomes, and which one this is decides whether the fire continues:
+        #   quota   -> the account is out, every further leg would fail the same way and
+        #              be billed as nothing. Halt CLEANLY so the caller persists what it
+        #              bought (the second staged fire lost cell 21's legs to this).
+        #   timeout -> the leg is UNMEASURED, not silent. Scoring it as a non-calling run
+        #              biases the rate toward the null this series exists to refuse.
+        #   other   -> also unmeasured, tolerated per leg, but a rig that is simply broken
+        #              fails EVERY leg, so a run of them halts rather than filling the
+        #              grid with "errors" that read as measured zeros.
+        if is_quota_halt(exc):
             return outcome(
-                status="timeout",
+                status="error",
                 detail=str(exc),
-                stream=partial,
-                score=score_leg(tool_calls_from_stream(partial), config_dir=surface.config_dir),
-                truncated=True,
+                quota_refusal=f"the account refused the call ({exc})",
+                cause=exc,
             )
-        # EXIT 0 IS NOT PROOF THE RUN HAPPENED. `run_checked` raises on a non-zero exit and
-        # nothing else, so a CLI that reports its own failure on the result event and still
-        # exits 0 arrives HERE, with an empty tool-call list, and counts as a measured leg on
-        # which the agent chose not to touch memory. That is the one reading this series
-        # exists to refuse, and it would be manufactured by the rig rather than the agent.
-        # Same structural field the raising path is classified on, read one line earlier.
-        stream = result.raw_stream or ""
-        if stream_api_error_status(stream) in QUOTA_STATUSES:
-            return outcome(
-                status="error",
-                detail=f"exit 0 with api_error_status={stream_api_error_status(stream)}",
-                stream=stream,
-                quota_refusal=(
-                    f"the account refused the call (api_error_status="
-                    f"{stream_api_error_status(stream)}) and the CLI still exited 0"
-                ),
-            )
-        if stream_is_error(stream):
-            return outcome(
-                status="error",
-                detail="the CLI exited 0 but declared its own run failed (is_error)",
-            )
-        # The instrument that ran THIS leg, not the one a pre-flight probe asked about. A
-        # binary upgraded mid-sweep measures the later cells on a different tool surface and
-        # pools both into one rate; the resume identity catches it BETWEEN fires and cannot
-        # see it within one.
-        leg_cli = stream_cli_version(stream) or ""
-        if expect_cli_version and leg_cli and leg_cli != expect_cli_version:
-            raise RigHaltError(
-                f"{rung}/{task.variant}/{task.work_id} leg {leg}: this leg ran on CLI "
-                f"{leg_cli!r}, the fire is pinned to {expect_cli_version!r}. The binary "
-                f"changed mid-sweep, so the cells bought and the cells still to buy are not "
-                f"the same measurement. {_bought(leg)}."
-            )
+        timeout = spawn_timeout_of(exc)
+        if timeout is None:
+            return outcome(status="error", detail=str(exc))
+        # The bound cut the stream, it did not erase it. What the agent did BEFORE the
+        # bound is scored and persisted (the first fire threw it away and a leg that had
+        # reached for memory twice was persisted as an empty stream, mem-zfm0m); the leg
+        # still stays out of the cell, whose rates pool only streams that ended.
+        partial = timeout_partial_stdout(timeout)
         return outcome(
-            status="ok",
-            stream=stream,
-            score=score_leg(result.tool_calls, config_dir=surface.config_dir),
-            cli_version=leg_cli,
+            status="timeout",
+            detail=str(exc),
+            stream=partial,
+            score=score_leg(tool_calls_from_stream(partial), config_dir=store.config_dir),
+            truncated=True,
         )
+    # EXIT 0 IS NOT PROOF THE RUN HAPPENED. `run_checked` raises on a non-zero exit and
+    # nothing else, so a CLI that reports its own failure on the result event and still
+    # exits 0 arrives HERE, with an empty tool-call list, and counts as a measured leg on
+    # which the agent chose not to touch memory. That is the one reading this series
+    # exists to refuse, and it would be manufactured by the rig rather than the agent.
+    # Same structural field the raising path is classified on, read one line earlier.
+    stream = result.raw_stream or ""
+    if stream_api_error_status(stream) in QUOTA_STATUSES:
+        return outcome(
+            status="error",
+            detail=f"exit 0 with api_error_status={stream_api_error_status(stream)}",
+            stream=stream,
+            quota_refusal=(
+                f"the account refused the call (api_error_status="
+                f"{stream_api_error_status(stream)}) and the CLI still exited 0"
+            ),
+        )
+    if stream_is_error(stream):
+        return outcome(
+            status="error",
+            detail="the CLI exited 0 but declared its own run failed (is_error)",
+        )
+    # The instrument that ran THIS leg, not the one a pre-flight probe asked about. A
+    # binary upgraded mid-sweep measures the later cells on a different tool surface and
+    # pools both into one rate; the resume identity catches it BETWEEN fires and cannot
+    # see it within one.
+    leg_cli = stream_cli_version(stream) or ""
+    if expect_cli_version and leg_cli and leg_cli != expect_cli_version:
+        raise RigHaltError(
+            f"{rung}/{task.variant}/{task.work_id} leg {leg}: this leg ran on CLI "
+            f"{leg_cli!r}, the fire is pinned to {expect_cli_version!r}. The binary "
+            f"changed mid-sweep, so the cells bought and the cells still to buy are not "
+            f"the same measurement. {_bought(leg)}."
+        )
+    return outcome(
+        status="ok",
+        stream=stream,
+        score=score_leg(result.tool_calls, config_dir=store.config_dir),
+        cli_version=leg_cli,
+    )
 
 
 def _one_pin(pinned: set[bool], *, rung: str, task: ToolReqRealAgentTask) -> bool:
@@ -1514,10 +1627,22 @@ def run_rung_cell(
 ) -> RungCell:
     """Run one ``(rung, task-variant)`` cell and count the memory calls the agent CHOSE to make.
 
-    Each repeat gets a fresh neutral sandbox and a fresh memory store OUTSIDE it (the store the
-    cwd wipe cannot reach, ``tool_surface.provision_memory_tool``). Nothing is seeded into the
-    store and no memory is surfaced in the prompt: this measures DISPOSITION, so the arm must not
-    hand the agent a reason to call that the rung did not give it.
+    Each repeat is a TWO-LEG pair — establish, then goal — sharing one neutral sandbox and one
+    memory store minted OUTSIDE it (the store the cwd wipe cannot reach,
+    ``tool_surface.provision_memory_tool``), with the cwd emptied between the legs so the store is
+    the only channel left. That pairing is what makes a write mean anything: a single-leg cell
+    destroyed the store on the way out, so an agent that recorded a durable fact recorded it where
+    nothing would ever read, and a write rate of zero was the only number the rig could produce.
+
+    Nothing is seeded into the store and no memory is surfaced in either prompt: this measures
+    DISPOSITION, so the arm must not hand the agent a reason to call that the rung did not give it.
+    The establish leg states the task's values as the session's own context
+    (``establish_step``) — identically for both halves of the twin, so the discrimination margin
+    stays a statement about the GOAL leg's context alone.
+
+    Rates pool BOTH legs. The ladder contrast is between rungs and the leg composition is
+    identical at every rung, so the pooling cancels; the split that does not cancel is kept on
+    each ``LegRecord``'s ``role``, which is re-scorable for free.
 
     The sandbox is minted EMPTY and stays that way: the task reaches the agent through the prompt
     (``rung_step``), never through files, so nothing from the corpus is copied or linked into
@@ -1545,7 +1670,7 @@ def run_rung_cell(
     pinned: set[bool] = set()
     streak = UnmeasuredStreak() if streak is None else streak
     verbs: list[str] = []
-    step = rung_step(task, rung)
+    steps = cell_steps(task, rung)
 
     # Every leg this cell PAYS FOR must leave a record. Counted rather than trusted: the emit
     # sites are three (ok, unmeasured, quota) and a fourth outcome added without one would drop
@@ -1560,7 +1685,7 @@ def run_rung_cell(
         if on_leg is not None:
             on_leg(record)
 
-    def _unmeasured(leg: int, outcome: _LegOutcome) -> None:
+    def _unmeasured(leg: int, role: str, outcome: _LegOutcome) -> None:
         """Record one leg the CELL cannot count, and halt if the rig has stopped working.
 
         A timed-out leg arrives with the stream it wrote before the bound and that stream's
@@ -1577,6 +1702,7 @@ def run_rung_cell(
                 variant=task.variant,
                 work_id=task.work_id,
                 leg=leg,
+                role=role,
                 status=outcome.status,
                 memory_calls=outcome.score.memory_calls,
                 read_calls=outcome.score.read_calls,
@@ -1597,76 +1723,89 @@ def run_rung_cell(
                 f"buys a grid of unmeasured cells. {_bought(leg)}. Last: {outcome.detail}"
             )
 
-    for i in range(repeats):
-        outcome = _run_leg(
-            task,
-            step,
-            rung=rung,
-            leg=i,
-            model=model,
-            dry_run=dry_run,
-            timeout_s=timeout_s,
-            runner=runner,
-            expect_cli_version=expect_cli_version,
-            corpus_dir=corpus_dir,
-        )
-        pinned.add(outcome.native_memory_pinned_off)
-        if outcome.quota_refusal:
-            _emit(
-                LegRecord(
+    for repeat in range(repeats):
+        # ONE store, ONE sandbox, TWO legs. Everything that makes the establish leg's write
+        # payable lives in the scope of this `with`: the store the second leg opens is the store
+        # the first leg wrote to, and both are destroyed together when the repeat ends.
+        with cell_store(task, rung=rung) as store:
+            for role_index, (role, step) in enumerate(zip(LEG_ROLES, steps, strict=True)):
+                if role_index:
+                    # BETWEEN the legs, never around them: the establish leg is unclamped by
+                    # design and the goal leg must not read what it dropped in the cwd.
+                    close_cwd_channel(store)
+                i = repeat * LEGS_PER_CELL + role_index
+                outcome = _run_leg(
+                    task,
+                    step,
+                    store=store,
                     rung=rung,
-                    variant=task.variant,
-                    work_id=task.work_id,
                     leg=i,
-                    status=outcome.status,
-                    detail=outcome.detail,
-                    stream=redact_credentials(outcome.stream),
-                    native_memory_pinned_off=outcome.native_memory_pinned_off,
-                    hook_reaches=outcome.hook_reaches,
-                    pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
+                    model=model,
+                    dry_run=dry_run,
+                    timeout_s=timeout_s,
+                    runner=runner,
+                    expect_cli_version=expect_cli_version,
+                    corpus_dir=corpus_dir,
                 )
-            )
-            raise QuotaHaltError(
-                f"{rung}/{task.variant}/{task.work_id} leg {i}: {outcome.quota_refusal}. "
-                f"Nothing further can be measured; resume when it resets. {_bought(i)}."
-            ) from outcome.cause
-        if outcome.status != "ok":
-            if outcome.status == "timeout":
-                timed_out += 1
-            else:
-                errored += 1
-            _unmeasured(i, outcome)
-            continue
-        streak.measured()
-        score = outcome.score
-        total += score.memory_calls
-        calling += 1 if score.memory_calls else 0
-        reading += 1 if score.read_calls else 0
-        writing += 1 if score.write_calls else 0
-        reads += score.read_calls
-        writes += score.write_calls
-        verbs.extend(score.verbs)
-        _emit(
-            LegRecord(
-                rung=rung,
-                variant=task.variant,
-                work_id=task.work_id,
-                leg=i,
-                status="ok",
-                memory_calls=score.memory_calls,
-                read_calls=score.read_calls,
-                write_calls=score.write_calls,
-                verbs=score.verbs,
-                stream=redact_credentials(outcome.stream),
-                cli_version=outcome.cli_version,
-                native_memory_pinned_off=outcome.native_memory_pinned_off,
-                hook_reaches=outcome.hook_reaches,
-                pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
-            )
-        )
-    if len(emitted) != repeats:
+                pinned.add(outcome.native_memory_pinned_off)
+                if outcome.quota_refusal:
+                    _emit(
+                        LegRecord(
+                            rung=rung,
+                            variant=task.variant,
+                            work_id=task.work_id,
+                            leg=i,
+                            role=role,
+                            status=outcome.status,
+                            detail=outcome.detail,
+                            stream=redact_credentials(outcome.stream),
+                            native_memory_pinned_off=outcome.native_memory_pinned_off,
+                            hook_reaches=outcome.hook_reaches,
+                            pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
+                        )
+                    )
+                    raise QuotaHaltError(
+                        f"{rung}/{task.variant}/{task.work_id} leg {i}: {outcome.quota_refusal}. "
+                        f"Nothing further can be measured; resume when it resets. {_bought(i)}."
+                    ) from outcome.cause
+                if outcome.status != "ok":
+                    if outcome.status == "timeout":
+                        timed_out += 1
+                    else:
+                        errored += 1
+                    _unmeasured(i, role, outcome)
+                    continue
+                streak.measured()
+                score = outcome.score
+                total += score.memory_calls
+                calling += 1 if score.memory_calls else 0
+                reading += 1 if score.read_calls else 0
+                writing += 1 if score.write_calls else 0
+                reads += score.read_calls
+                writes += score.write_calls
+                verbs.extend(score.verbs)
+                _emit(
+                    LegRecord(
+                        rung=rung,
+                        variant=task.variant,
+                        work_id=task.work_id,
+                        leg=i,
+                        role=role,
+                        status="ok",
+                        memory_calls=score.memory_calls,
+                        read_calls=score.read_calls,
+                        write_calls=score.write_calls,
+                        verbs=score.verbs,
+                        stream=redact_credentials(outcome.stream),
+                        cli_version=outcome.cli_version,
+                        native_memory_pinned_off=outcome.native_memory_pinned_off,
+                        hook_reaches=outcome.hook_reaches,
+                        pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
+                    )
+                )
+    if len(emitted) != repeats * LEGS_PER_CELL:
         raise RigHaltError(
-            f"{rung}/{task.variant}/{task.work_id}: {repeats} leg(s) paid for but "
+            f"{rung}/{task.variant}/{task.work_id}: {repeats * LEGS_PER_CELL} leg(s) paid for but "
             f"{len(emitted)} recorded ({emitted}). A leg with no record cannot be re-scored, and "
             "re-scoring is the only thing that makes a paid grid answerable to a question it was "
             "not fired to answer."
@@ -1674,7 +1813,7 @@ def run_rung_cell(
     return RungCell(
         rung=rung,
         variant=task.variant,
-        runs=repeats,
+        runs=repeats * LEGS_PER_CELL,
         calling_runs=calling,
         memory_calls=total,
         read_calls=reads,
@@ -1823,7 +1962,9 @@ HALT_UNMEASURED = "UNMEASURED"
 PREFLIGHT_RUNG = RUNG_IDS[-1]
 
 # The staged fire the bead authorizes FIRST: the two ENDS of the ladder only, at T=8 tasks and
-# R=5 repeats over both corpus halves — 2 x 8 x 5 x 2 = 160 real calls. If R4 shows zero memory
+# R=5 repeats over both corpus halves — 2 x 8 x 5 x 2 cells, and each cell is now a TWO-LEG
+# establish/goal pair (`LEGS_PER_CELL`), so 320 real calls. `planned_call_count` is the only
+# arithmetic that prices a fire; this comment is not a second one. If R4 shows zero memory
 # calls there, the interior rungs are NOT run and the null IS the result.
 STAGED_RUNGS: tuple[str, ...] = (RUNG_IDS[0], RUNG_IDS[-1])
 STAGED_TASKS = 8
@@ -1868,13 +2009,18 @@ class PreflightHaltError(RuntimeError):
 
 
 def planned_call_count(*, rungs: Sequence[str], n_tasks: int, repeats: int, n_variants: int) -> int:
-    """The real ``claude -p`` calls a fire makes — one leg per repeat, so the product. This is the
-    number a human authorizes money against, so it is computed, not quoted.
+    """The real ``claude -p`` calls a fire makes. This is the number a human authorizes money
+    against, so it is computed, not quoted.
+
+    ``LEGS_PER_CELL`` is IN the product, and that factor is the whole reason this function is
+    called rather than the four numbers multiplied at the call site. A repeat is a two-leg cell
+    (establish, then goal), so a price that read "one call per repeat" quotes half the bill —
+    which is exactly the arithmetic the single-leg fire was authorized under.
 
     ``n_variants`` is not defaulted to the twin design. ``staged_cells`` iterates whatever variant
     labels the corpus carries, and a price that assumed two of them quoted half the bill for three
     and twice the bill for one."""
-    return len(rungs) * n_tasks * repeats * n_variants
+    return len(rungs) * n_tasks * repeats * n_variants * LEGS_PER_CELL
 
 
 def per_variant_task_count(tasks: Sequence[ToolReqRealAgentTask]) -> int:
@@ -2502,7 +2648,7 @@ def _fire_staged(args: argparse.Namespace, tasks: Sequence[ToolReqRealAgentTask]
                 # `plan` prices the whole slice. On a resume the fire buys the residual, and
                 # cross-stage resume is now the primary workflow, so the operator should not have
                 # to compute this from two other fields to know what is about to be spent.
-                "remaining_calls": int(plan["calls"]) - len(landed) * repeats,
+                "remaining_calls": int(plan["calls"]) - len(landed) * repeats * LEGS_PER_CELL,
                 "cli_version": cli_version,
                 "corpus_fingerprint": corpus,
             },

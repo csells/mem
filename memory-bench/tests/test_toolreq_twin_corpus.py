@@ -95,8 +95,7 @@ def _subject_value_pairs(necessary: ToolReqRealAgentTask) -> list[tuple[str, str
 
     Sorted on the rendered line, which is how the block orders itself."""
     pairs = [
-        (fact_subject(content), fact_value(content))
-        for content in necessary.oracle_memory.values()
+        (fact_subject(content), fact_value(content)) for content in necessary.oracle_memory.values()
     ]
     return sorted(pairs, key=lambda pair: f"- {pair[0]} is {pair[1]}")
 
@@ -133,8 +132,7 @@ def test_the_non_value_text_of_a_twin_pair_is_identical(tmp_path: Path) -> None:
     # easy half refused every leg of the staged fire. The property worth holding is that the twin
     # adds no behaviour-directing text, not that it adds no text.
     assert block.splitlines() == [
-        f"- {subject} is {value}"
-        for subject, value in _subject_value_pairs(necessary)
+        f"- {subject} is {value}" for subject, value in _subject_value_pairs(necessary)
     ]
     for subject, _value in _subject_value_pairs(necessary):
         assert subject in necessary.goal_step.user_request
@@ -335,8 +333,7 @@ def test_the_multi_value_context_block_states_no_positional_mapping(tmp_path: Pa
     )
     assert separator, unnecessary.goal_step.user_request
     assert block.splitlines() == [
-        f"- {subject} is {value}"
-        for subject, value in _subject_value_pairs(necessary)
+        f"- {subject} is {value}" for subject, value in _subject_value_pairs(necessary)
     ]
 
     # The pairing is read off the FACT that carries each value, so it is the authored one. On

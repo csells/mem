@@ -6,7 +6,7 @@ The invariants that make a zero call-rate MEAN something:
   the one test geometry a52bebd did not have: every one of its shim tests invoked the shim by
   ABSOLUTE path under the ambient ``PATH``, so the suite was green while the shipped surface
   exec'd itself forever and hung every call the evaluated agent made;
-* the store survives ``toolreq_builtin._wipe_cwd_contents`` between two legs sharing a sandbox;
+* the store survives ``toolreq_builtin.wipe_cwd_contents`` between two legs sharing a sandbox;
 * a store inside the sandbox (wiped) or above it (contaminating) is REFUSED by
   ``provision_memory_tool`` itself, not merely by a helper a caller may forget to call;
 * the counter keys on the structured tool name plus a shell-word scan of the ``command``
@@ -85,7 +85,7 @@ from membench.runner.tool_surface import (
     settings_fingerprint,
     surface_fingerprint,
 )
-from membench.runner.toolreq_builtin import _wipe_cwd_contents
+from membench.runner.toolreq_builtin import wipe_cwd_contents
 from membench.schemas.metrics import EfficiencyMetrics
 from membench.schemas.sequence import SequenceStep
 from membench.schemas.trace import ToolCall
@@ -473,7 +473,7 @@ def test_store_survives_wipe(tmp_path: Path) -> None:
     harness_call(surface, ["remember", SMOKE_VALUE, "--key", SMOKE_KEY], cwd=sandbox)
     (sandbox / "scratch.txt").write_text("leg-1 residue", encoding="utf-8")
 
-    _wipe_cwd_contents(sandbox)
+    wipe_cwd_contents(sandbox)
     assert list(sandbox.iterdir()) == []
 
     # leg 2 — the agent reads, in the same (now empty) cwd
