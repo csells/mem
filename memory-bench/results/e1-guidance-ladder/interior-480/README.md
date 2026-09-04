@@ -73,22 +73,42 @@ told something and does not record while executing is behaving sensibly. It also
 write rate the single-leg design measured was structurally zero, not behaviorally zero:
 that cell had no leg in which recording was the rational move.
 
-## Every call was native memory, not bd
+## Every call was native memory — but bd was never named to the agent
 
 Verb census over all 480 legs: `native_read` 457, `native_write` 136, and **zero `bd`
 verbs of any kind**. R1 through R3 do not pin native memory off (only R0 does), so
 `native_memory_pinned_off` is false on all 480 legs, and the interception hook observed
 931 reaches into the native path.
 
-For the BDP question this series exists to answer, that is the result: **guidance text
-alone does not redirect the reach.** Ten to thirty-eight words telling the agent to recall
-and capture moves WHETHER it reaches for memory (P(call) 0.662 to 1.000) and moves WHETHER
-that reach discriminates a task that needs memory from one that does not, and it moves the
-target not at all. The agent has a built-in memory path and takes it every time.
+**This zero means NEVER DISCOVERED, not discovered and declined.** Read it carefully
+before quoting it.
 
-This is the measured baseline the redirect treatment is scored against, and it is a
-cleaner baseline than an assumption: the reach is frequent, it is legible to the hook, and
-it is entirely native. A redirect that works has 931 observed reaches to convert.
+bd was genuinely reachable. Every pair got a real store (`bd init` under a temp root
+outside the sandbox, so the cwd wipe cannot eat it) and a `bd` shim placed FIRST on PATH,
+pinned to that store with `-C`; `Bash` is in `MEMORY_ALLOWED_TOOLS`; and the argv counter
+catches the verb through roughly twenty spellings (backticks, `xargs`, `bash -c`, env
+prefixes). A leg that typed `bd remember k v` would have worked and would have been
+counted.
+
+The agent was never told bd existed. The ladder's strongest clause says "a persistent
+memory tool available in this session" and never names it, and `scrub_store_guidance`
+deliberately DELETES the `CLAUDE.md` / `AGENTS.md` that `bd init` drops beside the store,
+the files that say "use `bd remember` for persistent knowledge". That deletion is right
+for its own purpose (those files are the ladder's top rung smuggled into the artifact, and
+leaving them in means R0 was never silent), but its side effect is that the only thing
+naming the tool was removed. Discovering bd required reading PATH unprompted. Zero of 480
+streams contain the token `bd` anywhere; 47 legs did probe the environment (`which`, `ls`,
+`PATH`) and still did not surface it.
+
+So what this fire supports: the agent reaches for memory constantly (931 observed
+reaches), it takes the NATIVE path by default, and guidance strength moves how
+discriminatingly it reaches. What it does NOT support, and must not be quoted as: that the
+agent preferred native memory OVER bd. It was choosing between native memory and a tool it
+had no way to know about.
+
+The 931 reaches remain the quantified target for a redirect treatment. But a cheaper prior
+question now comes first, and the ladder never asked it: does simply NAMING the tool move
+anything? That is a rung this design does not contain.
 
 ## Gate: monotonicity FAILS
 
@@ -116,6 +136,9 @@ is the more interesting non-monotonicity and the one worth a follow-up.
   learned is the same act on both halves of the twin, so it moves both rates together.
   `any_call_margin_by_rung` in `summary.json` carries the diluted number.
 - **One model, one session.** No cross-model or cross-account replication.
+- **The bd zero is an affordance-discovery result, not a preference result.** See the verb
+  section: bd was on PATH and callable, and was never named to the agent in any prompt or
+  any file. No conclusion about bd-versus-native preference is available from this fire.
 
 ## Files
 
