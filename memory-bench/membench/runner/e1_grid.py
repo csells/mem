@@ -34,6 +34,13 @@ as ``toolreq_builtin_grid.preflight`` — because a simulated mechanism check pr
 the simulator cooperates. The ends fire has been run once, at
 ``results/e1-guidance-ladder/staged-160/``; the interior rungs are unbought.
 
+* **The R0 pin's precedence guard is NECESSARY, NOT SUFFICIENT.** ``autoMemoryEnabled: false``
+  is seeded into the CLI's LOWEST settings scope, and the env names, scope paths and precedence
+  order the guard checks were read out of a MINIFIED release bundle with several predicates in the
+  chain left unresolved. The guard can prove the pin was OUTRANKED; it cannot prove the pin HELD.
+  It degrades toward refusal rather than toward silence (an unreadable scope file counts as
+  carrying the setting), and nothing it emits should be read as "precedence is covered".
+
 ZFC: rung text is authored data, the counter is ``tool_surface``'s mechanical argv scan, and
 the gates are arithmetic over counts. No semantic judgment anywhere in here.
 """
@@ -109,6 +116,7 @@ __all__ = [
     "GATE_KEY",
     "HALT_NO_CALL",
     "HALT_UNMEASURED",
+    "NATIVE_MEMORY_ENV_INLETS",
     "NATIVE_MEMORY_SETTING",
     "OK_FIRED",
     "RUNG_IDS",
@@ -124,22 +132,27 @@ __all__ = [
     "LegRecord",
     "LegScore",
     "MonotonicityViolation",
+    "PinPrecedenceError",
     "PreflightHaltError",
     "QuotaHaltError",
     "RigHaltError",
     "RungCell",
     "UnmeasuredStreak",
     "assert_gates_ride_outside_metrics",
+    "assert_pin_precedence",
     "assert_scoreable_corpus",
     "call_rate_gates",
+    "child_env_after_scrub",
     "corpus_fingerprint",
     "discrimination_margins",
+    "env_inlets_present",
     "grid_keys",
     "guidance_block",
     "guidance_words",
     "monotonicity_violations",
     "native_memory_pinned_off",
     "per_variant_task_count",
+    "pin_precedence_fingerprint",
     "planned_call_count",
     "preflight",
     "preflight_verdict",
@@ -148,6 +161,7 @@ __all__ = [
     "rung_settings_fingerprint",
     "rung_step",
     "score_leg",
+    "settings_scopes_outranking_the_pin",
     "staged_plan",
     "staged_rungs",
     "stream_is_error",
@@ -234,6 +248,307 @@ def native_memory_pinned_off(config_dir: Path) -> bool:
         return False
     settings = json.loads(settings_file.read_text(encoding="utf-8"))
     return isinstance(settings, dict) and settings.get(NATIVE_MEMORY_SETTING) is False
+
+
+# --------------------------------------------------------------------------------------
+# the pin's PRECEDENCE guard
+#
+# `native_memory_pinned_off` reads the file this rig wrote and reports it as a measured fact.
+# That file is the CLI's USER scope, which is the LOWEST of the five it merges
+# (`["userSettings","projectSettings","localSettings","flagSettings","policySettings"]`, later
+# wins), and several environment variables are consulted BEFORE the merge is even read. So a
+# higher scope or an env inlet can silently outrank the pin and leave the rig recording
+# `native_memory_pinned_off: true` for a leg whose CLI ran with native memory ON -- a fabricated
+# measured fact in the one rung whose whole purpose is to be a clean floor.
+#
+# WHAT THIS GUARD IS, AND IS NOT. Every path, name and precedence claim below was read out of a
+# MINIFIED release bundle with `strings`, and several predicates in the chain resolve to minified
+# helpers this rig did not follow to their definitions. It is therefore NECESSARY AND NOT
+# SUFFICIENT: it can prove the pin was outranked, and it cannot prove the pin held. It is built to
+# degrade toward REFUSAL rather than toward silence -- a scope file it cannot read or parse counts
+# as carrying the setting -- so an unresolved case costs a refused fire rather than a published
+# number. Do not read the fields it emits as "precedence is covered".
+# --------------------------------------------------------------------------------------
+
+# The env vars the CLI consults BEFORE it reads the merged settings, so each one outranks the
+# user-scope pin. VERIFIED against the 2.1.259 bundle: this is one predicate, and every name here
+# is read inside it, ahead of the `Je()` merged-settings lookup that returns `autoMemoryEnabled`:
+#
+#   function zvt(){if(Dr())return!1;if(Dk())return!1;
+#     let e=process.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY;
+#     if($e(e))return!1;if(bo(e))return!0;
+#     if(a.CLAUDE_CODE_SIMPLE)return!1;
+#     if(a.CLAUDE_CODE_REMOTE&&!process.env.CLAUDE_CODE_REMOTE_MEMORY_DIR
+#        &&!a.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE)return!1;
+#     if(Vvt())return!1;let n=Je();
+#     if(n.autoMemoryEnabled!==void 0)return n.autoMemoryEnabled;return!0}
+#
+# Note the DIRECTION on the first one: `bo` is the falsy-string test
+# (`["0","false","no","off"]`), and hitting it returns `!0` -- native memory ON, over the top of a
+# pin that says off. An inlet does not have to be "enabling" to be a hazard; it has to be read
+# first. `Dr`, `Dk` and `Vvt` are minified predicates this rig did not resolve and are the
+# unresolved half named in the block comment above; no name is INFERRED into this table to cover
+# them, because a guessed variable that does not exist refuses fires for nothing.
+NATIVE_MEMORY_ENV_INLETS: tuple[str, ...] = (
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
+    "CLAUDE_CODE_SIMPLE",
+    "CLAUDE_CODE_REMOTE",
+    "CLAUDE_CODE_REMOTE_MEMORY_DIR",
+    "CLAUDE_COWORK_MEMORY_PATH_OVERRIDE",
+)
+
+# The admin/policy settings root on Linux. VERIFIED: `function Ou(){...case"macos":return
+# "/Library/Application Support/ClaudeCode";case"windows":return"C:\\Program Files\\ClaudeCode";
+# default:return"/etc/claude-code"}`, whose result is joined with `"managed-settings.json"` and
+# with the drop-in dir `"managed-settings.d"` (`getDropInDir(){return this.dropInDir??=
+# wu(MS(),"managed-settings.d")}`). Injectable at every call site so the tests never need one.
+POLICY_SETTINGS_ROOT = Path("/etc/claude-code")
+POLICY_SETTINGS_FILE = "managed-settings.json"
+POLICY_DROP_IN_DIR = "managed-settings.d"
+
+# The cwd-relative scopes, both of which outrank the user scope. VERIFIED:
+# `function $x(e){switch(e){case"projectSettings":return he(".claude","settings.json");
+# case"localSettings":return he(".claude","settings.local.json")}}`, resolved against the cwd for
+# the project scope and against the canonical GIT ROOT (falling back to the cwd) for the local one.
+PROJECT_SCOPE_RELPATH = Path(".claude") / "settings.json"
+LOCAL_SCOPE_RELPATH = Path(".claude") / "settings.local.json"
+
+
+class PinPrecedenceError(RuntimeError):
+    """Something that outranks the R0 settings pin is in reach, so the pin cannot be reported.
+
+    Named for the failure it prevents rather than for the check that found it: the defect is not
+    "a file exists", it is that a leg would carry ``native_memory_pinned_off: true`` as a MEASURED
+    FACT while the CLI resolved the setting somewhere this rig never wrote."""
+
+
+def _git_root(start: Path) -> Path | None:
+    """The nearest ancestor of ``start`` (inclusive) holding a ``.git`` entry, or ``None``.
+
+    A STRUCTURAL parent walk, deliberately not `git rev-parse`. Two reasons, both standing rules
+    here: a subprocess per leg is a per-leg cost on a path that runs 160 times, and reading a
+    non-zero exit as an answer is how this repo has already fabricated verdicts -- `git` exits
+    non-zero for "not a repo", for a broken install and for a signal, and only the first is a
+    verdict. A `.git` file (a worktree's pointer) counts the same as a directory: the CLI resolves
+    a canonical git root either way, and this walk is looking for the root, not for a repository
+    it intends to use."""
+    here = start.resolve()
+    for candidate in (here, *here.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def _scope_carries_native_memory(path: Path) -> bool:
+    """Whether the settings file at ``path`` must be treated as carrying ``autoMemoryEnabled``.
+
+    ASYMMETRIC against ``native_memory_pinned_off`` ON PURPOSE, and the asymmetry is about
+    OWNERSHIP, not about taste. There, malformed JSON propagates as a fault: the rig wrote that
+    config dir itself, one leg earlier, so a file it cannot parse is its own bug and crashing is
+    the honest outcome. Here the files belong to somebody else -- ``/etc``, the operator's
+    checkout, a machine policy -- and this rig cannot prove that a file it failed to read or
+    parse is SILENT about native memory. A missing file is silent (the CLI reads nothing); an
+    unreadable, unparseable, or non-object one is UNKNOWN, and unknown counts as carrying, so the
+    fire refuses instead of publishing a pin it could not check.
+
+    Absence is the only clean pass, and it is established by the read failing with ENOENT rather
+    than by an ``exists()``, which answers True for a file this rig then cannot read and races a
+    file appearing between the two calls.
+
+    ``UnicodeDecodeError`` counts as carrying for the same ownership reason, and is caught
+    explicitly because it is NOT an ``OSError``: undecodable bytes in someone else's settings file
+    would otherwise escape this function entirely and propagate as a raw crash through the one
+    ``except PinPrecedenceError`` in ``_run_leg`` -- losing the legs already bought, which is the
+    precise loss the halt path exists to prevent."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return False
+    except (OSError, UnicodeDecodeError):
+        # Present and unreadable, or present and undecodable: a permission wall, a directory
+        # where a file belongs, bytes that are not UTF-8. The CLI runs as this same user, so what
+        # it reads here cannot be established from a read this rig could not complete.
+        return True
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return True
+    if not isinstance(parsed, dict):
+        return True
+    return NATIVE_MEMORY_SETTING in parsed
+
+
+def _drop_in_scope_files(directory: Path) -> list[Path]:
+    """The policy drop-in files under ``directory``.
+
+    An UNLISTABLE directory raises rather than globbing to empty. A directory that exists and
+    cannot be listed is the case where "no files" and "files this rig cannot see" produce the same
+    empty list, and the empty list is the one that reads as a clean pass -- the exact shape of a
+    guard that reports coverage it does not have. Missing is different from unlistable and is a
+    real, checkable silence."""
+    try:
+        entries = sorted(directory.iterdir())
+    except FileNotFoundError:
+        return []
+    except NotADirectoryError:
+        raise PinPrecedenceError(
+            f"{directory} is where the CLI reads its policy drop-in settings and it is not a "
+            "directory. What the policy scope resolves to here cannot be established, so the R0 "
+            "pin cannot be reported as held."
+        ) from None
+    except OSError as exc:
+        raise PinPrecedenceError(
+            f"{directory} is the CLI's policy drop-in directory and could not be listed ({exc}). "
+            "An unlistable directory and an empty one produce the same empty file list, and only "
+            "one of them is evidence; the R0 pin cannot be reported as held."
+        ) from exc
+    return [entry for entry in entries if entry.is_file() or entry.is_symlink()]
+
+
+def settings_scopes_outranking_the_pin(
+    *,
+    cwd: Path | None,
+    policy_root: Path | None = None,
+) -> list[str]:
+    """The FILE-BACKED scopes above the user scope that carry ``autoMemoryEnabled``, by PATH.
+
+    Three of the four scopes that outrank the pin, not all four. ``flagSettings`` -- the scope the
+    CLI builds from ``--settings``, which takes either a path or inline JSON -- has no fixed
+    location to probe, so it is covered on the ARGV side instead: this rig owns every argument its
+    children are spawned with, ``argv_for`` emits no ``--settings``, and a test pins that it never
+    starts to. Naming the gap here rather than letting "every scope" stand: a guard that overstates
+    its reach is the same defect class as the field it was built to make defensible.
+
+    Returns paths, not a boolean: a refusal that cannot name the file it tripped on sends the
+    operator to search the scopes by hand.
+
+    ``cwd`` is the working directory the CLI will be SPAWNED in, and it is what the project and
+    local scopes resolve against -- so a leg passes its sandbox, and a caller with no sandbox yet
+    passes ``None`` and gets the machine-wide policy scope alone. ``None`` is honest rather than
+    convenient: checking the operator's own checkout against a fire whose children never run there
+    would refuse on a file the CLI would never have read."""
+    carrying: list[str] = []
+    # Resolved at CALL time, never bound as a default: a default would freeze the module-level
+    # constant at import and leave the tests probing the operator's real /etc.
+    root = POLICY_SETTINGS_ROOT if policy_root is None else policy_root
+    policy_file = root / POLICY_SETTINGS_FILE
+    if _scope_carries_native_memory(policy_file):
+        carrying.append(str(policy_file))
+    for drop_in in _drop_in_scope_files(root / POLICY_DROP_IN_DIR):
+        if _scope_carries_native_memory(drop_in):
+            carrying.append(str(drop_in))
+    if cwd is not None:
+        here = Path(cwd).resolve()
+        candidates = [here / PROJECT_SCOPE_RELPATH, here / LOCAL_SCOPE_RELPATH]
+        git_root = _git_root(here)
+        if git_root is not None and git_root != here:
+            # The local scope resolves against the CANONICAL GIT ROOT when there is one and
+            # against the cwd when there is not; both are probed rather than this walk being
+            # trusted to have picked the same root the CLI's own resolution would.
+            candidates.append(git_root / LOCAL_SCOPE_RELPATH)
+        carrying.extend(str(p) for p in candidates if _scope_carries_native_memory(p))
+    return carrying
+
+
+def env_inlets_present(env: Mapping[str, str]) -> list[str]:
+    """The ``NATIVE_MEMORY_ENV_INLETS`` names still set in ``env``, in table order.
+
+    ``env`` is the EFFECTIVE CHILD environment -- what the spawn will actually hand the CLI --
+    never ``os.environ``. Reading the parent's environment here would refuse the fire on exactly
+    the variables the harness deletes from the child two functions later
+    (``HeadlessClaudeAgent.env_unset``), which is to say it would refuse the condition it exists
+    to remediate. What stays meaningful once the scrub is in place is DIVERGENCE: fed the agent's
+    own ``child_env()``, as ``_run_leg`` feeds it, a construction site that builds the agent
+    without the scrub list surfaces here as an inlet the child still sees.
+
+    ``main``'s pre-fire call is weaker on purpose and the difference is worth stating: no agent
+    exists that early, so it is fed ``child_env_after_scrub``, a MODEL of the spawn rather than the
+    spawn. That call catches an inlet the machine exports into a table the rig has not been taught
+    to remove; it cannot catch a construction site that ignores the table. Only the per-leg probe,
+    reading the object that is actually spawned, catches that -- and it runs before the first
+    call is billed."""
+    return [name for name in NATIVE_MEMORY_ENV_INLETS if name in env]
+
+
+def child_env_after_scrub(env: Mapping[str, str]) -> tuple[dict[str, str], list[str]]:
+    """The child env a leg's spawn will really carry, and the inlet names the scrub removed.
+
+    Mirrors ``HeadlessClaudeAgent.child_env`` on the same inputs, because the guard has to judge
+    the environment that will be SENT rather than a model of it. The removed names come back so
+    the fire can print what it took away instead of taking it away silently."""
+    merged: dict[str, str] = {**os.environ, **env}
+    removed = [name for name in NATIVE_MEMORY_ENV_INLETS if name in merged]
+    for name in removed:
+        merged.pop(name)
+    return merged, removed
+
+
+def pin_precedence_fingerprint(
+    *,
+    cwd: Path | None,
+    policy_root: Path | None = None,
+) -> str:
+    """Digest of WHAT THE GUARD LOOKED FOR -- the inlet table and the scope paths probed.
+
+    Rides on the LEG RECORD as evidence, and NOWHERE in the resume identity. Not in
+    ``resume_cells``' identity dict and not folded into ``rung_settings_fingerprint``, both
+    deliberate: those fields describe what a leg MEASURED, and this one describes the coverage of
+    the check around it. Widening either would invalidate every cell of the already-purchased
+    staged-160 store -- about a day of budget -- the first time anyone resolves one more inlet or
+    one more scope path. Buying that stronger guarantee is a budget ruling, not a default this
+    module may take on its own."""
+    root = POLICY_SETTINGS_ROOT if policy_root is None else policy_root
+    return digest(
+        {
+            "inlets": list(NATIVE_MEMORY_ENV_INLETS),
+            "scopes": [
+                str(root / POLICY_SETTINGS_FILE),
+                str(root / POLICY_DROP_IN_DIR),
+                *(
+                    []
+                    if cwd is None
+                    else [
+                        str(Path(cwd).resolve() / PROJECT_SCOPE_RELPATH),
+                        str(Path(cwd).resolve() / LOCAL_SCOPE_RELPATH),
+                    ]
+                ),
+            ],
+        }
+    )
+
+
+def assert_pin_precedence(
+    *,
+    env: Mapping[str, str],
+    cwd: Path | None,
+    policy_root: Path | None = None,
+) -> None:
+    """Refuse when anything that outranks the R0 settings pin is in reach of the child.
+
+    ``env`` must be the POST-SCRUB effective child environment (``child_env_after_scrub``), for
+    the reason spelled out on ``env_inlets_present``. Raises ``PinPrecedenceError`` naming every
+    inlet and every scope path found; a clean return is NOT a proof that the pin held, only that
+    this guard's coverage found nothing (see the block comment above)."""
+    inlets = env_inlets_present(env)
+    scopes = settings_scopes_outranking_the_pin(cwd=cwd, policy_root=policy_root)
+    if not inlets and not scopes:
+        return
+    detail = []
+    if inlets:
+        detail.append(
+            f"the child environment still carries {', '.join(inlets)}, which the CLI reads "
+            "BEFORE the settings merge"
+        )
+    if scopes:
+        detail.append(
+            f"{', '.join(scopes)} outranks the user-scope pin and carries (or could not be read "
+            f"as not carrying) {NATIVE_MEMORY_SETTING!r}"
+        )
+    raise PinPrecedenceError(
+        f"the R0 floor pins {NATIVE_MEMORY_SETTING}=false in the CLI's LOWEST settings scope, and "
+        f"{'; '.join(detail)}. A leg run like this would record native_memory_pinned_off=true as "
+        "a measured fact about a CLI that may have had native memory on."
+    )
 
 
 # The ladder, as ADDED CLAUSES. Each rung's text is its predecessor's plus one clause, so the
@@ -580,6 +895,11 @@ class LegRecord:
     # the cell because the leg is the re-scorable evidence: a stream re-counted later has to say
     # whether the CLI's own memory system was prompting the agent while it was recorded.
     native_memory_pinned_off: bool = False
+    # What the precedence guard LOOKED FOR while this leg ran (`pin_precedence_fingerprint`):
+    # the inlet table and the scope paths probed. Evidence beside the pin, never identity — see
+    # that function's docstring for why widening the resume identity is a budget ruling and not
+    # this module's default. Defaults to "" so every pre-guard row still reads back.
+    pin_precedence_fingerprint: str = ""
 
     def row(self) -> dict[str, Any]:
         return {
@@ -597,6 +917,7 @@ class LegRecord:
             "cli_version": self.cli_version,
             "truncated": self.truncated,
             "native_memory_pinned_off": self.native_memory_pinned_off,
+            "pin_precedence_fingerprint": self.pin_precedence_fingerprint,
         }
 
     @property
@@ -961,6 +1282,7 @@ class _LegOutcome:
     quota_refusal: str = ""
     cause: HeadlessAgentError | None = None
     native_memory_pinned_off: bool = False
+    pin_precedence_fingerprint: str = ""
 
 
 def _run_leg(
@@ -1003,21 +1325,23 @@ def _run_leg(
         if settings:
             seed_config_dir(config_dir, settings)
         pinned_off = native_memory_pinned_off(config_dir)
+        probe = pin_precedence_fingerprint(cwd=sandbox)
 
         def outcome(**fields: Any) -> _LegOutcome:
-            """Every exit from this leg carries the pin it ran under. One factory rather than the
-            field repeated at six returns, so a seventh cannot forget it."""
-            return _LegOutcome(native_memory_pinned_off=pinned_off, **fields)
+            """Every exit from this leg carries the pin it ran under, and the coverage of the
+            check around it. One factory rather than the fields repeated at six returns, so a
+            seventh cannot forget them."""
+            return _LegOutcome(
+                native_memory_pinned_off=pinned_off,
+                pin_precedence_fingerprint=probe,
+                **fields,
+            )
 
         # PWD pinned to the sandbox: the agent merges this over the operator's environment,
         # whose PWD is the shell's cwd -- the checkout the corpus lives in. The kernel's cwd
         # is the sandbox regardless; the variable is what a child shell reports and what
         # this guard would otherwise refuse on every operator run.
         env = {**surface.env(), "PWD": str(sandbox)}
-        if corpus_dir is not None:
-            assert_corpus_unreachable(
-                env={**os.environ, **env}, cwd=sandbox, corpus_root=corpus_dir
-            )
         spawn = runner if runner is not None else (_silent_runner if dry_run else None)
         agent = HeadlessClaudeAgent(
             model=model,
@@ -1027,7 +1351,43 @@ def _run_leg(
             memory_channel=CHANNEL,
             disallowed_tools=HOST_DENIED_TOOLS,
             timeout_s=timeout_s,
+            # A guard proves nothing on its own: a dict merge can only ADD, so an inlet exported
+            # in the operator's shell reaches the child whatever any guard concluded. This is the
+            # removal, and it is the actual fix; the probe below is the alarm on top of it.
+            env_unset=NATIVE_MEMORY_ENV_INLETS,
         )
+        # Probed AFTER the agent exists, and against the agent's OWN `child_env()` rather than a
+        # reconstruction of it. The rig has paid for that distinction before: a check that models
+        # the artifact instead of reading it agrees with the artifact exactly until the day they
+        # diverge, which is the day the check was for. Judged against a mirror, dropping
+        # `env_unset` at THIS construction site left the probe silent and only a test's env
+        # assertion caught it; judged against `agent.child_env()`, the same edit trips the guard,
+        # because the object asked is the object spawned.
+        #
+        # Re-probed per leg rather than once at authorization: a policy drop-in or a
+        # `.claude/settings.json` appearing mid-fire outranks the pin from that leg onward, and a
+        # fire that checked once would keep publishing the pin as measured. A HALT, not a refund:
+        # `RigHaltError` is what `_fire_staged` persists the bought cells on, and the alternative
+        # discards evidence that was paid for and is still good.
+        spawned_env = agent.child_env()
+        child_env = dict(os.environ) if spawned_env is None else spawned_env
+        scrubbed = [name for name in NATIVE_MEMORY_ENV_INLETS if name in {**os.environ, **env}]
+        try:
+            assert_pin_precedence(env=child_env, cwd=sandbox)
+        except PinPrecedenceError as exc:
+            raise RigHaltError(
+                f"{rung}/{task.variant}/{task.work_id} leg {leg}: {exc} {_bought(leg)}."
+            ) from exc
+        if corpus_dir is not None:
+            assert_corpus_unreachable(env=child_env, cwd=sandbox, corpus_root=corpus_dir)
+        if scrubbed:
+            print(
+                f"[scrubbed] {rung}/{task.variant}/{task.work_id} leg {leg}: removed "
+                f"{', '.join(scrubbed)} from the child environment; each is read before the "
+                f"{NATIVE_MEMORY_SETTING} pin.",
+                file=sys.stderr,
+                flush=True,
+            )
         ctx = StepContext(
             trial_id=f"e1-{rung}-{task.result_id}-{leg}",
             session_id=f"e1-{rung}-{task.result_id}",
@@ -1199,6 +1559,7 @@ def run_rung_cell(
                 detail=outcome.detail,
                 truncated=outcome.truncated,
                 native_memory_pinned_off=outcome.native_memory_pinned_off,
+                pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
             )
         )
         if streak.unmeasured():
@@ -1233,6 +1594,7 @@ def run_rung_cell(
                     detail=outcome.detail,
                     stream=redact_credentials(outcome.stream),
                     native_memory_pinned_off=outcome.native_memory_pinned_off,
+                    pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
                 )
             )
             raise QuotaHaltError(
@@ -1269,6 +1631,7 @@ def run_rung_cell(
                 stream=redact_credentials(outcome.stream),
                 cli_version=outcome.cli_version,
                 native_memory_pinned_off=outcome.native_memory_pinned_off,
+                pin_precedence_fingerprint=outcome.pin_precedence_fingerprint,
             )
         )
     return RungCell(
@@ -2205,6 +2568,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             assert_scoreable_corpus(tasks)
         except CorpusShapeError as exc:
+            print(f"REFUSING to spend: {exc}", file=sys.stderr)
+            return EXIT_REFUSED
+        # The R0 pin's PRECEDENCE, checked before the authorization rather than per leg only: a
+        # machine policy that outranks the pin makes every leg of the fire unreportable, and
+        # finding that out at leg 1 costs a leg. `cwd=None` because the sandbox each leg runs in
+        # does not exist yet, so only the machine-wide policy scope is checkable here; `_run_leg`
+        # re-probes with its own sandbox, which is what the project and local scopes resolve
+        # against. The env half is judged POST-SCRUB — refusing on a variable the harness deletes
+        # from the child would refuse the exact condition the scrub remediates.
+        child_env, scrubbed = child_env_after_scrub({})
+        if scrubbed:
+            print(
+                f"note: {', '.join(scrubbed)} is set here and will be REMOVED from every child's "
+                f"environment; each is read before the {NATIVE_MEMORY_SETTING} pin.",
+                file=sys.stderr,
+            )
+        try:
+            assert_pin_precedence(env=child_env, cwd=None)
+        except PinPrecedenceError as exc:
             print(f"REFUSING to spend: {exc}", file=sys.stderr)
             return EXIT_REFUSED
 

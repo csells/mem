@@ -687,6 +687,17 @@ class HeadlessClaudeAgent:
     # `**kwargs`). ``hash=False``: callers pass a plain (unhashable) dict, which would
     # otherwise break this frozen dataclass's auto-generated ``__hash__``.
     env: Mapping[str, str] | None = field(default=None, hash=False)
+    # Env var names to REMOVE from the child's environment, applied AFTER the merge above.
+    # `env` can only ADD, and a dict merge has no way to express "the child must NOT see this":
+    # an inlet exported in the operator's shell reaches the child whatever any startup guard
+    # concluded, because the guard reads the parent env and the merge then re-supplies it. The
+    # E1 floor rung needs the removal to be real — its `autoMemoryEnabled: false` pin is the
+    # LOWEST-precedence of the CLI's five settings scopes and several env vars are consulted
+    # before the merge, so an inherited one silently outranks the pin while the rig records it
+    # as held. Removal is by `pop`, never by assigning "": the CLI's own truthiness parsers
+    # decide what an empty string means and this rig does not observe them, so an unset name is
+    # the only value whose meaning it can state. ``hash=False`` for the reason ``env`` has it.
+    env_unset: Sequence[str] = field(default=(), hash=False)
     _pass_model: bool = field(default=False, init=False)
     _resolved_model: str = field(default="", init=False)
 
@@ -733,6 +744,21 @@ class HeadlessClaudeAgent:
             argv += ["--disallowedTools", ",".join(self.disallowed_tools)]
         return argv
 
+    def child_env(self) -> dict[str, str] | None:
+        """The environment the child process actually gets, or ``None`` to inherit the parent's.
+
+        ``None`` is subprocess's own inherit-the-parent-environment sentinel, and it is the right
+        answer only when this agent asks for no change at all. The moment ``env_unset`` names
+        anything, inheriting is exactly the failure it exists to prevent, so the environment is
+        materialized from ``os.environ`` and the named entries are dropped from it — a scrub
+        expressed as a sentinel would be no scrub."""
+        if self.env is None and not self.env_unset:
+            return None
+        merged = {**os.environ, **(self.env or {})}
+        for name in self.env_unset:
+            merged.pop(name, None)
+        return merged
+
     def run_step(
         self,
         step: SequenceStep,
@@ -740,9 +766,7 @@ class HeadlessClaudeAgent:
         ctx: StepContext,
     ) -> AgentStepResult:
         argv = self.argv_for(step, available_memory)
-        # `env=None` is subprocess's own inherit-the-parent-environment sentinel, so the
-        # default needs no special-casing at the call site.
-        env = None if self.env is None else {**os.environ, **self.env}
+        env = self.child_env()
         completed = run_checked(
             argv,
             what="claude -p",

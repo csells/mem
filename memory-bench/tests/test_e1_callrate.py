@@ -14,12 +14,12 @@ import os
 import subprocess
 import tempfile
 import types
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -3160,3 +3160,435 @@ def test_pricing_a_corpus_the_fire_would_refuse_is_still_allowed(
     code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
     assert code == e1_grid.EXIT_OK
     assert json.loads(capsys.readouterr().out)["staged_plan"]["calls"] > 0
+
+
+# --------------------------------------------------------------------------------------
+# the R0 pin's PRECEDENCE guard (mem-nclzl)
+#
+# `native_memory_pinned_off` reads a settings.json this rig wrote and publishes it as a MEASURED
+# FACT. That file is the CLI's lowest-precedence scope, and several env vars are read before the
+# settings merge, so a higher scope or an inherited variable can leave the rig recording a pin
+# that did not hold. These tests drive the two halves of the fix: the guard that refuses, and the
+# scrub that makes the guard's own precondition true. Nothing here spends: every paid entrypoint
+# under test is expected to REFUSE before a spawn, and the one test that runs legs injects a
+# runner.
+# --------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def empty_policy_root(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the guard's policy scope at an EMPTY tmp dir for the duration of a test.
+
+    Without this the probe reads the operator's real ``/etc/claude-code``, so the suite's verdict
+    would depend on the machine it runs on — green on a laptop, red on a managed host, and neither
+    result about the code. Resolved at call time inside the guard (not bound as a default), which
+    is what makes this monkeypatch reach it."""
+    root = tmp_path / "policy-root"
+    monkeypatch.setattr(e1_grid, "POLICY_SETTINGS_ROOT", root, raising=True)
+    return root
+
+
+def _paid_argv(tmp_path: Any, *extra: str) -> list[str]:
+    return [
+        "--fire-staged",
+        "--corpus-dir",
+        str(tmp_path / "corpus"),
+        "--model",
+        MODEL,
+        "--out",
+        str(tmp_path / "summary-e1.json"),
+        *extra,
+    ]
+
+
+@pytest.mark.parametrize("inlet", list(e1_grid.NATIVE_MEMORY_ENV_INLETS))
+def test_an_env_inlet_the_child_still_sees_refuses_the_fire(
+    inlet: str,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    empty_policy_root: Path,
+) -> None:
+    """Every name in the inlet table is read by the CLI BEFORE the settings merge, so any one of
+    them reaching the child outranks the R0 pin and makes `native_memory_pinned_off` unpublishable.
+
+    The inlet is injected where it can survive the scrub — into the guard's own view of the child
+    env — because that is the condition the guard is FOR: the scrub list and the inlet table
+    diverging, or a construction site that builds the agent without the scrub at all. Refusal must
+    cost nothing: the spawn seam is a landmine and the --out artifact must not exist.
+
+    Survives an isolated revert of `assert_pin_precedence`'s call in `main` (the fire would run),
+    and of `env_inlets_present` returning [] (the fire would run)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token-for-refusal-test")
+    _seqs, _tasks = corpus_one(tmp_path)
+
+    def landmine(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("a refused fire spawned a claude -p")
+
+    monkeypatch.setattr(e1_grid, "run_in_session", landmine, raising=True)
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", landmine, raising=True)
+    monkeypatch.setattr(
+        e1_grid,
+        "child_env_after_scrub",
+        lambda env: ({inlet: "1", "PATH": "/usr/bin"}, []),
+        raising=True,
+    )
+
+    assert e1_grid.main(_paid_argv(tmp_path)) == e1_grid.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "REFUSING to spend" in err
+    assert inlet in err
+    assert not (tmp_path / "summary-e1.json").exists()
+
+
+def test_an_inlet_in_the_parent_env_is_scrubbed_from_the_child_and_does_not_refuse(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, empty_policy_root: Path
+) -> None:
+    """THE FIX, not the alarm. An inlet exported in the operator's shell must not stop the fire —
+    it must not reach the child.
+
+    Asserted on the env dict the runner was actually handed, never on a flag: a dict merge can
+    only ADD, so a guard that concluded "clean" while `run_step` re-supplied `os.environ` would
+    pass every boolean this rig could set and still ship the variable. The leg is also checked to
+    have been MEASURED, so a scrub that worked by refusing everything would fail here.
+
+    Survives an isolated revert of `HeadlessClaudeAgent.child_env`'s pop loop (the inlet lands in
+    the captured env), and of `env_unset=NATIVE_MEMORY_ENV_INLETS` at the `_run_leg` construction
+    (same)."""
+    _seqs, tasks = corpus_one(tmp_path)
+    monkeypatch.setenv("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "false")
+    monkeypatch.setenv("CLAUDE_CODE_SIMPLE", "1")
+    seen: list[Mapping[str, str]] = []
+
+    def capturing(argv: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.append(dict(kwargs["env"]))
+        return subprocess.CompletedProcess(list(argv), 0, serialize_stream([result_event()]), "")
+
+    cell = e1_grid.run_rung_cell(
+        tasks[0], rung="R0", repeats=2, model=MODEL, dry_run=False, runner=capturing
+    )
+    assert cell.measured_runs == 2
+    assert len(seen) == 2
+    for env in seen:
+        # Assert on the INTERSECTION, never on the env dict itself. A bare `name not in env`
+        # asserts against the whole child environment, so pytest's assertion rewriting dumps that
+        # dict on failure -- and the child environment is the operator's, carrying whatever
+        # credentials their shell exports. A reviewer running this suite under a mutant watched it
+        # print a live API token into the failure text. The intersection can only ever name an
+        # inlet, so a red test stays as readable and stops being a disclosure.
+        assert sorted(set(env) & set(e1_grid.NATIVE_MEMORY_ENV_INLETS)) == []
+        # The scrub REMOVES; it must not leave an empty string behind. The CLI's own truthiness
+        # parsers decide what "" means and this rig does not observe them, so an unset name is the
+        # only value whose meaning it can state. Phrased as a membership check for the same
+        # disclosure reason: `.get()` returning a value would render it.
+        assert "CLAUDE_CODE_DISABLE_AUTO_MEMORY" not in set(env)
+        # And it removed only what it was told to: PATH still reaches the child.
+        assert "PATH" in set(env)
+
+
+@pytest.mark.parametrize("relpath", [".claude/settings.json", ".claude/settings.local.json"])
+def test_a_higher_precedence_scope_carrying_the_setting_is_reported_by_path(
+    relpath: str, tmp_path: Any
+) -> None:
+    """The project and local scopes both outrank the user scope the pin is written in, so a
+    `autoMemoryEnabled` in either decides the setting the rig thinks it pinned.
+
+    The value written is TRUE — the opposite of the pin — and the probe still has to report it on
+    presence alone: `false` in a scope the rig did not write is the same unowned decision, and a
+    probe that only flagged the disagreeing value would go quiet the moment someone wrote the
+    agreeing one for a different reason.
+
+    Survives an isolated revert of the `cwd is not None` branch in
+    `settings_scopes_outranking_the_pin` (nothing is reported)."""
+    cwd = tmp_path / "sandbox"
+    (cwd / ".claude").mkdir(parents=True)
+    (cwd / relpath).write_text(json.dumps({"autoMemoryEnabled": True}), encoding="utf-8")
+    found = e1_grid.settings_scopes_outranking_the_pin(
+        cwd=cwd, policy_root=tmp_path / "no-policy-here"
+    )
+    assert found == [str((cwd / relpath).resolve())]
+
+
+def test_a_higher_precedence_scope_that_is_silent_about_the_setting_passes(tmp_path: Any) -> None:
+    """A project settings file is not itself the hazard — deciding `autoMemoryEnabled` is. A probe
+    that refused on any `.claude/settings.json` would refuse every fire on a developer machine and
+    teach the operator to route around it.
+
+    Survives an isolated revert of the `NATIVE_MEMORY_SETTING in parsed` test to `return True`."""
+    cwd = tmp_path / "sandbox"
+    (cwd / ".claude").mkdir(parents=True)
+    (cwd / ".claude" / "settings.json").write_text(
+        json.dumps({"cleanupPeriodDays": 45, "includeCoAuthoredBy": False}), encoding="utf-8"
+    )
+    assert (
+        e1_grid.settings_scopes_outranking_the_pin(cwd=cwd, policy_root=tmp_path / "absent") == []
+    )
+
+
+def test_the_local_scope_is_probed_at_the_git_root_as_well_as_the_cwd(tmp_path: Any) -> None:
+    """The local scope resolves against the CANONICAL GIT ROOT when the cwd is inside a checkout,
+    so a `settings.local.json` two levels up still outranks the pin. Both the cwd-relative and the
+    root-relative locations are probed, because this walk is not the CLI's own resolver.
+
+    The root is found by a STRUCTURAL walk for a `.git` entry — no `git` subprocess, so nothing
+    here can read a non-zero exit as a verdict. A `.git` FILE is used rather than a directory: a
+    worktree's pointer is the shape the walk must not miss.
+
+    Survives an isolated revert of the git-root branch (only the cwd is probed, so nothing is
+    found)."""
+    root = tmp_path / "checkout"
+    deep = root / "a" / "b" / "sandbox"
+    deep.mkdir(parents=True)
+    (root / ".git").write_text("gitdir: /elsewhere/.git/worktrees/wt\n", encoding="utf-8")
+    (root / ".claude").mkdir()
+    (root / ".claude" / "settings.local.json").write_text(
+        json.dumps({"autoMemoryEnabled": False}), encoding="utf-8"
+    )
+    found = e1_grid.settings_scopes_outranking_the_pin(
+        cwd=deep, policy_root=tmp_path / "absent-policy"
+    )
+    assert found == [str((root / ".claude" / "settings.local.json").resolve())]
+
+
+def test_a_malformed_scope_file_counts_as_carrying_the_setting(tmp_path: Any) -> None:
+    """Deliberately ASYMMETRIC against `native_memory_pinned_off`, which lets malformed JSON
+    propagate as a fault. The asymmetry is OWNERSHIP: there the rig is reading a config dir it
+    wrote itself one leg earlier, so an unparseable file is its own bug; here the file belongs to
+    /etc or to the operator's checkout, and a rig that could not parse it cannot show it is SILENT
+    about native memory. Unknown counts as carrying, so the fire refuses rather than publishing a
+    pin it could not check.
+
+    Survives an isolated revert of either `except` arm to `return False`."""
+    cwd = tmp_path / "sandbox"
+    (cwd / ".claude").mkdir(parents=True)
+    (cwd / ".claude" / "settings.json").write_text("{not json at all", encoding="utf-8")
+    assert e1_grid.settings_scopes_outranking_the_pin(cwd=cwd, policy_root=tmp_path / "absent") == [
+        str((cwd / ".claude" / "settings.json").resolve())
+    ]
+    # A well-formed JSON document that is not an object decides nothing the rig can read either.
+    (cwd / ".claude" / "settings.json").write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+    assert len(e1_grid.settings_scopes_outranking_the_pin(cwd=cwd, policy_root=tmp_path / "x")) == 1
+
+
+def test_an_unreadable_scope_file_counts_as_carrying_the_setting(tmp_path: Any) -> None:
+    """Present and unreadable is the same unknown as unparseable. A directory standing where the
+    settings file belongs is the portable way to make the read fail with an OSError that is not
+    ENOENT — a chmod-based version is a no-op under a root-run CI.
+
+    Survives an isolated revert of the bare `except OSError: return True` arm."""
+    cwd = tmp_path / "sandbox"
+    (cwd / ".claude" / "settings.json").mkdir(parents=True)
+    assert e1_grid.settings_scopes_outranking_the_pin(cwd=cwd, policy_root=tmp_path / "absent") == [
+        str((cwd / ".claude" / "settings.json").resolve())
+    ]
+
+
+def test_a_scope_file_of_undecodable_bytes_counts_as_carrying_the_setting(tmp_path: Any) -> None:
+    """`UnicodeDecodeError` is NOT an `OSError`, so before it was named explicitly it escaped
+    `_scope_carries_native_memory` entirely. That is not a false pin -- it fails closed -- but it
+    propagates as a raw crash past the single `except PinPrecedenceError` in `_run_leg`, which
+    discards the legs already bought. Losing paid evidence is the exact outcome the halt path
+    exists to prevent, so undecodable bytes have to arrive as a refusal, not as a traceback.
+
+    Survives an isolated revert of `except (OSError, UnicodeDecodeError)` back to `except OSError`:
+    the call then raises UnicodeDecodeError instead of returning a path."""
+    cwd = tmp_path / "sandbox"
+    (cwd / ".claude").mkdir(parents=True)
+    # Bytes that are not valid UTF-8 in any prefix, so the decode fails rather than mojibaking.
+    (cwd / ".claude" / "settings.local.json").write_bytes(b"\xff\xfe\x00{\x80")
+    assert e1_grid.settings_scopes_outranking_the_pin(cwd=cwd, policy_root=tmp_path / "absent") == [
+        str((cwd / ".claude" / "settings.local.json").resolve())
+    ]
+
+
+def test_the_spawned_argv_never_carries_the_flag_settings_scope(tmp_path: Any) -> None:
+    """`flagSettings` is the fourth scope that outranks the pin and the only one with no fixed
+    path to probe: the CLI builds it from `--settings`, which takes a path OR inline JSON. So it is
+    covered on the ARGV side instead of the filesystem side -- this rig owns every argument its
+    children are spawned with, and the guarantee is that it never hands the CLI that flag.
+
+    Pinned by a test rather than left to a docstring, because the coverage claim in
+    `settings_scopes_outranking_the_pin` rests on it: the day someone adds `--settings` to
+    `argv_for`, a scope two above the pin starts deciding `autoMemoryEnabled` while every
+    filesystem probe stays clean and every R0 leg still records `native_memory_pinned_off: true`.
+
+    Survives an isolated revert that appends `--settings` to `argv_for`'s returned list."""
+    _seqs, tasks = corpus_one(tmp_path)
+    agent = _agent()
+    for rung in RUNG_IDS:
+        argv = agent.argv_for(rung_step(tasks[0], rung), {})
+        # Not merely `"--settings" not in argv`: `--settings=<path>` is the other spelling the
+        # CLI accepts, and it would pass a bare membership check while carrying the same scope.
+        assert not [arg for arg in argv if arg.startswith("--settings")], (
+            f"{rung} spawns with a --settings argument, which builds the flagSettings scope -- "
+            "two above the pin, and invisible to every filesystem probe"
+        )
+
+
+def test_an_unlistable_policy_drop_in_directory_refuses_rather_than_globbing_to_empty(
+    tmp_path: Any,
+) -> None:
+    """A directory that exists and cannot be listed produces the same empty file list as one with
+    no files in it, and the empty list is the one that reads as a clean pass. That is a guard
+    reporting coverage it does not have, so it raises instead.
+
+    A regular FILE at the drop-in path is the deterministic form of unlistable (NotADirectoryError)
+    and does not depend on the uid the suite runs as. A MISSING directory stays a real silence.
+
+    Survives an isolated revert of the NotADirectoryError arm to `return []`."""
+    policy_root = tmp_path / "policy"
+    policy_root.mkdir()
+    (policy_root / "managed-settings.d").write_text("not a directory", encoding="utf-8")
+    with pytest.raises(e1_grid.PinPrecedenceError, match="drop-in"):
+        e1_grid.settings_scopes_outranking_the_pin(cwd=None, policy_root=policy_root)
+    # Absent is different from unlistable, and is checkable silence.
+    assert e1_grid.settings_scopes_outranking_the_pin(cwd=None, policy_root=tmp_path / "gone") == []
+
+
+def test_a_policy_drop_in_file_carrying_the_setting_refuses_the_fire(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    empty_policy_root: Path,
+) -> None:
+    """The machine-wide policy scope is the HIGHEST of the five and is checkable before a sandbox
+    exists, so it is refused at authorization rather than at leg 1 — a per-leg-only guard would
+    charge a leg to discover that the whole fire is unreportable.
+
+    Survives an isolated revert of the `assert_pin_precedence` call added to `main`'s paid block."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token-for-policy-test")
+    _seqs, _tasks = corpus_one(tmp_path)
+    drop_in = empty_policy_root / "managed-settings.d"
+    drop_in.mkdir(parents=True)
+    (drop_in / "10-memory.json").write_text(
+        json.dumps({"autoMemoryEnabled": True}), encoding="utf-8"
+    )
+
+    def landmine(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("a refused fire spawned a claude -p")
+
+    monkeypatch.setattr(e1_grid, "run_in_session", landmine, raising=True)
+    monkeypatch.setattr(e1_grid, "resolve_cli_version", landmine, raising=True)
+
+    assert e1_grid.main(_paid_argv(tmp_path)) == e1_grid.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "REFUSING to spend" in err
+    assert "10-memory.json" in err
+    assert not (tmp_path / "summary-e1.json").exists()
+
+
+def test_a_scope_file_that_appears_mid_fire_halts_the_leg_rather_than_being_ignored(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, empty_policy_root: Path
+) -> None:
+    """The authorization-time probe cannot see a policy file written after it ran, so the guard is
+    re-run PER LEG. A fire that checked once would keep publishing `native_memory_pinned_off` for
+    every leg after the file landed.
+
+    A HALT and not a refund: `RigHaltError` is what `_fire_staged` persists the already-bought
+    cells on, and discarding paid-for evidence to report a cleaner exit is the wrong trade.
+
+    Survives an isolated revert of the `assert_pin_precedence` call in `_run_leg` (the legs run and
+    the cell publishes a pin)."""
+    _seqs, tasks = corpus_one(tmp_path)
+    (empty_policy_root).mkdir(parents=True)
+    (empty_policy_root / "managed-settings.json").write_text(
+        json.dumps({"autoMemoryEnabled": True}), encoding="utf-8"
+    )
+
+    def landmine(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("a halted leg spawned a claude -p")
+
+    with pytest.raises(e1_grid.RigHaltError, match=r"managed-settings\.json"):
+        e1_grid.run_rung_cell(
+            tasks[0], rung="R0", repeats=3, model=MODEL, dry_run=False, runner=landmine
+        )
+
+
+def test_the_guard_fingerprint_rides_on_the_leg_and_stays_out_of_the_resume_identity(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, empty_policy_root: Path
+) -> None:
+    """`pin_precedence_fingerprint` describes what the GUARD LOOKED FOR, not what the leg MEASURED,
+    so it is evidence on the leg record and must not enter the resume identity.
+
+    The boundary is a budget fact: `rung_settings_fingerprint` and `resume_cells`' identity dict
+    are hashed into every cell of the already-purchased staged-160 store, and folding a
+    coverage-of-the-check field into either would invalidate that store — about a day of budget —
+    the first time anyone resolves one more inlet or one more scope path. Paying for the stronger
+    guarantee is a ruling, not a default.
+
+    Survives an isolated revert that adds the fingerprint to `summarize`'s identity fields (the
+    membership assertions fail) or to `rung_settings_fingerprint` (the digest assertion fails)."""
+    _seqs, tasks = corpus_one(tmp_path)
+
+    def calling(argv: Any, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(list(argv), 0, serialize_stream([result_event()]), "")
+
+    legs: list[LegRecord] = []
+    e1_grid.run_rung_cell(
+        tasks[0],
+        rung="R0",
+        repeats=1,
+        model=MODEL,
+        dry_run=False,
+        runner=calling,
+        on_leg=legs.append,
+    )
+    assert len(legs) == 1
+    assert legs[0].pin_precedence_fingerprint
+    assert legs[0].row()["pin_precedence_fingerprint"] == legs[0].pin_precedence_fingerprint
+
+    summary = summarize(
+        [], model=MODEL, dry_run=False, repeats=5, cli_version="2.1.259", corpus="c"
+    )
+    assert "pin_precedence_fingerprint" not in summary
+    assert summary["settings_fingerprint"] == e1_grid.rung_settings_fingerprint()
+    # The pin table is the ONLY thing the settings fingerprint hashes; the guard is not in it.
+    assert e1_grid.rung_settings_fingerprint() == e1_grid.digest(
+        {rung: dict(s) for rung, s in e1_grid.RUNG_SETTINGS.items()}
+    )
+
+
+def test_a_pre_guard_leg_row_still_reads_back(tmp_path: Any) -> None:
+    """Every leg persisted before this change carries no `pin_precedence_fingerprint`, so the field
+    has a real default. Without one, the whole staged-160 evidence directory would become
+    unreadable and its streams unre-scorable — the one property `LegRecord` exists for.
+
+    Survives an isolated revert removing the `= ""` default (the construction raises)."""
+    row = {
+        "rung": "R4",
+        "variant": VARIANT_UNNECESSARY,
+        "work_id": "w-7",
+        "leg": 3,
+        "status": "ok",
+        "memory_calls": 2,
+        "read_calls": 2,
+        "write_calls": 0,
+        "verbs": ["recall"],
+        "stream": "{}",
+        "detail": "",
+        "cli_version": "2.1.210",
+        "truncated": False,
+        "native_memory_pinned_off": False,
+    }
+    record = LegRecord(**row)  # type: ignore[arg-type]
+    assert record.pin_precedence_fingerprint == ""
+    assert record.leg == 3 and record.memory_calls == 2
+
+
+def test_staged_pricing_still_succeeds_with_an_inlet_exported(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`--staged` prices a slice and buys nothing, so it is not a paid path and the precedence
+    guard must not gate it. Refusing here would block the free half of the workflow over a
+    condition that only matters to a spend.
+
+    Survives an isolated revert that moves the guard out of the `args.preflight or
+    args.fire_staged` block into `main`'s prologue."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "0")
+    _seqs, _tasks = corpus_one(tmp_path)
+    code = e1_grid.main(["--corpus-dir", str(tmp_path / "corpus"), "--staged", "--model", MODEL])
+    assert code == e1_grid.EXIT_OK
+    assert "PRICED, NOT FIRED" in capsys.readouterr().err

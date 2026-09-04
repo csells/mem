@@ -2,6 +2,23 @@
 
 import pytest
 
+from membench.runner.e1_grid import NATIVE_MEMORY_ENV_INLETS
+
+
+@pytest.fixture(autouse=True)
+def _scrub_ambient_native_memory_inlets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the suite hermetic against the env vars that outrank E1's R0 native-memory pin.
+
+    Same lesson as the API-key fixture below, and it is not hypothetical here: this suite is
+    launched from a Claude Code session, and every name in ``NATIVE_MEMORY_ENV_INLETS`` is one
+    that session may itself export. ``e1_grid``'s precedence guard refuses a paid entrypoint while
+    any of them reaches the child, so an ambient one would red the suite in exactly the shell the
+    guard exists to protect — invisible to CI's clean env (mem-9bh93). Clearing them here makes
+    the ambient value irrelevant; a test that wants one SET sets it explicitly on the same
+    ``monkeypatch``, which runs after this fixture and wins."""
+    for name in NATIVE_MEMORY_ENV_INLETS:
+        monkeypatch.delenv(name, raising=False)
+
 
 @pytest.fixture(autouse=True)
 def _scrub_ambient_anthropic_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
