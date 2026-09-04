@@ -94,7 +94,8 @@ import shlex
 import shutil
 import stat
 import subprocess
-from collections.abc import Iterable, Sequence
+import types
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Literal
@@ -796,6 +797,7 @@ class MemoryToolSurface:
     bd_binary: str
     mcp_config: str | None = None
     config_dir: Path | None = None
+    bd_context: Mapping[str, str] = types.MappingProxyType({})
 
     def env(self) -> dict[str, str]:
         """``PATH`` with the shim dir FIRST, so ``bd`` resolves to the store-pinned wrapper even
@@ -1037,6 +1039,7 @@ def provision_memory_tool(
         cwd=store_dir,
     )
 
+    captured = capture_bd_context(store_dir)
     scrub_store_guidance(store_dir)
 
     shim = bin_dir / MEMORY_COMMAND
@@ -1048,6 +1051,7 @@ def provision_memory_tool(
         bd_binary=binary,
         mcp_config=mcp_config,
         config_dir=config_dir,
+        bd_context=types.MappingProxyType(captured),
     )
 
 
@@ -1091,6 +1095,82 @@ def scrub_store_guidance(store_dir: Path) -> list[str]:
                     "one. Left in place it is guidance the R0 leg was never supposed to receive."
                 )
     return removed
+
+
+# --------------------------------------------------------------------------------------
+# the DEPLOYMENT CONTEXT: what bd itself injects, plus the memory clarification
+# --------------------------------------------------------------------------------------
+#
+# `scrub_store_guidance` deletes the drop-ins `bd init` writes because a store that carries them
+# is the ladder's top rung smuggled into the artifact, and R0 would not be silent. That is right
+# for the ladder and WRONG as a picture of deployment: in a real repo those files are present, the
+# agent auto-loads them at session start, and the managed block states in as many words
+#
+#     Use `bd remember` for persistent knowledge - do NOT use MEMORY.md files
+#
+# which both NAMES the tool and redirects off the native path. The interior fire measured an agent
+# failing to do the thing the deleted file would have told it to do (mem-gj0pc correction), so
+# "never discovered" was a property of the rig, not of the agent.
+#
+# So the text is CAPTURED at provision time rather than only deleted, and planting it is a
+# treatment a cell opts into. Captured, never hardcoded: bd rewrites this block across releases,
+# and a paraphrase pinned here would drift into measuring prose this rig wrote itself.
+BD_CONTEXT_FILES: tuple[str, ...] = ("CLAUDE.md", "AGENTS.md")
+
+# The one addition beyond what bd ships. bd's own block says to use `bd remember` for persistent
+# knowledge; it does not say how to get anything BACK, and an agent told only to write has no
+# reason to read. Kept to the two verbs and their argv shape -- no worked example of WHEN to
+# recall, because deciding that is the disposition under test and an example would supply it.
+BD_CONTEXT_ADDENDUM: str = """
+### Using bd as your memory
+
+`bd remember` and `bd recall` are the two halves of one store, and the store persists across
+sessions in this project.
+
+```bash
+bd remember <key> <content...>   # store a durable fact under a key you choose
+bd remember --key <key> <content...>   # same, with the key given explicitly
+bd recall <key>                  # read back what was stored under that key
+bd memories <query>              # search stored memories when you do not know the key
+```
+"""
+
+
+def capture_bd_context(store_dir: Path) -> dict[str, str]:
+    """Read the agent-instruction drop-ins `bd init` wrote, BEFORE the scrub removes them.
+
+    Returns name -> text for the files that exist. Call it before `scrub_store_guidance`; after,
+    there is nothing to capture and this returns empty, which is a silently weaker treatment
+    rather than an error, so the ordering is asserted by `provision_memory_tool` owning both."""
+    captured: dict[str, str] = {}
+    for name in BD_CONTEXT_FILES:
+        target = store_dir / name
+        if target.is_file():
+            captured[name] = target.read_text(encoding="utf-8")
+    return captured
+
+
+def plant_bd_context(cwd: Path, surface: MemoryToolSurface) -> tuple[str, ...]:
+    """Write the captured deployment context into the agent's cwd, with the addendum appended.
+
+    The CWD, not the store: Claude Code auto-loads `CLAUDE.md`/`AGENTS.md` from the working
+    directory at session start, and the store is deliberately somewhere the agent never chdirs to.
+    Must be re-run after every cwd wipe -- the wipe that closes the leg-to-leg scavenge channel
+    eats this too, and a goal leg that lost it is running a different arm than its establish leg.
+
+    Raises `MemoryToolError` on an empty capture rather than planting nothing: a cell that asked
+    for the deployment context and silently got none is the indistinguishable null this whole
+    surface exists to avoid."""
+    if not surface.bd_context:
+        raise MemoryToolError(
+            "no bd context was captured, so there is nothing to plant. `provision_memory_tool` "
+            "captures it before the scrub; a surface built another way cannot run this arm."
+        )
+    planted: list[str] = []
+    for name, text in sorted(surface.bd_context.items()):
+        (cwd / name).write_text(text.rstrip("\n") + "\n" + BD_CONTEXT_ADDENDUM, encoding="utf-8")
+        planted.append(name)
+    return tuple(planted)
 
 
 def harness_call(

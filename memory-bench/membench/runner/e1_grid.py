@@ -90,6 +90,7 @@ from membench.runner.tool_surface import (
     memory_invocations,
     memory_reaching_calls,
     native_memory_accesses,
+    plant_bd_context,
     provision_memory_tool,
     surface_fingerprint,
 )
@@ -1376,10 +1377,13 @@ class _CellStore:
     hook_log: Path
     pinned_off: bool
     probe: str
+    bd_context: bool = False
 
 
 @contextmanager
-def cell_store(task: ToolReqRealAgentTask, *, rung: str) -> Iterator[_CellStore]:
+def cell_store(
+    task: ToolReqRealAgentTask, *, rung: str, bd_context: bool = False
+) -> Iterator[_CellStore]:
     """Mint one repeat's store + sandbox, seed the rung, install the observer, and tear the whole
     thing down when both legs have run.
 
@@ -1412,6 +1416,11 @@ def cell_store(task: ToolReqRealAgentTask, *, rung: str) -> Iterator[_CellStore]
         # what it buys is a record of the reach made AT the reach, which a truncated or unscored
         # leg would otherwise not leave behind.
         hook_log = install_native_memory_hook(config_dir)
+        # The DEPLOYMENT CONTEXT arm. Planted into the sandbox cwd (where the CLI auto-loads it),
+        # after the store is minted so the capture exists, and re-planted by `close_cwd_channel`
+        # because the wipe between legs eats it too.
+        if bd_context:
+            plant_bd_context(sandbox, surface)
         yield _CellStore(
             surface=surface,
             sandbox=sandbox,
@@ -1419,6 +1428,7 @@ def cell_store(task: ToolReqRealAgentTask, *, rung: str) -> Iterator[_CellStore]
             hook_log=hook_log,
             pinned_off=native_memory_pinned_off(config_dir),
             probe=pin_precedence_fingerprint(cwd=sandbox),
+            bd_context=bd_context,
         )
 
 
@@ -1434,6 +1444,11 @@ def close_cwd_channel(store: _CellStore) -> None:
     directory up (``toolreq_builtin``, which owns both of these and is not re-derived here)."""
     wipe_cwd_contents(store.sandbox)
     assert_neutral_ancestry(store.sandbox)
+    # Re-plant AFTER the wipe. The wipe is indiscriminate by design (it closes the scavenge
+    # channel), so a goal leg whose context was not restored would run a different arm than the
+    # establish leg it is paired with, and the pair would silently mean nothing.
+    if store.bd_context:
+        plant_bd_context(store.sandbox, store.surface)
 
 
 def _run_leg(
