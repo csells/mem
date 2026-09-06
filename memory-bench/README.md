@@ -53,6 +53,14 @@ through a single canonical operation set (`read`, `write`, `update`, `delete`,
 `search`, `consolidate`, `promote`, `forget`, `classify`, `discard`) before it's
 scored. That keeps systems comparable.
 
+## The adoption harness
+
+This README covers the retrieval-quality benchmark: given memory, does the agent do
+better work? A second harness in this package answers the prior question, whether the
+agent reaches for the memory tool at all. Entry point
+`membench/runner/bd_experiment.py`; docs, reference results and a one-pair quickstart
+in [`../docs/adoption-harness/`](../docs/adoption-harness/README.md).
+
 ## Substrate
 
 Harbor is the execution substrate: a framework for running agent evaluations in

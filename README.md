@@ -77,6 +77,19 @@ the open validity question (`mem-bxhh` is building a real fail-to-pass corpus to
 calibrate the synthetic shapes against it). Details and competitive-arm wiring in
 `memory-bench/README.md`.
 
+## Will an agent actually use the memory tool?
+
+A separate, self-contained harness answers the adoption question rather than the
+retrieval-quality one: given a task that needs a fact from an earlier session, does
+the agent choose `bd`, recover the fact, and act on it? Three guidance conditions,
+paired establish/goal sessions, and execution receipts rather than self-report. In
+our reference run, agents given only general persistent-memory guidance used `bd` in
+0 of 16 necessary tasks and still passed every one of them, by writing to Claude
+Code's own memory files instead.
+
+Run it, and read what it found, in
+[`docs/adoption-harness/`](docs/adoption-harness/README.md).
+
 ## Project governance
 
 Incubation work is tracked in the public [mem — Research, Community, and

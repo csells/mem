@@ -1240,7 +1240,7 @@ def test_staged_cells_keeps_landed_cells_and_buys_only_the_rest(tmp_path: Any) -
     prior = RungCell(
         rung="R0",
         variant=tasks[0].variant,
-        runs=1,
+        runs=e1_grid.LEGS_PER_CELL,
         calling_runs=1,
         memory_calls=9,
         read_calls=9,
@@ -1276,15 +1276,17 @@ def _fake_cells(tasks: Any) -> Any:
     minutes."""
 
     def make(task: Any, **kwargs: Any) -> RungCell:
+        runs = int(kwargs["repeats"]) * e1_grid.LEGS_PER_CELL
         on_leg = kwargs.get("on_leg")
         if on_leg is not None:
-            for i in range(int(kwargs["repeats"])):
+            for i in range(runs):
                 on_leg(
                     LegRecord(
                         rung=str(kwargs["rung"]),
                         variant=task.variant,
                         work_id=task.work_id,
                         leg=i,
+                        role=e1_grid.LEG_ROLES[i % e1_grid.LEGS_PER_CELL],
                         status="ok",
                         memory_calls=1,
                         read_calls=1,
@@ -1294,12 +1296,12 @@ def _fake_cells(tasks: Any) -> Any:
         return RungCell(
             rung=str(kwargs["rung"]),
             variant=task.variant,
-            runs=int(kwargs["repeats"]),
-            calling_runs=int(kwargs["repeats"]),
-            memory_calls=int(kwargs["repeats"]),
-            read_calls=int(kwargs["repeats"]),
+            runs=runs,
+            calling_runs=runs,
+            memory_calls=runs,
+            read_calls=runs,
             write_calls=0,
-            reading_runs=int(kwargs["repeats"]),
+            reading_runs=runs,
             writing_runs=0,
             paid=True,
             work_id=task.work_id,
@@ -1320,11 +1322,38 @@ def _identified(cells: list[RungCell], **over: Any) -> dict[str, Any]:
     )
 
 
+@pytest.mark.parametrize("repeats", [1, 5])
+def test_resume_keeps_completed_establish_goal_pairs(repeats: int) -> None:
+    """A completed repeat contributes both legs to the serialized cell's run count."""
+    completed = _cell(
+        "R0",
+        VARIANT_NECESSARY,
+        calling=repeats,
+        runs=repeats * e1_grid.LEGS_PER_CELL,
+        work_id="w-paired",
+    )
+    artifact = json.loads(
+        json.dumps(
+            summarize(
+                [completed],
+                model=MODEL,
+                dry_run=False,
+                repeats=repeats,
+                cli_version=str(IDENTITY["cli_version"]),
+                corpus=str(IDENTITY["corpus"]),
+            )
+        )
+    )
+    assert resume_cells(
+        artifact, model=MODEL, grid=[completed.key], **{**IDENTITY, "repeats": repeats}
+    ) == [completed]
+
+
 def test_resume_refuses_another_rigs_artifact_and_drops_unmeasured_cells() -> None:
     dead = RungCell(
         rung="R0",
         variant=VARIANT_NECESSARY,
-        runs=5,
+        runs=5 * e1_grid.LEGS_PER_CELL,
         calling_runs=0,
         memory_calls=0,
         read_calls=0,
@@ -1333,9 +1362,11 @@ def test_resume_refuses_another_rigs_artifact_and_drops_unmeasured_cells() -> No
         writing_runs=0,
         paid=True,
         work_id="w-dead",
-        timed_out_runs=5,
+        timed_out_runs=5 * e1_grid.LEGS_PER_CELL,
     )
-    live = _cell("R0", VARIANT_UNNECESSARY, calling=2, runs=5, work_id="w-live")
+    live = _cell(
+        "R0", VARIANT_UNNECESSARY, calling=2, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-live"
+    )
     summary = _identified([dead, live])
     assert resume_cells(summary, model=MODEL, **IDENTITY) == [live]
     with pytest.raises(ResumeMismatchError, match="model"):
@@ -1349,7 +1380,9 @@ def test_resume_refuses_an_artifact_from_another_execution_protocol() -> None:
     change what a leg MEASURES without moving the tool surface, the binary or the corpus. They
     are versioned as one number, and a partial artifact that does not carry THIS number (an
     older one, or none at all) is refused as loudly as a stale fingerprint."""
-    summary = _identified([_cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")])
+    summary = _identified(
+        [_cell("R0", VARIANT_NECESSARY, calling=2, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-0")]
+    )
     assert summary["execution_protocol"] == e1_grid.EXECUTION_PROTOCOL_VERSION
     assert e1_grid.EXECUTION_PROTOCOL_VERSION >= 1
     with pytest.raises(ResumeMismatchError, match="execution_protocol"):
@@ -1369,7 +1402,9 @@ def test_resume_refuses_an_artifact_from_another_execution_protocol() -> None:
 def test_resume_refuses_every_identity_field_it_cannot_match() -> None:
     """Each field names something that changes what a leg MEASURES, so each one alone is enough to
     refuse: a different binary, a different corpus, a different number of legs per cell."""
-    summary = _identified([_cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")])
+    summary = _identified(
+        [_cell("R0", VARIANT_NECESSARY, calling=2, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-0")]
+    )
     with pytest.raises(ResumeMismatchError, match="cli_version"):
         resume_cells(summary, model=MODEL, **{**IDENTITY, "cli_version": "9.9.10"})
     with pytest.raises(ResumeMismatchError, match="corpus_fingerprint"):
@@ -1389,11 +1424,11 @@ def test_resume_drops_unpaid_and_unkeyed_rows_and_refuses_duplicates_and_strange
     has: both are dropped, and the real cells get bought. A duplicate key or a cell outside this
     grid means the artifact was written by a fire this one is not continuing — nothing here can
     pick the right row, so it refuses rather than publishing half of each."""
-    paid = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")
+    paid = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-0")
     unpaid = RungCell(
         rung="R0",
         variant=VARIANT_UNNECESSARY,
-        runs=5,
+        runs=5 * e1_grid.LEGS_PER_CELL,
         calling_runs=5,
         memory_calls=5,
         read_calls=5,
@@ -1403,10 +1438,10 @@ def test_resume_drops_unpaid_and_unkeyed_rows_and_refuses_duplicates_and_strange
         paid=False,
         work_id="w-0",
     )
-    unkeyed = _cell("R4", VARIANT_NECESSARY, calling=3, runs=5)
+    unkeyed = _cell("R4", VARIANT_NECESSARY, calling=3, runs=5 * e1_grid.LEGS_PER_CELL)
     assert resume_cells(_identified([paid, unpaid, unkeyed]), model=MODEL, **IDENTITY) == [paid]
 
-    dup = _identified([paid, paid])
+    dup = {**_identified([paid]), "cells": [paid.row(), paid.row()]}
     with pytest.raises(ResumeMismatchError, match="twice"):
         resume_cells(dup, model=MODEL, **IDENTITY)
 
@@ -1666,17 +1701,16 @@ def test_a_fire_publishes_the_grid_it_ran_and_the_legs_under_it(
     _seqs, tasks = corpus_scoreable(tmp_path)
     monkeypatch.setattr(e1_grid, "run_rung_cell", _fake_cells(tasks))
     out = tmp_path / "summary.json"
-    code = e1_grid.main(
-        [
-            "--corpus-dir",
-            str(tmp_path / "corpus"),
-            "--fire-staged",
-            "--model",
-            MODEL,
-            "--out",
-            str(out),
-        ]
-    )
+    argv = [
+        "--corpus-dir",
+        str(tmp_path / "corpus"),
+        "--fire-staged",
+        "--model",
+        MODEL,
+        "--out",
+        str(out),
+    ]
+    code = e1_grid.main(argv)
     assert code == e1_grid.EXIT_OK
     printed = json.loads(capsys.readouterr().out)
     assert json.loads(out.read_text(encoding="utf-8")) == printed
@@ -1695,11 +1729,25 @@ def test_a_fire_publishes_the_grid_it_ran_and_the_legs_under_it(
     assert not (tmp_path / "summary.json.lock").exists()
     legs = sorted(path.name for path in (tmp_path / "summary.json.legs").iterdir())
     assert legs == sorted(
-        f"{rung}__{variant}__{work_id}__0.json"
+        f"{rung}__{variant}__{work_id}__{leg}.json"
         for rung in ("R0", "R4")
         for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
         for work_id in work_ids
+        for leg in range(e1_grid.LEGS_PER_CELL)
     )
+    evidence_before = {
+        path.name: path.read_bytes() for path in (tmp_path / "summary.json.legs").iterdir()
+    }
+    monkeypatch.setattr(
+        e1_grid,
+        "run_rung_cell",
+        lambda *args, **kwargs: pytest.fail("completed establish/goal pairs must not be re-bought"),
+    )
+    assert e1_grid.main(argv) == e1_grid.EXIT_OK
+    assert json.loads(capsys.readouterr().out) == printed
+    assert {
+        path.name: path.read_bytes() for path in (tmp_path / "summary.json.legs").iterdir()
+    } == evidence_before
 
 
 def test_a_resumed_fire_publishes_the_grid_order_not_the_order_it_bought_them_in(
@@ -1722,8 +1770,8 @@ def test_a_resumed_fire_publishes_the_grid_order_not_the_order_it_bought_them_in
     # R4 is the TAIL of the grid; resuming it and buying R0 puts the accumulator at R4,R4,R0,R0.
     out = tmp_path / "summary.json"
     resumed = [
-        _cell("R4", VARIANT_NECESSARY, calling=1, runs=1, work_id=work_id),
-        _cell("R4", VARIANT_UNNECESSARY, calling=0, runs=1, work_id=work_id),
+        _cell("R4", VARIANT_NECESSARY, calling=1, runs=e1_grid.LEGS_PER_CELL, work_id=work_id),
+        _cell("R4", VARIANT_UNNECESSARY, calling=0, runs=e1_grid.LEGS_PER_CELL, work_id=work_id),
     ]
     out.write_text(
         json.dumps(
@@ -2259,14 +2307,15 @@ def test_a_grid_that_measured_one_rung_does_not_publish_a_passing_monotonicity()
     assert "UNTESTED" not in two["reason"]
 
 
-def test_resume_drops_a_cell_that_ran_a_different_number_of_legs() -> None:
-    """A 3-leg row in a 5-leg grid weights wrong when pooled and cannot be completed in place.
+@pytest.mark.parametrize("different_runs", [3, 5, 11])
+def test_resume_drops_a_cell_that_ran_a_different_number_of_legs(different_runs: int) -> None:
+    """A row with a different leg count cannot be pooled into a 5-repeat grid.
 
     The artifact-level `repeats` check does not catch it: that compares one field, and a row can
     disagree with the very artifact that carries it (a hand edit, or a merge of two fires). Dropped
     means re-bought, and the legs already paid for survive as leg evidence."""
-    short = _cell("R0", VARIANT_NECESSARY, calling=2, runs=3, work_id="w-0")
-    full = _cell("R4", VARIANT_NECESSARY, calling=5, runs=5, work_id="w-0")
+    short = _cell("R0", VARIANT_NECESSARY, calling=2, runs=different_runs, work_id="w-0")
+    full = _cell("R4", VARIANT_NECESSARY, calling=5, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-0")
     summary = _identified([short, full])
     assert summary["repeats"] == 5
     assert resume_cells(summary, model=MODEL, **IDENTITY) == [full]
@@ -2335,7 +2384,7 @@ def test_a_resume_keeps_the_provenance_the_prior_artifact_carried(
     landed = RungCell(
         rung="R0",
         variant=tasks[0].variant,
-        runs=1,
+        runs=e1_grid.LEGS_PER_CELL,
         calling_runs=1,
         memory_calls=1,
         read_calls=1,
@@ -2416,10 +2465,10 @@ def test_a_halt_leaves_out_holding_the_grid_the_resume_will_start_from(
             work_id=work_id,
         )
 
-    keep = _row("R0", VARIANT_NECESSARY, 1)
+    keep = _row("R0", VARIANT_NECESSARY, e1_grid.LEGS_PER_CELL)
     # A cell of the right key but the wrong leg count: in the grid, so not a stranger, and
-    # dropped by the resume because a 2-leg cell cannot be pooled with 1-leg cells.
-    drop = _row("R4", VARIANT_UNNECESSARY, 2)
+    # dropped by the resume because it lacks the other leg of the establish/goal pair.
+    drop = _row("R4", VARIANT_UNNECESSARY, 1)
     out = tmp_path / "summary.json"
     out.write_text(
         json.dumps(
@@ -2453,7 +2502,7 @@ def test_a_halt_leaves_out_holding_the_grid_the_resume_will_start_from(
     assert code == e1_grid.EXIT_HALT
     kept = json.loads(out.read_text(encoding="utf-8"))
     assert [(c["rung"], c["variant"], c["metrics"]["runs"]) for c in kept["cells"]] == [
-        ("R0", VARIANT_NECESSARY, 1)
+        ("R0", VARIANT_NECESSARY, e1_grid.LEGS_PER_CELL)
     ]
 
 
@@ -2629,7 +2678,7 @@ def test_resume_refuses_an_artifact_counted_with_r0_unpinned(monkeypatch: Any) -
     """An R0 cell bought before the ruling measured the agent under the CLI's own memory prompt;
     pooled into a pinned grid it would publish two floors as one. Both shapes of that artifact are
     refused — one hashed under the unpinned table, and one from before the field existed."""
-    cell = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5, work_id="w-0")
+    cell = _cell("R0", VARIANT_NECESSARY, calling=2, runs=5 * e1_grid.LEGS_PER_CELL, work_id="w-0")
     current = _identified([cell])
     with monkeypatch.context() as m:
         _unpinned(m)
@@ -2812,7 +2861,7 @@ def test_fire_staged_buys_the_slice_the_stage_flag_names(
         for _work_id in range(2)
     ]
     legs = sorted(path.name.split("__")[0] for path in (out.with_suffix(".json.legs")).iterdir())
-    assert legs == ["R1"] * 4 + ["R2"] * 4 + ["R3"] * 4
+    assert legs == [rung for rung in ("R1", "R2", "R3") for _ in range(4 * e1_grid.LEGS_PER_CELL)]
 
 
 def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interior(
@@ -2833,7 +2882,9 @@ def test_an_ends_artifact_resumes_into_the_full_ladder_and_buys_only_the_interio
         json.dumps(
             summarize(
                 [
-                    _cell(rung, variant, calling=1, runs=1, work_id=task.work_id)
+                    _cell(
+                        rung, variant, calling=1, runs=e1_grid.LEGS_PER_CELL, work_id=task.work_id
+                    )
                     for rung in ("R0", "R4")
                     for variant in (VARIANT_NECESSARY, VARIANT_UNNECESSARY)
                     for task in tasks
@@ -2900,7 +2951,15 @@ def test_an_ends_artifact_is_refused_by_the_interior_stage(
     out.write_text(
         json.dumps(
             summarize(
-                [_cell("R0", VARIANT_NECESSARY, calling=1, runs=1, work_id=tasks[0].work_id)],
+                [
+                    _cell(
+                        "R0",
+                        VARIANT_NECESSARY,
+                        calling=1,
+                        runs=e1_grid.LEGS_PER_CELL,
+                        work_id=tasks[0].work_id,
+                    )
+                ],
                 model=MODEL,
                 dry_run=False,
                 repeats=1,

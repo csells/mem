@@ -14,6 +14,11 @@ class TraceMessage(BaseModel):
 
 class ToolCall(BaseModel):
     name: str
+    tool_use_id: str | None = None
+    # Positions in the stream's flattened message content blocks. Legacy traces have no
+    # ordering evidence; a missing result position also covers an unanswered live call.
+    tool_use_index: int | None = Field(default=None, ge=0)
+    tool_result_index: int | None = Field(default=None, ge=0)
     arguments: dict[str, Any] = Field(default_factory=dict)
     result: str | None = None
     # The `tool_result` block's own `is_error`. Structural, not a read of the result prose: a

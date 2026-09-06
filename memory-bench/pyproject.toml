@@ -45,10 +45,16 @@ testpaths = ["tests"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+# Immutable experiment evidence includes historical source snapshots; formatting
+# changes their pinned bytes. Graders retain their own explicit quality gates.
+extend-exclude = "/results/"
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Historical diagnostic scripts and grader snapshots are immutable evidence,
+# not maintained package source. Qualified graders are checked explicitly.
+extend-exclude = ["results"]
 
 [tool.ruff.lint]
 # PEP8 (E) + pyflakes (F) + isort (I) + pyupgrade (UP) + bugbear (B) +
@@ -88,6 +94,10 @@ untyped_calls_exclude = ["opentelemetry"]
 # mem-1ql4w — the durable fix is package-legal example directories.
 files = ["."]
 exclude = [
+    # Immutable experiment evidence contains independent historical modules with
+    # duplicate names. Each qualified grader has explicit strict checks; crawling
+    # snapshots together cannot assign them a single Python module identity.
+    "^results/",
     # Vendored.
     "^\\.venv/",
     # Never been typed: thousands of errors under --strict. Typing it is its own

@@ -1,6 +1,6 @@
 """mem-eg850 — E1: the guidance-strength ladder as the call-rate dial.
 
-Five NESTED guidance rungs, ``R0`` (silent) through ``R4`` (recall + capture), are the
+Five NESTED guidance rungs, ``R0`` (no ladder text) through ``R4`` (recall + capture), are the
 harness-level surrogate for residual steering: each rung's text CONTAINS its predecessor's,
 so a rung difference is an ADDED clause and nothing else. That containment is the whole
 design — it is asserted on the TABLE (``RUNG_TEXT``), not on rendered prose, so a rung
@@ -13,10 +13,11 @@ What this module decides, and what it deliberately does not:
   BYTE-IDENTICAL argv — sweeping them would buy two cells of one measurement and a doubled
   bill. ``MemoryChannel`` stays on the oracle-ceiling control (``realagent_probe``), which
   actually surfaces a block. E1 pins ``CHANNEL``.
-* **The primary endpoint is the discrimination margin ``d(rung)``**, P(call | necessary) -
-  P(call | unnecessary), NOT the raw call rate. A rung that lifts the call rate with ``d``
-  flat bought nothing (the arXiv 2605.09252 bluntness result); BOTH are emitted, and the
-  gate block says which is which.
+* **The bd endpoint is an observed establish-to-goal handoff**, emitted under
+  ``bd_reliability``: acknowledged capture of the required values, their retrieval through bd
+  before a correct acknowledged goal action. The historical discrimination margin ``d(rung)``
+  remains in ``call_rate_gates`` as a diagnostic of general memory seeking. It includes native
+  attempts and cannot establish successful bd use.
 * **The guidance block's own token count is a REPORTED adjustment, never a correction.**
   R4's block is longer than R0's BY CONSTRUCTION, so the cost axis is contaminated by the
   treatment. ``guidance_words`` per rung rides in the gate block so a cost comparison can
@@ -56,11 +57,13 @@ import tempfile
 import types
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal
 
+from membench.runner.bd_receipt_surface import prepare_receipt_leg, read_receipts, receipt_path
+from membench.runner.e1_reliability import BdLegEvidence, reliability_report, score_bd_leg
 from membench.runner.headless_agent import (
     ENV_OAUTH,
     REFUSE_API_KEY_SET,
@@ -85,6 +88,7 @@ from membench.runner.sandbox import assert_corpus_unreachable, assert_neutral_an
 from membench.runner.tool_surface import (
     HOST_DENIED_TOOLS,
     MEMORY_ALLOWED_TOOLS,
+    NATIVE_MEMORY_HOOK_MODE_DEFAULT,
     MemoryToolSurface,
     endogenous_memory_verbs,
     memory_invocations,
@@ -115,6 +119,7 @@ from membench.spawn import (
 )
 
 __all__ = [
+    "BD_CONTEXT_DEFAULT",
     "CHANNEL",
     "DEFAULT_STAGE",
     "EXECUTION_PROTOCOL_VERSION",
@@ -189,7 +194,18 @@ SUMMARY_NAME = "summary-e1.json"
 # drained), and the timeout scoring (what a leg that timed out contributes to its cell). It is one
 # number in the resume identity: bump it when any of those changes semantics, and a partial
 # artifact bought under the old number is refused rather than pooled with the new one.
-EXECUTION_PROTOCOL_VERSION = 2
+EXECUTION_PROTOCOL_VERSION = 4
+
+# The DEPLOYMENT CONTEXT, on for EVERY rung since protocol 3 (Stephanie's call). What `bd init`
+# injects into a real repo -- the managed block naming `bd remember` and redirecting off
+# MEMORY.md -- plus the recall half bd's own block omits, planted into the agent's cwd.
+#
+# The cost, stated because it is not recoverable later: R0 is no longer a SILENT floor. It is now
+# "no ladder guidance, real deployment context", which is the more honest floor and a different
+# one, so the ladder is measured above a different baseline than protocol 2's. The interior-480
+# artifact was bought WITHOUT this and is a PRIOR control, never a same-run one. The protocol bump
+# is what refuses to pool them.
+BD_CONTEXT_DEFAULT = True
 
 # The one trust framing E1 runs under. NOT a swept axis here — see the module docstring: a bare
 # arm surfaces no memory block, so both channels render the same bytes and a channel sweep would
@@ -659,7 +675,7 @@ LEGS_PER_CELL = len(LEG_ROLES)
 # hand R0 the guidance whose absence defines the floor.
 ESTABLISH_INSTRUCTION = (
     "You are picking up work in this session. The current state of the system is below. "
-    "Acknowledge it; a later turn in this session will ask you to act on it."
+    "Acknowledge it; a separate session in this project will ask you to act on it."
 )
 
 
@@ -742,6 +758,10 @@ class RungCell:
     # derived from the rung so an artifact says what it RAN under, not what today's table would
     # have given it. Defaults false: a cell built without it claims no pin.
     native_memory_pinned_off: bool = False
+
+    # Compact, role-specific evidence survives resume without re-reading every stream.
+    # Empty on legacy cells means unmeasured, never a bd failure.
+    bd_evidence: tuple[BdLegEvidence, ...] = ()
 
     def __post_init__(self) -> None:
         if self.runs <= 0:
@@ -854,6 +874,7 @@ class RungCell:
             "native_memory_pinned_off": self.native_memory_pinned_off,
             "verbs": list(self.verbs),
             "metrics": self.metrics(),
+            "bd_evidence": [leg.model_dump() for leg in self.bd_evidence],
         }
 
     @property
@@ -898,6 +919,9 @@ class RungCell:
             timed_out_runs=int(m.get("timed_out_runs", 0)),
             errored_runs=int(m.get("errored_runs", 0)),
             native_memory_pinned_off=bool(row["native_memory_pinned_off"]),
+            bd_evidence=tuple(
+                BdLegEvidence.model_validate(leg) for leg in row.get("bd_evidence", ())
+            ),
         )
 
 
@@ -969,6 +993,11 @@ class LegRecord:
     # stream was cut by the timeout bound still says whether the agent turned to the native files.
     hook_reaches: int = 0
 
+    bd_evidence: BdLegEvidence | None = None
+    bd_receipts: tuple[dict[str, Any], ...] = ()
+    bd_receipt_leg_id: str | None = None
+    cwd: str | None = None
+
     def row(self) -> dict[str, Any]:
         return {
             "rung": self.rung,
@@ -988,6 +1017,10 @@ class LegRecord:
             "native_memory_pinned_off": self.native_memory_pinned_off,
             "pin_precedence_fingerprint": self.pin_precedence_fingerprint,
             "hook_reaches": self.hook_reaches,
+            "bd_receipts": list(self.bd_receipts),
+            "bd_receipt_leg_id": self.bd_receipt_leg_id,
+            "cwd": self.cwd,
+            "bd_evidence": self.bd_evidence.model_dump() if self.bd_evidence is not None else None,
         }
 
     @property
@@ -1174,10 +1207,10 @@ def call_rate_gates(cells: Sequence[RungCell], *, tolerance: float = 0.0) -> dic
             "rung": RUNG_IDS[0],
             "call_rate": floor,
             "note": (
-                "R0 carries NO guidance text; the agent still sees an allowlisted memory tool. A "
-                "high R0 rate means the tool's NAME is the treatment, so R0 is the affordance "
-                "FLOOR and not a zero. The tool is deliberately not renamed: a rename moves the "
-                "argv and invalidates every cached cell."
+                "R0 carries no ladder text, but the deployment context names bd and directs "
+                "memory use. It is a deployment FLOOR, not a silent control. R0 also pins native "
+                "memory off while R1-R4 leave it on: a contrast involving R0 changes both "
+                "guidance and native settings. See bd_reliability for the bd-specific endpoint."
             ),
         },
     }
@@ -1235,6 +1268,7 @@ def summarize(
     caller supplies them, and ``resume_cells`` refuses an artifact whose identity is blank."""
     summary = {
         "experiment": "e1-guidance-ladder",
+        "endpoint": "bd_handoff_observed",
         "channel": CHANNEL.value,
         "model": resolve_model(model) or "cli-default",
         "surface_fingerprint": surface_fingerprint(),
@@ -1243,6 +1277,10 @@ def summarize(
         # with R0 unpinned measured a different floor, so the pin table gets its own field.
         "settings_fingerprint": rung_settings_fingerprint(),
         "execution_protocol": EXECUTION_PROTOCOL_VERSION,
+        # The DEPLOYMENT CONTEXT arm, on for every rung since protocol 3. Recorded even though
+        # it is currently constant: an artifact has to be able to say which surface bought it,
+        # and the interior-480 numbers (protocol 2) were bought WITHOUT it.
+        "bd_context": BD_CONTEXT_DEFAULT,
         "cli_version": cli_version,
         "corpus_fingerprint": corpus,
         "dry_run": dry_run,
@@ -1252,6 +1290,7 @@ def summarize(
         # repeated "R0" thirty-two times and named itself the rungs of the grid.
         "rungs": sorted({cell.rung for cell in cells}),
         "cells": [cell.row() for cell in cells],
+        "bd_reliability": reliability_report([cell.row() for cell in cells]),
         GATE_KEY: call_rate_gates(cells, tolerance=tolerance),
     }
     assert_gates_ride_outside_metrics(summary)
@@ -1377,12 +1416,16 @@ class _CellStore:
     hook_log: Path
     pinned_off: bool
     probe: str
-    bd_context: bool = False
+    bd_context: bool = BD_CONTEXT_DEFAULT
 
 
 @contextmanager
 def cell_store(
-    task: ToolReqRealAgentTask, *, rung: str, bd_context: bool = False
+    task: ToolReqRealAgentTask,
+    *,
+    rung: str,
+    bd_context: bool = BD_CONTEXT_DEFAULT,
+    native_memory_hook_mode: str = NATIVE_MEMORY_HOOK_MODE_DEFAULT,
 ) -> Iterator[_CellStore]:
     """Mint one repeat's store + sandbox, seed the rung, install the observer, and tear the whole
     thing down when both legs have run.
@@ -1415,7 +1458,7 @@ def cell_store(
         # for every rung, so it is byte-identical across the ladder and cancels in every contrast;
         # what it buys is a record of the reach made AT the reach, which a truncated or unscored
         # leg would otherwise not leave behind.
-        hook_log = install_native_memory_hook(config_dir)
+        hook_log = install_native_memory_hook(config_dir, mode=native_memory_hook_mode)
         # The DEPLOYMENT CONTEXT arm. Planted into the sandbox cwd (where the CLI auto-loads it),
         # after the store is minted so the capture exists, and re-planted by `close_cwd_channel`
         # because the wipe between legs eats it too.
@@ -1639,6 +1682,9 @@ def run_rung_cell(
     streak: UnmeasuredStreak | None = None,
     expect_cli_version: str = "",
     corpus_dir: Path | None = None,
+    bd_context: bool = BD_CONTEXT_DEFAULT,
+    native_memory_hook_mode: str = NATIVE_MEMORY_HOOK_MODE_DEFAULT,
+    instrument_bd: bool = False,
 ) -> RungCell:
     """Run one ``(rung, task-variant)`` cell and count the memory calls the agent CHOSE to make.
 
@@ -1694,11 +1740,34 @@ def run_rung_cell(
     # leg files for 160 paid legs, because a RESUMED cell re-runs nothing and emits nothing; the
     # count below is over the legs this run actually spends, which is the number it can promise.
     emitted: list[str] = []
+    bd_evidence: list[BdLegEvidence] = []
 
     def _emit(record: LegRecord) -> None:
+        path = receipt_path(store.surface, record.leg) if instrument_bd else None
+        receipts = read_receipts(path) if path is not None else None
+        evidence = score_bd_leg(
+            task,
+            tool_calls_from_stream(record.stream),
+            leg=record.leg,
+            role=record.role,
+            status=record.status,
+            config_dir=store.config_dir,
+            cwd=store.sandbox,
+            receipts=receipts,
+            expected_leg_id=path.stem if path is not None else None,
+        )
+        bd_evidence.append(evidence)
         emitted.append(record.filename)
         if on_leg is not None:
-            on_leg(record)
+            on_leg(
+                replace(
+                    record,
+                    bd_evidence=evidence,
+                    cwd=str(store.sandbox),
+                    bd_receipts=receipts or (),
+                    bd_receipt_leg_id=path.stem if path is not None else None,
+                )
+            )
 
     def _unmeasured(leg: int, role: str, outcome: _LegOutcome) -> None:
         """Record one leg the CELL cannot count, and halt if the rig has stopped working.
@@ -1742,13 +1811,20 @@ def run_rung_cell(
         # ONE store, ONE sandbox, TWO legs. Everything that makes the establish leg's write
         # payable lives in the scope of this `with`: the store the second leg opens is the store
         # the first leg wrote to, and both are destroyed together when the repeat ends.
-        with cell_store(task, rung=rung) as store:
+        with cell_store(
+            task,
+            rung=rung,
+            bd_context=bd_context,
+            native_memory_hook_mode=native_memory_hook_mode,
+        ) as store:
             for role_index, (role, step) in enumerate(zip(LEG_ROLES, steps, strict=True)):
                 if role_index:
                     # BETWEEN the legs, never around them: the establish leg is unclamped by
                     # design and the goal leg must not read what it dropped in the cwd.
                     close_cwd_channel(store)
                 i = repeat * LEGS_PER_CELL + role_index
+                if instrument_bd:
+                    prepare_receipt_leg(store.surface, leg=i)
                 outcome = _run_leg(
                     task,
                     step,
@@ -1841,6 +1917,7 @@ def run_rung_cell(
         timed_out_runs=timed_out,
         errored_runs=errored,
         native_memory_pinned_off=_one_pin(pinned, rung=rung, task=task),
+        bd_evidence=tuple(bd_evidence),
     )
 
 
@@ -2522,11 +2599,9 @@ def resume_cells(
                 f"partial artifact carries {cell.key}, which is not a cell of the grid this fire "
                 "runs; it cannot be pooled into these rates"
             )
-        if cell.runs != repeats:
-            # Not poolable and not completable: a cell of 3 legs weights differently from one of
-            # 5, and a fire halted mid-cell writes no cell at all, so a row like this came from a
-            # different fire or a hand edit. Dropped, which re-buys it — the legs it did pay for
-            # survive as leg evidence.
+        if cell.runs != repeats * LEGS_PER_CELL:
+            # Every repeat contains an establish/goal pair. A different leg count belongs to
+            # another fire or a hand edit; a fire halted mid-cell writes no cell at all.
             continue
         if not cell.paid or not cell.work_id or cell.measured_runs <= 0:
             continue

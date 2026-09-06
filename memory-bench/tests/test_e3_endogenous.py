@@ -40,9 +40,9 @@ from membench.schemas.sequence import OutcomeCheck, SequenceStep
 from membench.schemas.trace import ToolCall
 
 
-def bash(command: str) -> ToolCall:
+def bash(command: str, output: str | None = None) -> ToolCall:
     """One observed Bash tool_use — the shape a real memory call arrives in."""
-    return ToolCall(name="Bash", arguments={"command": command})
+    return ToolCall(name="Bash", arguments={"command": command}, result=output)
 
 
 def step(**overrides: object) -> SequenceStep:
@@ -92,7 +92,10 @@ def test_tool_events_reach_trial() -> None:
     calls = [
         bash("bd recall auth-key"),
         bash("bd memories rotation"),
-        bash("bd remember rotation-plan 'rotate on the 1st'"),
+        bash(
+            "bd remember 'rotate on the 1st' --key rotation-plan",
+            "Remembered [rotation-plan]: rotate on the 1st",
+        ),
     ]
     bundle = compute_metrics(step(), result(calls), None, [], reads_enabled=False)
     assert bundle.efficiency.endogenous_memory_tool_calls == 3
@@ -192,7 +195,10 @@ def test_the_seams_see_a_quoted_capture() -> None:
     E3b's guards must not be green only for the spelling that bead happened to enumerate."""
     quoted = [
         bash('v="$(bd recall auth-key)"'),
-        bash("echo \"$(bd remember rotation-plan 'rotate on the 1st')\""),
+        bash(
+            "echo \"$(bd remember 'rotate on the 1st' --key rotation-plan)\"",
+            "Remembered [rotation-plan]: rotate on the 1st",
+        ),
     ]
     bundle = compute_metrics(step(), result(quoted), None, [], reads_enabled=False)
     assert bundle.efficiency.endogenous_memory_reads == 1
@@ -291,7 +297,14 @@ def test_endogenous_write_is_graded_on_content_not_id() -> None:
 
     own_key = compute_metrics(
         endogenous,
-        result([bash("bd remember my-own-note 'rotate on the 1st'")]),
+        result(
+            [
+                bash(
+                    "bd remember 'rotate on the 1st' --key my-own-note",
+                    "Remembered [my-own-note]: rotate on the 1st",
+                )
+            ]
+        ),
         None,
         [],
         reads_enabled=False,
@@ -303,7 +316,14 @@ def test_endogenous_write_is_graded_on_content_not_id() -> None:
     # id right earns nothing.
     right_id_wrong_fact = compute_metrics(
         endogenous,
-        result([bash("bd remember rotation-plan 'rotate on the 15th'")]),
+        result(
+            [
+                bash(
+                    "bd remember 'rotate on the 15th' --key rotation-plan",
+                    "Remembered [rotation-plan]: rotate on the 15th",
+                )
+            ]
+        ),
         None,
         [],
         reads_enabled=False,
@@ -312,17 +332,15 @@ def test_endogenous_write_is_graded_on_content_not_id() -> None:
     assert right_id_wrong_fact.retention.expected_memory_written is False
     assert right_id_wrong_fact.retention.write_miss_rate == 1.0
 
-    # A key and nothing else stores no content, even when the key itself spells the literal: the
-    # chosen key is excluded from the graded text, so this is a miss rather than a hit earned by
-    # naming.
-    key_only = compute_metrics(
+    # This is valid content with an implicit key, but the absent result cannot prove storage.
+    unacknowledged = compute_metrics(
         endogenous,
         result([bash("bd remember 'rotate on the 1st'")]),
         None,
         [],
         reads_enabled=False,
     )
-    assert key_only.retention.write_hit_rate == 0.0
+    assert unacknowledged.retention.write_hit_rate == 0.0
 
     silent = compute_metrics(endogenous, result([]), None, [], reads_enabled=False)
     assert silent.retention.write_hit_rate == 0.0
@@ -336,7 +354,12 @@ def test_id_exact_write_grade_is_untouched_off_the_endogenous_path() -> None:
     """
     expected = {"rotation-plan": "rotate on the 1st"}
     forced = step(expected_memory_writes=expected)
-    calls = [bash("bd remember my-own-note 'rotate on the 1st'")]
+    calls = [
+        bash(
+            "bd remember 'rotate on the 1st' --key my-own-note",
+            "Remembered [my-own-note]: rotate on the 1st",
+        )
+    ]
 
     hit = compute_metrics(
         forced,

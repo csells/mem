@@ -1,0 +1,56 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_____ TestQuotaExclusion.test_compare_configs_paired_scores_exclude_quota ______
+
+self = <tests.test_stats.TestQuotaExclusion object at 0x781a6562a1e0>
+
+    def test_compare_configs_paired_scores_exclude_quota(self) -> None:
+        # Step 2: the paired score lists feeding compare_configs's hypothesis
+        # tests must omit quota casualties too, so the tests match the
+        # reward population the summaries report.
+        from codeprobe.analysis.report import _tee_task_scores
+    
+        sink: dict[str, float] = {}
+        consumed = list(_tee_task_scores(iter(self._mixed()), sink))
+        # All trials still flow through (so the summarizer counts quota)...
+        assert len(consumed) == 5
+        # ...but only the 3 real trials land in the paired-score sink.
+>       assert set(sink) == {"r1", "r2", "r3"}
+E       AssertionError: assert {'q1', 'q2', 'r1', 'r2', 'r3'} == {'r1', 'r2', 'r3'}
+E         
+E         Extra items in the left set:
+E         'q1'
+E         'q2'
+E         Use -v to get more diff
+
+tests/test_stats.py:442: AssertionError
+____ TestQuotaExclusion.test_summarize_completed_tasks_mean_excludes_quota _____
+
+self = <tests.test_stats.TestQuotaExclusion object at 0x781a6570f4d0>
+
+    def test_summarize_completed_tasks_mean_excludes_quota(self) -> None:
+        # A1/A2 for the streaming summarizer — must match summarize_config.
+        s = summarize_completed_tasks("cfg", iter(self._mixed()))
+>       assert s.mean_score == 2 / 3
+E       AssertionError: assert 0.4 == (2 / 3)
+E        +  where 0.4 = ConfigSummary(label='cfg', total_tasks=5, completed=3, errored=2, pass_rate=0.4, mean_score=0.4, median_score=0.0, tot...5)', dual_task_count=0, direct_pass_rate=None, artifact_pass_rate=None, quota_error_count=2, abandoned_surface_count=0).mean_score
+
+tests/test_stats.py:387: AssertionError
+_________ TestQuotaExclusion.test_summarize_config_mean_excludes_quota _________
+
+self = <tests.test_stats.TestQuotaExclusion object at 0x781a66442c60>
+
+    def test_summarize_config_mean_excludes_quota(self) -> None:
+        # A1: mean over the M=3 real trials only.
+        cr = ConfigResults(config="cfg", completed=self._mixed())
+        s = summarize_config(cr)
+>       assert s.mean_score == 2 / 3
+E       AssertionError: assert 0.4 == (2 / 3)
+E        +  where 0.4 = ConfigSummary(label='cfg', total_tasks=5, completed=3, errored=2, pass_rate=0.4, mean_score=0.4, median_score=0.0, tot...5)', dual_task_count=0, direct_pass_rate=None, artifact_pass_rate=None, quota_error_count=2, abandoned_surface_count=0).mean_score
+
+tests/test_stats.py:372: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_stats.py::TestQuotaExclusion::test_compare_configs_paired_scores_exclude_quota
+FAILED tests/test_stats.py::TestQuotaExclusion::test_summarize_completed_tasks_mean_excludes_quota
+FAILED tests/test_stats.py::TestQuotaExclusion::test_summarize_config_mean_excludes_quota
+3 failed in 0.10s

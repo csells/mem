@@ -220,3 +220,11 @@ def test_the_matcher_covers_every_tool_a_reach_can_arrive_through(tmp_path: Path
     matched = set(entry["hooks"][NATIVE_MEMORY_HOOK_EVENT][0]["matcher"].split("|"))
 
     assert matched >= {*tool_surface.NATIVE_MEMORY_TOOL_NAMES, tool_surface.NATIVE_MEMORY_BASH_TOOL}
+
+
+def test_redirect_distinguishes_exact_keys_from_search_queries() -> None:
+    reason = redirect_reason()
+    assert 'bd remember "<content>"' in reason
+    assert "bd recall <key>" in reason
+    assert "bd memories <query>" in reason
+    assert "bd recall <query>" not in reason

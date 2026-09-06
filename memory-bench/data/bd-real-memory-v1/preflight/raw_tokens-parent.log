@@ -1,0 +1,144 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___________________ test_aggregate_emits_token_count_rollups ___________________
+
+runner = <click.testing.CliRunner object at 0x7e4133841ee0>
+exp_dir = PosixPath('/tmp/pytest-of-ds/pytest-7362/test_aggregate_emits_token_cou0/test-exp')
+
+    def test_aggregate_emits_token_count_rollups(
+        runner: CliRunner, exp_dir: Path
+    ) -> None:
+        """codeprobe-oktg: aggregate.json.config_summaries carries
+        total_input_tokens / total_output_tokens / mean_*_per_task alongside
+        the existing cost rollup. Cost-Pareto plots that aren't dollar-locked
+        need the raw counts."""
+        save_config_results(
+            exp_dir,
+            "baseline",
+            [
+                CompletedTask(
+                    task_id="task-001",
+                    automated_score=1.0,
+                    duration_seconds=2.0,
+                    cost_usd=0.10,
+                    input_tokens=1000,
+                    output_tokens=200,
+                ),
+                CompletedTask(
+                    task_id="task-002",
+                    automated_score=0.5,
+                    duration_seconds=3.0,
+                    cost_usd=0.15,
+                    input_tokens=2000,
+                    output_tokens=400,
+                ),
+            ],
+        )
+        save_config_results(
+            exp_dir,
+            "variant",
+            [
+                CompletedTask(
+                    task_id="task-001",
+                    automated_score=1.0,
+                    duration_seconds=2.0,
+                    cost_usd=0.10,
+                    # Mixed availability: one task missing usage. Mean should
+                    # be over the populated tasks only, not coerce missing to 0.
+                    input_tokens=500,
+                    output_tokens=100,
+                ),
+                CompletedTask(
+                    task_id="task-002",
+                    automated_score=0.5,
+                    duration_seconds=3.0,
+                    cost_usd=0.15,
+                ),
+            ],
+        )
+    
+        result = runner.invoke(main, ["experiment", "aggregate", str(exp_dir)])
+        assert result.exit_code == 0, result.output
+    
+        report = json.loads((exp_dir / "reports" / "aggregate.json").read_text())
+        summaries = report["config_summaries"]
+    
+        base = summaries["baseline"]
+>       assert base["total_input_tokens"] == 3000
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'total_input_tokens'
+
+tests/test_experiment_cmd.py:402: KeyError
+______________ test_aggregate_token_rollups_none_when_unavailable ______________
+
+runner = <click.testing.CliRunner object at 0x7e4133321460>
+exp_dir = PosixPath('/tmp/pytest-of-ds/pytest-7362/test_aggregate_token_rollups_n0/test-exp')
+
+    def test_aggregate_token_rollups_none_when_unavailable(
+        runner: CliRunner, exp_dir: Path
+    ) -> None:
+        """When no task in a config reports token counts, the rollups are
+        None (omitted-as-zero would be a verifier-honesty violation)."""
+        save_config_results(
+            exp_dir,
+            "baseline",
+            [
+                CompletedTask(
+                    task_id="task-001",
+                    automated_score=1.0,
+                    duration_seconds=2.0,
+                    cost_usd=0.10,
+                ),
+            ],
+        )
+        result = runner.invoke(main, ["experiment", "aggregate", str(exp_dir)])
+        assert result.exit_code == 0, result.output
+    
+        report = json.loads((exp_dir / "reports" / "aggregate.json").read_text())
+        base = report["config_summaries"]["baseline"]
+>       assert base["total_input_tokens"] is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'total_input_tokens'
+
+tests/test_experiment_cmd.py:439: KeyError
+___ TestExecutorDiagnosticsContract.test_scoring_json_emits_raw_token_counts ___
+
+self = <tests.test_scoring_unified_contract.TestExecutorDiagnosticsContract object at 0x7e4133323d70>
+tmp_path = PosixPath('/tmp/pytest-of-ds/pytest-7362/test_scoring_json_emits_raw_to0')
+
+    def test_scoring_json_emits_raw_token_counts(self, tmp_path: Path) -> None:
+        # codeprobe-oktg: scoring.json.diagnostics carries input_tokens /
+        # output_tokens alongside token_cost_usd. Cost-Pareto plots that
+        # aren't dollar-locked need the raw counts.
+        runs_dir = tmp_path / "runs"
+        runs_dir.mkdir()
+        completed = CompletedTask(
+            task_id="t1",
+            automated_score=0.42,
+            duration_seconds=12.5,
+            cost_usd=0.0034,
+            input_tokens=1234,
+            output_tokens=567,
+            scoring_details={
+                "passed": False,
+                "scorer_family": "oracle_overlap_f1",
+            },
+        )
+        result = TaskResult(completed=completed, agent_stdout="", agent_stderr="")
+    
+        _save_task_artifacts(runs_dir, "t1", result)
+    
+        scoring = json.loads((runs_dir / "t1" / "scoring.json").read_text())
+        diag = scoring["diagnostics"]
+        # No regression on the existing cost field.
+        assert diag["token_cost_usd"] == pytest.approx(0.0034)
+>       assert diag["input_tokens"] == 1234
+               ^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'input_tokens'
+
+tests/test_scoring_unified_contract.py:271: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_experiment_cmd.py::test_aggregate_emits_token_count_rollups
+FAILED tests/test_experiment_cmd.py::test_aggregate_token_rollups_none_when_unavailable
+FAILED tests/test_scoring_unified_contract.py::TestExecutorDiagnosticsContract::test_scoring_json_emits_raw_token_counts
+3 failed in 0.19s

@@ -407,8 +407,9 @@ NATIVE_MEMORY_HOOK_MODE_DEFAULT = NATIVE_MEMORY_HOOK_MODE_OBSERVE
 # different treatment, so the fingerprint has to move with it.
 NATIVE_MEMORY_HOOK_REDIRECT_REASON = (
     "This project's memory does not live in these files. Use the `{command}` command for "
-    "memory instead: `{command} {write} <text>` to record something and `{command} {read} "
-    "<query>` to look something up."
+    'memory instead: `{command} {write} "<content>"` to record a durable fact, '
+    "`{command} {read} <key>` to read an exact key, or `{command} {search} <query>` "
+    "to search when you do not know the key."
 )
 # The hook's own exit codes. 2 is the CLI's "block this tool call and show the model stderr";
 # 0 is "proceed". A hook that failed for its own reasons must not silently become a block, so
@@ -732,18 +733,19 @@ class MemoryInvocation:
 
     @property
     def is_write(self) -> bool:
-        """The verb is a write verb. This is the ARGV-level view E3b grades content under (a
-        write it cannot see the result of is still graded on what it stored); the E1 counter
-        uses ``is_accepted_write``, which requires the tool's acknowledgement."""
+        """The verb is a write verb; ``is_accepted_write`` verifies that it stored content."""
         return self.verb in MEMORY_WRITE_VERBS
 
     @property
     def is_accepted_write(self) -> bool:
-        """A write bd ACKNOWLEDGED: a write verb, content on the argv (an explicit key or at least
-        one operand), and a result carrying bd's own stored line. A refused, recalled, truncated
-        or silenced (``2>/dev/null``) remember is not one."""
-        return (
-            self.is_write and bool(self.key or self.operands) and remember_was_accepted(self.result)
+        """A write with content and bd's storage acknowledgement matching its explicit key.
+
+        A refused, recalled, truncated, or silenced remember is not an accepted write."""
+        if not self.is_write or not self.operands or self.result is None:
+            return False
+        return any(
+            remember_was_accepted(ack.text) and (not self.key or ack.key == self.key)
+            for ack in _bd_acks(self.result)
         )
 
     @property
@@ -758,16 +760,12 @@ class MemoryInvocation:
 
     @property
     def stored_content(self) -> tuple[str, ...]:
-        """The operand words a WRITE stored, MINUS the key it stored them under.
+        """The content supplied to a write, excluding an explicit ``--key`` value.
 
-        ``bd remember <key> <content...>``: the first operand is the key the agent chose for
-        itself, and it is exactly what an endogenous write grade must not read — grading a write
-        by its key measures id-naming discipline, which is the one thing an endogenous write is
-        free to decide. With an explicit ``--key`` the key is already out of the operands and
-        every operand is content. Empty for a read: a read stores nothing."""
-        if not self.is_write:
-            return ()
-        return self.operands if self.key else self.operands[1:]
+        ``bd remember "<content>"`` auto-generates its key; the positional argument is always
+        content. The argv parser already separates ``--key`` from operands. This is the
+        content offered by the command; ``is_accepted_write`` separately verifies storage."""
+        return self.operands if self.is_write else ()
 
     @property
     def requested_ids(self) -> tuple[str, ...]:
@@ -850,8 +848,10 @@ _POLICY_PREFIXES: tuple[str, ...] = (
 # recognizer; 2 = G1 (mutating writes, wrapper option values), G2 (every operand anchors inside
 # the pin), G3 (non-accessing command operands); 3 = H1 (inside the pin only PATH operands
 # anchor: value words and leading value operands are policy-enumerated and never anchored);
-# 4 = every access carries `satisfied`, so a leg scores reached-for and obtained separately.
-RECOGNIZER_IMPLEMENTATION_VERSION = 4
+# 4 = every access carries `satisfied`, so a leg scores reached-for and obtained separately;
+# 5 = remember content is positional, `--` preserves literal operands, and retained content
+# requires an attributable storage acknowledgement matching any explicit key.
+RECOGNIZER_IMPLEMENTATION_VERSION = 5
 
 
 def _policy_value(name: str, value: object) -> object:
@@ -1128,8 +1128,8 @@ BD_CONTEXT_ADDENDUM: str = """
 sessions in this project.
 
 ```bash
-bd remember <key> <content...>   # store a durable fact under a key you choose
-bd remember --key <key> <content...>   # same, with the key given explicitly
+bd remember "<content>"          # store a durable fact; the key is generated from the content
+bd remember "<content>" --key <key>   # store or update a fact under a key you choose
 bd recall <key>                  # read back what was stored under that key
 bd memories <query>              # search stored memories when you do not know the key
 ```
@@ -1477,6 +1477,9 @@ def _invocations_of_segment(words: Sequence[str], depth: int = 0) -> list[Memory
     cursor = 0
     while cursor < len(tail):
         word = tail[cursor]
+        if word == "--":
+            operands.extend(tail[cursor + 1 :])
+            break
         if word == BD_KEY_FLAG and cursor + 1 < len(tail):
             key = tail[cursor + 1]
             cursor += 2
@@ -1568,6 +1571,24 @@ def memory_invocations(calls: Iterable[ToolCall]) -> list[MemoryInvocation]:
     return invocations
 
 
+def memory_result_is_attributable(call: ToolCall) -> bool:
+    """Whether one answered, successful tool call runs exactly one direct bd memory command.
+
+    Compound commands and wrappers can print text that looks like bd output. Their results
+    remain unattributed even when they contain a successful bd operation; this conservative
+    boundary may undercount complex commands, but cannot credit another command's echo."""
+    if call.name not in MEMORY_TOOL_NAMES or call.is_error or call.result is None:
+        return False
+    command = _command_of(call)
+    segments = command_segments(command)
+    return (
+        len(segments) == 1
+        and bool(segments[0])
+        and PurePosixPath(segments[0][0]).name == MEMORY_COMMAND
+        and len(memory_invocations_in_command(command)) == 1
+    )
+
+
 def observed_requested_ids(calls: Iterable[ToolCall]) -> list[str]:
     """The memory ids the agent asked for, in stream order, deduplicated.
 
@@ -1590,10 +1611,17 @@ def observed_written_content(calls: Iterable[ToolCall]) -> str:
     The harness's own reading of argv (the write-side twin of ``observed_requested_ids``), so an
     endogenous write can be graded on whether the required literal is recoverable from the stored
     CONTENT under whatever key the agent chose, rather than on whether it guessed the harness's
-    id. Words are joined with newlines so two separate writes never fuse into a token run neither
-    of them stated."""
+    id. Only attributable tool results with a storage acknowledgement contribute content;
+    offered argv alone cannot establish retention. Compound and wrapped commands are left
+    unattributed. Words are joined with newlines so separate writes never fuse into a token
+    run neither of them stated."""
     return "\n".join(
-        word for invocation in memory_invocations(calls) for word in invocation.stored_content
+        word
+        for invocation in memory_invocations(
+            call for call in calls if memory_result_is_attributable(call)
+        )
+        if invocation.is_accepted_write
+        for word in invocation.stored_content
     )
 
 

@@ -35,13 +35,12 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import MISSING, dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, NoReturn
 
-from membench.armcompare import _iter_tool_result_blocks, _iter_tool_use_blocks
 from membench.runner.agent import AgentStepResult
 from membench.runtime import StepContext
 from membench.schemas.sequence import SequenceStep
@@ -606,12 +605,32 @@ def _tool_result_text(block: Mapping[str, Any]) -> str:
     return ""
 
 
-def _answer(results: Mapping[str, tuple[str, bool]], block_id: object) -> tuple[str, bool] | None:
-    """The (text, is_error) the stream answered one ``tool_use`` with, or ``None`` when it carries
+def _answer(
+    results: Mapping[str, tuple[str, bool, int]], block_id: object
+) -> tuple[str, bool, int] | None:
+    """The (text, is_error, position) answering one ``tool_use``, or ``None`` when it carries
     no answer at all — a stream truncated before the tool returned. ``None`` is not ``is_error``:
     an unobserved outcome and a failed one are different facts and neither may be read as the
     other."""
     return results.get(block_id) if isinstance(block_id, str) else None
+
+
+def _indexed_stream_blocks(stream: str) -> Iterator[tuple[int, Mapping[str, Any]]]:
+    """Flatten message content in wire order, preserving tolerant legacy stream parsing."""
+    index = 0
+    for line in stream.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        message = event.get("message") if isinstance(event, Mapping) else None
+        content = message.get("content") if isinstance(message, Mapping) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, Mapping):
+                yield index, block
+            index += 1
 
 
 def tool_calls_from_stream(stream_text: str) -> list[ToolCall]:
@@ -621,25 +640,33 @@ def tool_calls_from_stream(stream_text: str) -> list[ToolCall]:
 
     Each call carries the ``tool_result`` the stream answered it with, joined by ``tool_use_id``
     (``ToolCall.result``; ``None`` when the stream carries no answer — a stream truncated before
-    the tool returned). The join exists because a verb on the argv is not an operation: the
-    160-leg staged fire's only "endogenous write" was a ``bd remember list`` that bd REFUSED, and
-    only the result can say so (mem-8fv4t)."""
+    the tool returned). Positions retain delivery order, including parallel calls whose uses
+    precede one another's results. The join exists because a verb on the argv is not an operation:
+    the staged fire's only "endogenous write" was a ``bd remember list`` that bd REFUSED,
+    and only the result can say so (mem-8fv4t)."""
+    blocks = list(_indexed_stream_blocks(stream_text))
     results = {
-        block["tool_use_id"]: (_tool_result_text(block), bool(block.get("is_error", False)))
-        for block in _iter_tool_result_blocks(stream_text)
-        if isinstance(block.get("tool_use_id"), str)
+        block["tool_use_id"]: (_tool_result_text(block), bool(block.get("is_error", False)), index)
+        for index, block in blocks
+        if block.get("type") == "tool_result" and isinstance(block.get("tool_use_id"), str)
     }
     calls: list[ToolCall] = []
-    for block in _iter_tool_use_blocks(stream_text):
+    for index, block in blocks:
+        if block.get("type") != "tool_use":
+            continue
         name = block.get("name")
         raw_input = block.get("input")
         block_id = block.get("id")
+        answered = _answer(results, block_id)
         calls.append(
             ToolCall(
                 name=name if isinstance(name, str) and name else "unknown",
+                tool_use_id=block_id if isinstance(block_id, str) else None,
+                tool_use_index=index,
                 arguments=dict(raw_input) if isinstance(raw_input, dict) else {},
-                result=answered[0] if (answered := _answer(results, block_id)) else None,
+                result=answered[0] if answered else None,
                 is_error=bool(answered[1]) if answered else False,
+                tool_result_index=answered[2] if answered else None,
             )
         )
     return calls
@@ -667,6 +694,9 @@ class HeadlessClaudeAgent:
     timeout_s: float = DEFAULT_TIMEOUT_S
     runner: Runner
     strict_mcp: bool = True
+    # Managed policy still applies; this selects only user/project/local settings sources.
+    setting_sources: str | None = None
+    include_hook_events: bool = False
     constrain_tools: bool = True
     # Path to the MCP server config `--strict-mcp-config` should restrict the session TO. Without
     # it, strict mode boots NO servers at all, so every `mcp__<server>__<tool>` name in
@@ -721,6 +751,16 @@ class HeadlessClaudeAgent:
                 "`callable(runner)` check does NOT close it: subprocess.run is callable. Declare "
                 "`runner` with no default."
             )
+        if self.setting_sources is not None:
+            sources = self.setting_sources.split(",")
+            if len(set(sources)) != len(sources) or not set(sources) <= {
+                "user",
+                "project",
+                "local",
+            }:
+                raise ValueError(
+                    "setting_sources must select distinct user, project, or local sources"
+                )
         resolved = resolve_model(self.model)
         object.__setattr__(self, "_pass_model", bool(resolved))
         object.__setattr__(self, "_resolved_model", resolved or "cli-default")
@@ -735,6 +775,10 @@ class HeadlessClaudeAgent:
         that merely agree today — the whole defect family this seam closes."""
         prompt = build_agent_prompt(step, dict(available_memory), self.memory_channel)
         argv = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+        if self.setting_sources is not None:
+            argv += ["--setting-sources", self.setting_sources]
+        if self.include_hook_events:
+            argv.append("--include-hook-events")
         if self.strict_mcp:
             argv.append("--strict-mcp-config")
         if self.mcp_config:
@@ -847,6 +891,8 @@ def cell_agent(
     cwd: str | None = None,
     env: Mapping[str, str] | None = None,
     mcp_config: str | None = None,
+    setting_sources: str | None = None,
+    include_hook_events: bool = False,
 ) -> HeadlessClaudeAgent:
     """The agent one ``(arm, channel)`` cell runs ALL its legs through.
 
@@ -881,6 +927,8 @@ def cell_agent(
         cwd=cwd,
         env=env,
         mcp_config=mcp_config,
+        setting_sources=setting_sources,
+        include_hook_events=include_hook_events,
     )
 
 
@@ -891,6 +939,8 @@ def render_cell_calls(
     legs: Sequence[Leg],
     model: str,
     mcp_config: str | None = None,
+    setting_sources: str | None = None,
+    include_hook_events: bool = False,
 ) -> CellCalls:
     """The command lines one ``(arm, channel)`` cell WILL spawn — the plan, rendered from the legs
     the arm executes, through the agent that executes them.
@@ -898,7 +948,12 @@ def render_cell_calls(
     EVERY leg, in order. A fingerprint over the scored leg alone would call two runs identical while
     an earlier leg differed — and for the builtin arm the earlier leg is the one under test."""
     agent = cell_agent(
-        model=model, channel=channel, runner=_render_only_runner, mcp_config=mcp_config
+        model=model,
+        channel=channel,
+        runner=_render_only_runner,
+        mcp_config=mcp_config,
+        setting_sources=setting_sources,
+        include_hook_events=include_hook_events,
     )
     return CellCalls(
         arm=arm,

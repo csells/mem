@@ -1,0 +1,1 @@
+Quota-errored trials currently distort reported task-quality statistics. Exclude them from the reward population in configuration summaries, completed-task summaries, and paired comparisons; retain an explicit quota count and handle an all-quota population.

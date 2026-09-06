@@ -52,7 +52,10 @@ def redirect_reason() -> str:
     counter scores. Rendered, not written out again: a redirect that named a verb the recognizer
     does not count would produce reaches the artifact cannot attribute to it."""
     return NATIVE_MEMORY_HOOK_REDIRECT_REASON.format(
-        command=MEMORY_COMMAND, write=MEMORY_WRITE_VERBS[0], read=MEMORY_READ_VERBS[0]
+        command=MEMORY_COMMAND,
+        write=MEMORY_WRITE_VERBS[0],
+        read=MEMORY_READ_VERBS[0],
+        search=MEMORY_READ_VERBS[1],
     )
 
 

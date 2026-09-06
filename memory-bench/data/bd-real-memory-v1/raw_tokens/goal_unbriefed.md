@@ -1,0 +1,1 @@
+Expose raw input and output token counts in saved scoring diagnostics and per-configuration aggregate results when the agent reports them. Preserve existing diagnostics and represent unavailable counts consistently with the existing reporting contract.

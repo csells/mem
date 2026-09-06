@@ -71,10 +71,12 @@ from membench.runner.tool_surface import (
     memory_invocations,
     memory_invocations_in_command,
     memory_reaching_calls,
+    memory_result_is_attributable,
     memory_verbs_in_command,
     native_memory_accesses,
     native_memory_calls,
     native_memory_calls_satisfied,
+    observed_written_content,
     partition_memory_calls,
     provision_memory_tool,
     recognizer_policy,
@@ -1094,6 +1096,110 @@ def test_remember_argv_splits_key_from_content(
 ) -> None:
     (invocation,) = memory_invocations_in_command(command)
     assert (invocation.verb, invocation.key, invocation.operands) == ("remember", key, operands)
+
+
+@pytest.mark.parametrize(
+    ("command", "content"),
+    [
+        ("bd remember 'retain the entire insight'", ("retain the entire insight",)),
+        ("bd remember 'retain every word' --json", ("retain every word",)),
+        ("bd remember 'retain the insight' --key chosen", ("retain the insight",)),
+        ("bd remember --key=chosen 'retain the insight'", ("retain the insight",)),
+        ("bd remember --key chosen -- --literal", ("--literal",)),
+        ("bd recall chosen", ()),
+        ("bd memories query", ()),
+    ],
+)
+def test_remember_content_includes_every_positional_operand(
+    command: str, content: tuple[str, ...]
+) -> None:
+    """bd takes content positionally; only --key supplies a chosen key."""
+    (invocation,) = memory_invocations_in_command(command)
+    assert invocation.stored_content == content
+    call = _bash_call(command, "Remembered [chosen]: " + "\n".join(content))
+    assert observed_written_content([call]) == "\n".join(content)
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        None,
+        "",
+        'Error: "value" looks like a command, not something to remember',
+        '(recalled "required-value" -- a bare existing key READS)\nrequired-value',
+        '{"action":"recalled","key":"required-value","value":"required-value"}',
+    ],
+)
+def test_unstored_remember_content_earns_no_retention_credit(result: str | None) -> None:
+    assert observed_written_content([_bash_call("bd remember required-value", result)]) == ""
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        "Remembered [other]: required value",
+        "Updated [other]: required value",
+        '{"action":"remembered","key":"other","value":"required value"}',
+        '{"action":"remembered"}',
+    ],
+)
+def test_an_explicit_key_requires_its_own_acknowledgement(result: str) -> None:
+    invocation = MemoryInvocation("remember", ("required value",), "expected", result)
+    assert not invocation.is_accepted_write
+    call = _bash_call("bd remember 'required value' --key expected", result)
+    assert observed_written_content([call]) == ""
+
+
+def test_errored_tool_call_earns_no_retention_credit() -> None:
+    call = ToolCall(
+        name="Bash",
+        arguments={"command": "bd remember 'required value' --key expected"},
+        result="Remembered [expected]: required value",
+        is_error=True,
+    )
+    assert observed_written_content([call]) == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'bd remember "nonce-a" --key k; printf "Remembered [k]: nonce-a"',
+        'bd remember "nonce-a" --key k && printf "Remembered [k]: nonce-a"',
+        "sh -c 'bd remember nonce-a --key k'",
+        "env bd remember nonce-a --key k",
+    ],
+)
+def test_compound_or_wrapped_results_cannot_prove_retention(command: str) -> None:
+    call = _bash_call(command, "Remembered [k]: nonce-a")
+    assert not memory_result_is_attributable(call)
+    assert observed_written_content([call]) == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "bd remember 'required value' --key expected",
+        "/usr/bin/bd remember 'required value' --key expected",
+        "bd --json recall expected",
+        "bd memories query",
+    ],
+)
+def test_direct_bd_results_are_attributable(command: str) -> None:
+    assert memory_result_is_attributable(_bash_call(command, "returned output"))
+
+
+def test_result_attribution_requires_an_answered_successful_memory_tool_call() -> None:
+    assert not memory_result_is_attributable(_bash_call("bd recall expected", None))
+    assert not memory_result_is_attributable(_bash_call("bd ready", "output"))
+    assert not memory_result_is_attributable(_bash_call("", "output"))
+    for name, is_error in [("Read", False), ("Bash", True)]:
+        call = ToolCall(
+            name=name,
+            arguments={"command": "bd recall expected"},
+            result="output",
+            is_error=is_error,
+        )
+        assert not memory_result_is_attributable(call)
 
 
 @pytest.mark.parametrize(

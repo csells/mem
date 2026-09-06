@@ -106,34 +106,55 @@ def test_what_the_establish_leg_writes_is_there_for_the_goal_leg(tmp_path: Path)
     assert seen == ["wrote", "toolreq-carried-value"]
 
 
-def _cwd_dropping_runner(seen: list[list[str]]) -> Any:
-    """Leg 0 drops a file in the CWD; every leg reports what it found there on arrival."""
+SCAVENGED = "the retention window is toolreq-carried-value"
+
+
+def _cwd_dropping_runner(seen: list[list[str]], read: list[str]) -> Any:
+    """Leg 0 poisons the CWD's ``CLAUDE.md``; every leg reports what it found on arrival, by name
+    and by the content of the one file the CLI would auto-load."""
 
     def runner(argv: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         cwd = Path(str(kwargs.get("cwd")))
         seen.append(sorted(p.name for p in cwd.iterdir()))
-        (cwd / "CLAUDE.md").write_text("the retention window is toolreq-carried-value")
+        loaded = cwd / "CLAUDE.md"
+        read.append(loaded.read_text(encoding="utf-8") if loaded.exists() else "")
+        loaded.write_text(SCAVENGED)
         return subprocess.CompletedProcess(list(argv), 0, serialize_stream([result_event()]), "")
 
     return runner
 
 
-def test_the_cwd_is_emptied_between_the_legs(tmp_path: Path) -> None:
+def test_the_establish_legs_scavenge_file_never_reaches_the_goal_leg(tmp_path: Path) -> None:
     """The scavenge channel the ``--allowedTools`` clamp cannot close: Claude Code auto-loads
     ``CLAUDE.md`` from the cwd with no tool call, so an establish leg that drops the values in a
     file would hand them to the goal leg for free and a cell that never touched memory would score
-    as one that did not need to."""
+    as one that did not need to.
+
+    The cwd is no longer EMPTY between the legs — since protocol 3 it carries the deployment
+    context every rung now runs under (``BD_CONTEXT_DEFAULT``) — so the invariant is no longer
+    "nothing survives" but the stronger and more specific "only harness-authored bytes survive".
+    The re-plant OVERWRITES, which is what keeps the channel closed: an establish leg that writes
+    into the very file the arm plants finds its text gone rather than auto-loaded."""
     _seqs, tasks = corpus_one(tmp_path)
     seen: list[list[str]] = []
+    read: list[str] = []
     e1_grid.run_rung_cell(
         tasks[0],
         rung="R4",
         repeats=1,
         model=MODEL,
         dry_run=False,
-        runner=_cwd_dropping_runner(seen),
+        runner=_cwd_dropping_runner(seen, read),
     )
-    assert seen == [[], []], "the goal leg must arrive in an empty cwd"
+
+    establish, goal = seen
+    assert (
+        establish == goal == ["AGENTS.md", "CLAUDE.md"]
+    ), "both legs arrive under the same deployment context, and nothing else is in the cwd"
+    # The goal leg read the PLANTED text, not what the establish leg wrote over it.
+    assert SCAVENGED not in read[1], "the establish leg's drop survived into the goal leg"
+    assert read[1] == read[0], "both legs must auto-load byte-identical context"
+    assert "bd recall" in read[1]
 
 
 def test_every_leg_is_recorded_under_its_role_and_its_own_filename(tmp_path: Path) -> None:

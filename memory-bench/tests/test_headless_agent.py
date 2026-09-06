@@ -114,7 +114,11 @@ def test_serialized_stream_round_trips_through_every_parser() -> None:
         ]
     )
     assert tool_calls_from_stream(stream) == [
-        ToolCall(name="Write", arguments={"file_path": "config.json", "content": "v2"})
+        ToolCall(
+            name="Write",
+            arguments={"file_path": "config.json", "content": "v2"},
+            tool_use_index=0,
+        )
     ]
     assert _stream_usage_tokens(stream) == (7, 3)
     assert _stream_result_text(stream) == "wrote it"
@@ -143,6 +147,60 @@ def test_a_tool_result_is_joined_to_its_tool_use_by_id() -> None:
         "Remembered [k]: v",
         None,
     ]
+
+
+def test_tool_positions_distinguish_parallel_use_from_result_delivery() -> None:
+    stream = serialize_stream(
+        [
+            assistant_event(
+                [
+                    ("Bash", {"command": "bd recall k"}, "recall"),
+                    ("Write", {"file_path": "config.json", "content": "v"}, "action"),
+                ]
+            ),
+            tool_result_event("action", "written"),
+            tool_result_event("recall", "v"),
+            assistant_event([("Read", {"file_path": "config.json"}, "verify")]),
+        ]
+    )
+    recall, action, verify = tool_calls_from_stream(stream)
+    assert (recall.tool_use_id, recall.tool_use_index, recall.tool_result_index) == ("recall", 0, 3)
+    assert (action.tool_use_index, action.tool_result_index) == (1, 2)
+    assert (verify.tool_use_index, verify.tool_result_index) == (4, None)
+    assert recall.tool_result_index is not None
+    assert action.tool_use_index is not None
+    assert verify.tool_use_index is not None
+    assert recall.tool_result_index > action.tool_use_index
+    assert recall.tool_result_index < verify.tool_use_index
+
+
+def test_legacy_trace_calls_have_unknown_identity_and_order() -> None:
+    call = ToolCall.model_validate({"name": "Bash", "arguments": {"command": "bd recall k"}})
+    assert call.tool_use_id is None
+    assert call.tool_use_index is None
+    assert call.tool_result_index is None
+
+
+def test_stream_positions_count_content_blocks_and_skip_malformed_events() -> None:
+    stream = '\nnot-json\n[]\n{"message":{"content":"text"}}\n' + serialize_stream(
+        [
+            {
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "starting"},
+                        None,
+                        {"type": "tool_use", "name": "Read", "input": {}, "id": 7},
+                        {"type": "tool_result", "tool_use_id": 7, "content": "ignored"},
+                    ]
+                }
+            }
+        ]
+    )
+    (call,) = tool_calls_from_stream(stream)
+    assert call.tool_use_index == 2
+    assert call.tool_use_id is None
+    assert call.result is None
+    assert call.tool_result_index is None
 
 
 def test_a_list_form_tool_result_is_joined_as_its_text_parts() -> None:
@@ -720,3 +778,59 @@ def _ctx():
     from membench.runtime import IdClock, StepContext
 
     return StepContext(trial_id="t1", session_id="none", step_id="s1", clock=IdClock())
+
+
+def test_user_only_settings_are_executed_and_fingerprinted() -> None:
+    from membench.runner.headless_agent import Leg, cell_agent, render_cell_calls
+
+    captured: list[list[str]] = []
+
+    def runner(argv: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        captured.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    agent = cell_agent(
+        model="claude-sonnet",
+        channel=MemoryChannel.RECALLED,
+        runner=runner,
+        setting_sources="user",
+        include_hook_events=True,
+    )
+    argv = agent.argv_for(_step(), {})
+    assert argv[argv.index("--setting-sources") + 1] == "user"
+    assert "--strict-mcp-config" in argv
+    assert "--include-hook-events" in argv
+    legs = (Leg(name="goal", step=_step(), memory={}),)
+    pinned = render_cell_calls(
+        arm="bd",
+        channel=MemoryChannel.RECALLED,
+        legs=legs,
+        model="claude-sonnet",
+        setting_sources="user",
+        include_hook_events=True,
+    )
+    default = render_cell_calls(
+        arm="bd",
+        channel=MemoryChannel.RECALLED,
+        legs=legs,
+        model="claude-sonnet",
+    )
+    assert pinned.calls == (tuple(argv),)
+    assert pinned.calls != default.calls
+    assert "--setting-sources" not in default.calls[0]
+    assert "--include-hook-events" not in default.calls[0]
+    agent.run_step(_step(), {}, _ctx())
+    assert captured == [argv]
+
+
+@pytest.mark.parametrize("sources", ["", "managed", "user, user", "user,user", "user,", "USER"])
+def test_setting_sources_rejects_invalid_selection(sources: str) -> None:
+    with pytest.raises(ValueError, match="setting_sources"):
+        HeadlessClaudeAgent(runner=_fake_runner(""), setting_sources=sources)
+
+
+@pytest.mark.parametrize("sources", ["user", "project", "local", "user,project,local"])
+def test_setting_sources_preserves_exact_valid_selection(sources: str) -> None:
+    agent = HeadlessClaudeAgent(runner=_fake_runner(""), setting_sources=sources)
+    argv = agent.argv_for(_step(), {})
+    assert argv[argv.index("--setting-sources") + 1] == sources

@@ -9,6 +9,11 @@ otherwise leave the two legs of a pair on different arms.
 
 from __future__ import annotations
 
+import json
+import os
+import shlex
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,9 +23,13 @@ from membench.runner.tool_surface import (
     MemoryToolError,
     MemoryToolSurface,
     capture_bd_context,
+    memory_invocations,
+    observed_written_content,
     plant_bd_context,
+    provision_memory_tool,
     scrub_store_guidance,
 )
+from membench.schemas.trace import ToolCall
 
 # The line that makes this arm worth firing: bd's own managed block both names the tool and
 # redirects off the native path. Asserted as the reason the capture exists, not as bd's wording --
@@ -119,6 +128,52 @@ def test_the_addendum_gives_no_worked_example_of_when_to_recall(tmp_path: Path) 
         assert supplied not in lowered
 
 
+@pytest.mark.skipif(shutil.which("bd") is None, reason="bd is not installed on this host")
+def test_addendum_commands_round_trip_through_the_agent_surface(tmp_path: Path) -> None:
+    """Execute the taught argv through PATH, checking actual content instead of command exit."""
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    surface = provision_memory_tool(tmp_path / "surface", sandbox=sandbox)
+    env = {**os.environ, **surface.env()}
+    content = "parser contract retained words"
+    commands = BD_CONTEXT_ADDENDUM.split("```bash\n", 1)[1].split("```", 1)[0].splitlines()
+    for template in commands:
+        command = (
+            template.replace("<content>", content)
+            .replace("<key>", "contract-key")
+            .replace("<query>", "parser")
+        )
+        argv = [*shlex.split(command, comments=True), "--json"]
+        result = subprocess.run(
+            argv,
+            cwd=sandbox,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert content in result.stdout
+        if argv[1] == "remember":
+            call = ToolCall(
+                name="Bash", arguments={"command": shlex.join(argv)}, result=result.stdout
+            )
+            (invocation,) = memory_invocations([call])
+            assert invocation.is_accepted_write
+            assert observed_written_content([call]) == content
+            acknowledgement = json.loads(result.stdout)
+            recalled = subprocess.run(
+                ["bd", "recall", acknowledgement["key"], "--json"],
+                cwd=sandbox,
+                env=env,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert json.loads(recalled.stdout)["value"] == content
+
+
 def test_planting_an_empty_capture_refuses(tmp_path: Path) -> None:
     """A cell that asked for the deployment context and silently got none is the null this
     surface exists to avoid, so it raises instead of planting nothing."""
@@ -183,9 +238,9 @@ def test_the_wipe_between_legs_restores_the_context(tmp_path: Path) -> None:
     assert REDIRECT_SENTENCE in (sandbox / "CLAUDE.md").read_text(encoding="utf-8")
 
 
-def test_the_wipe_plants_nothing_on_the_control_arm(tmp_path: Path) -> None:
-    """`bd_context=False` is the arm the interior fire ran. The wipe must leave it empty, or the
-    control silently becomes the treatment and the contrast measures nothing."""
+def test_the_wipe_plants_nothing_when_the_arm_is_off(tmp_path: Path) -> None:
+    """`bd_context=False` is the arm the interior fire ran, and is no longer the default. It stays
+    reachable so protocol 2 can be reproduced; with it off the wipe must leave the cwd empty."""
     from membench.runner.e1_grid import _CellStore, close_cwd_channel
 
     store = _store_with_dropins(tmp_path)
@@ -225,3 +280,51 @@ def test_provisioning_captures_before_it_scrubs(tmp_path: Path) -> None:
     assert any(REDIRECT_SENTENCE in text for text in surface.bd_context.values())
     # ...and the scrub still ran: the STORE carries none of it.
     assert not (surface.store_dir / "CLAUDE.md").exists()
+
+
+def test_the_arm_is_on_by_default_for_every_rung() -> None:
+    """Stephanie's call: the deployment context is the standing environment, not an axis. Pinned
+    here rather than left to the call sites, because a rung that quietly ran without it would be
+    compared against rungs that had it and the ladder would measure the difference."""
+    import inspect
+
+    from membench.runner import e1_grid
+
+    assert e1_grid.BD_CONTEXT_DEFAULT is True
+    assert inspect.signature(e1_grid.cell_store).parameters["bd_context"].default is True
+    for rung in e1_grid.RUNG_IDS:
+        assert rung in e1_grid.RUNG_IDS  # every rung; none opts out, there is no per-rung switch
+
+
+def test_the_protocol_bump_refuses_the_pre_context_artifact() -> None:
+    """interior-480 was bought at protocol 2 WITHOUT the context. Pooling it with a protocol-3
+    fire would report two different floors as one number, so the resume must refuse it."""
+    import pytest as _pytest
+
+    from membench.runner.e1_grid import (
+        EXECUTION_PROTOCOL_VERSION,
+        ResumeMismatchError,
+        resume_cells,
+        rung_settings_fingerprint,
+    )
+    from membench.runner.tool_surface import surface_fingerprint
+
+    assert EXECUTION_PROTOCOL_VERSION >= 3, "the context arm must be inside the resume identity"
+    stale = {
+        "model": "cli-default",
+        "surface_fingerprint": surface_fingerprint(),
+        "settings_fingerprint": rung_settings_fingerprint(),
+        "execution_protocol": 2,
+        "cli_version": "2.1.260",
+        "corpus_fingerprint": "c5f13bbe8c877a2b",
+        "repeats": 5,
+        "cells": [],
+    }
+    with _pytest.raises(ResumeMismatchError, match="different rig"):
+        resume_cells(
+            stale,
+            model="cli-default",
+            cli_version="2.1.260",
+            corpus="c5f13bbe8c877a2b",
+            repeats=5,
+        )
