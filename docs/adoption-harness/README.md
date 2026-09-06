@@ -10,8 +10,9 @@ instead. The task passed; bd was never used. The harness therefore measures the
 pathway as well as the outcome, and it reads that pathway from execution receipts
 rather than from what the agent reports doing.
 
-Everything below runs against the real `claude` CLI and a real `bd` binary. There is no
-simulation mode. A run costs money on whatever account supplies the credentials.
+Agent trials run against the real `claude` CLI and a real `bd` binary. There is no
+simulation mode. Only the `--fire` step starts paid sessions; installation, the local
+smoke check, corpus generation, planning, and reporting do not call a model.
 
 ## What one trial looks like
 
@@ -56,23 +57,28 @@ the scoring path, so the hook and the scorer cannot drift apart.
 96 pairs, 192 sessions, `claude-sonnet-4-6` on Claude Code 2.1.261, 8 generated task
 clusters, $13.47 of estimated spend.
 
-| Condition | Captured the token | Recalled it | Recalled it *before* acting | Full bd handoff | Completed the task |
+The table shows the necessary twins (16 pairs per condition); the other 48 pairs
+are unnecessary-memory controls. Redirect recall also has one unknown outcome.
+
+| Condition | Captured the token | Recalled it | Recalled it *before* acting | Full bd handoff | Qualifying Write |
 |---|---:|---:|---:|---:|---:|
 | `generic` | 0/16 | 0/16 | 0/16 | **0/16** | 16/16 |
 | `explicit` | 10/16 | 9/16 | 8/16 | **8/16** | 14/16 |
 | `redirect` | 15/16 | 15/16 | 12/16 | **12/16** | 12/16 |
 
 Two details in that table matter as much as the headline. The `generic` row is an
-agent that never discovers the tool and passes every task anyway. And task completion
-falls as adoption rises, because several agents that did recall the token then misread
-what it was for. Adoption and correctness are separate outcomes.
+agent that never discovers the tool and produces a qualifying Write every time anyway.
+And qualifying Writes fall as adoption rises, because several agents that did recall
+the token then misread what it was for. This action check is narrower than complete
+task correctness: it does not verify every configuration field or the final filesystem.
 
 Full write-up: [RESULTS.md](RESULTS.md). Definitions and known limits:
 [METHODS.md](METHODS.md).
 
 ## Prerequisites
 
-- Python 3.12 and [uv](https://docs.astral.sh/uv/). Run everything from `memory-bench/`.
+- Python 3.12, [uv](https://docs.astral.sh/uv/), Git, and a POSIX shell (Linux or macOS).
+  Run everything from `memory-bench/`.
 - The `claude` CLI on `PATH`. Pin the version you intend to run with; the harness
   refuses to start if the installed version differs from what you pass.
 - A `bd` binary on `PATH`, or an absolute path in `MEMBENCH_BD_BINARY`. The harness
@@ -87,6 +93,69 @@ Full write-up: [RESULTS.md](RESULTS.md). Definitions and known limits:
 cd memory-bench
 uv sync
 ```
+
+### Install the reference bd version
+
+The known-working baseline is **bd v1.3.0-rc.1, commit `9c6a69ec1`**. Use an
+embedded-capable release binary: a server-only build cannot create the harness's
+isolated local stores. Other versions are experimental, not validated substitutes.
+The [upstream release](https://github.com/gastownhall/beads/releases/tag/v1.3.0-rc.1)
+provides pinned archives and checksums; package-manager defaults may select a
+different version.
+
+This installs a separate binary without replacing your team's existing `bd`:
+the download recipe requires `curl`, `tar`, and `shasum`.
+
+```bash
+# Choose linux_amd64, linux_arm64, darwin_amd64, or darwin_arm64.
+bd_platform=linux_amd64
+bd_archive="beads_1.3.0-rc.1_${bd_platform}.tar.gz"
+bd_release=https://github.com/gastownhall/beads/releases/download/v1.3.0-rc.1
+mkdir -p "$HOME/.local/opt"
+bd_install_dir="$(mktemp -d "$HOME/.local/opt/membench-bd-1.3.0-rc.1.XXXXXX")"
+(
+  set -eu
+  cd "$bd_install_dir"
+  curl -fL "$bd_release/$bd_archive" -o "$bd_archive"
+  curl -fL "$bd_release/checksums.txt" -o checksums.txt
+  awk -v asset="$bd_archive" '$2 == asset {print; found=1} END {if (!found) exit 1}' \
+    checksums.txt | shasum -a 256 -c -
+  tar -xzf "$bd_archive" bd
+)
+export MEMBENCH_BD_BINARY="$bd_install_dir/bd"
+"$MEMBENCH_BD_BINARY" --version
+# bd version 1.3.0-rc.1 (9c6a69ec1)
+```
+
+Keep this directory and export the same absolute path in later shells. Moving or
+upgrading the binary changes the frozen run identity and prevents resuming it.
+
+### Check the local store (no agent, no credentials)
+
+Run this before freezing a plan. It exercises the same isolated store and command
+shim used by the harness, then removes only its temporary store:
+
+```bash
+PYTHONPATH=. uv run python - <<'PY'
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from membench.runner.bd_experiment import resolve_bd_identity
+from membench.runner.tool_surface import harness_call, provision_memory_tool
+
+print(json.dumps(resolve_bd_identity(), indent=2))
+with TemporaryDirectory(prefix="membench-bd-check-") as root:
+    surface = provision_memory_tool(Path(root), sandbox=None)
+    key, token = "membench-check", "membench-check-token-73f91"
+    harness_call(surface, ["remember", token, "--key", key])
+    assert harness_call(surface, ["recall", key]).strip() == token
+    assert key in harness_call(surface, ["memories", "membench-check"])
+print("PASS: isolated bd remember / recall / memories round-trip")
+PY
+```
+
+A missing command, failed initialization, or failed assertion means stop before
+`--fire`. This checks local wiring, not agent adoption or Claude authentication.
 
 ## Build the task corpus
 
@@ -168,16 +237,21 @@ spend anything. Denominators come from the *schedule*, not from whatever complet
 missing or unmeasured pair stays visible in the counts instead of quietly shrinking the
 sample.
 
-A second, independent check re-derives the task outcome from the actual file the agent
-wrote rather than from the frozen scorer:
+A transcript audit rechecks acknowledged `Write` calls against the expected
+`config.json` path and JSON string values, and checks recall/action ordering:
 
 ```bash
 PYTHONPATH=. uv run python scripts/audit_bd_actions.py runs/my-first-run \
   --out runs/my-first-run-audit
 ```
 
-On our 96 pairs the two agreed everywhere. Running both is how you find out whether
-that holds for you.
+On our 96 reference pairs, this audit reported no goal-action disagreements with the
+saved scores. It reads recorded tool arguments and acknowledgments, **not the actual
+file or final filesystem state**. It checks required and superseded tokens, not their
+semantic field placement or every requested setting. Current runs and the audit share
+the same `bd_actions.write_reason` validator, so agreement is not independent evidence
+of correctness. The audit remains useful for inspecting individual writes, timing,
+missing evidence, and discrepancies with historical saved scores.
 
 ### Layout of a run directory
 

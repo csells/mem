@@ -2,14 +2,26 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from membench.runner.bd_receipt_surface import prepare_receipt_leg, read_receipts
 from membench.runner.native_memory_hook import install_native_memory_hook
 from membench.runner.tool_surface import MemoryToolSurface
 
 
-def test_hook_preserves_settings_and_executes_attributed_shim(tmp_path: Path) -> None:
+@pytest.mark.parametrize("spaced_paths", [False, True])
+def test_hook_preserves_settings_and_executes_attributed_shim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, spaced_paths: bool
+) -> None:
+    if spaced_paths:
+        tmp_path = tmp_path / "team member's checkout"
+        tmp_path.mkdir()
+        interpreter = tmp_path / "python interpreter"
+        interpreter.symlink_to(sys.executable)
+        monkeypatch.setattr(sys, "executable", str(interpreter))
     config = tmp_path / "config"
     config.mkdir()
     (config / "settings.json").write_text('{"autoMemoryEnabled": false}')
@@ -47,7 +59,8 @@ def test_hook_preserves_settings_and_executes_attributed_shim(tmp_path: Path) ->
     result = subprocess.run(
         updated["command"],
         shell=True,
-        env=surface.env(),
+        env={**surface.env(), "PATH": str(bins)},
+        cwd=tmp_path,
         capture_output=True,
         text=True,
         check=True,
@@ -55,6 +68,16 @@ def test_hook_preserves_settings_and_executes_attributed_shim(tmp_path: Path) ->
     assert result.stdout == "Remembered [example]\ndone\n"
     rows = read_receipts(receipt)
     assert [row["event"] for row in rows] == ["start", "finish"]
+    assert rows[-1]["argv"] == [
+        str(binary),
+        "-C",
+        str(tmp_path),
+        "remember",
+        "fact",
+        "--key",
+        "example",
+    ]
+    assert rows[-1]["returncode"] == 0
     assert rows[-1]["tool_use_id"] == "call-one"
     assert rows[-1]["leg_id"] == receipt.stem
     second = prepare_receipt_leg(surface, leg=1)

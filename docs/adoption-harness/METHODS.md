@@ -54,12 +54,18 @@ that phase's live execution.
   acknowledged goal action all succeeded. This establishes an observed conjunction;
   it does not prove the action depended causally on bd when another channel also
   supplied the value.
-- **Recorded goal contract success:** an acknowledged Write has argument values
-  containing the required opaque token and excluding superseded tokens. This frozen
-  check does not validate the destination filename, JSON structure, field placement,
-  or every requested configuration value. It is reported separately from bd usage.
-  A separate action-artifact audit checks the actual target path and JSON contents;
-  its results must be distinguished from these original saved scores.
+- **Recorded goal contract success (historical reference run):** an acknowledged
+  Write has argument values containing the required opaque token and excluding
+  superseded tokens. That frozen check did not validate the destination filename,
+  JSON structure, field placement, or every requested configuration value.
+- **Qualifying Write (current scorer and transcript audit):** an acknowledged,
+  non-error Write targets the expected `config.json` path and carries valid JSON
+  with the required token in string values and no superseded tokens. Both use
+  `bd_actions.write_reason`; the audit is not an independent implementation. It
+  reads recorded arguments and acknowledgments, not filesystem artifacts, and
+  cannot verify later edits, final file state, semantic field placement, or every
+  requested setting. Audit results must be distinguished from original saved
+  scores; neither endpoint establishes complete task correctness.
 - **Unnecessary use:** bd reads in goal sessions where the required value was already
   supplied in the prompt. Establish sessions have the same capture opportunity in
   both variants.

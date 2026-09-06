@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import stat
 import sys
 from pathlib import Path
@@ -67,7 +68,9 @@ def hook_settings(script: Path) -> dict[str, Any]:
         NATIVE_MEMORY_HOOK_EVENT: [
             {
                 "matcher": "|".join(NATIVE_MEMORY_HOOK_TOOLS),
-                "hooks": [{"type": "command", "command": f"{sys.executable} {script}"}],
+                "hooks": [
+                    {"type": "command", "command": shlex.join([sys.executable, str(script)])}
+                ],
             }
         ]
     }

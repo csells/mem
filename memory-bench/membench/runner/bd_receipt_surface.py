@@ -30,11 +30,17 @@ def prepare_receipt_leg(surface: MemoryToolSurface, *, leg: int) -> Path:
     script = config / SCRIPT_NAME
     roots = repr([str(Path(__file__).resolve().parents[2])])
     shim = surface.bin_dir / "bd"
-    shim.write_text(
-        f"#!{sys.executable}\nimport sys\nsys.path[:0] = {roots}\n"
+    wrapper = config / "bd-receipt-wrapper.py"
+    wrapper.write_text(
+        f"import sys\nsys.path[:0] = {roots}\n"
         "from membench.runner.bd_receipts import wrapper_main\n"
         f"sys.exit(wrapper_main(binary={surface.bd_binary!r}, "
         f"store={str(surface.store_dir)!r}, receipt_path={str(path)!r}))\n",
+        encoding="utf-8",
+    )
+    # Kernel shebang parsing cannot quote an interpreter path containing spaces.
+    shim.write_text(
+        f'#!/bin/sh\nexec {shlex.join([sys.executable, str(wrapper)])} "$@"\n',
         encoding="utf-8",
     )
     shim.chmod(0o700)

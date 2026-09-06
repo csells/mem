@@ -12,6 +12,7 @@ from membench.runner.headless_agent import assistant_event, serialize_stream, to
 from membench.runner.resume_cache import digest
 from membench.runner.toolreq_corpus import load_twin_corpus
 from membench.schemas.trace import ToolCall
+from tests.toolreq_helpers import corpus
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "audit_bd_actions.py"
 
@@ -51,8 +52,15 @@ def test_write_requires_correct_artifact_and_json_values(
     )
 
 
-def fixture(root: Path) -> tuple[Any, dict[str, Any], Path]:
-    _, tasks = load_twin_corpus()
+@pytest.fixture
+def corpus_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    root = tmp_path_factory.mktemp("audit-corpus")
+    corpus(root, "w-0")
+    return root / "corpus"
+
+
+def fixture(root: Path, corpus_dir: Path) -> tuple[Any, dict[str, Any], Path]:
+    _, tasks = load_twin_corpus(corpus_dir)
     task = next(t for t in tasks if t.variant == "necessary")
     pair = {"condition": "explicit", "work_id": task.work_id, "variant": task.variant, "repeat": 0}
     manifest = {
@@ -70,9 +78,9 @@ def fixture(root: Path) -> tuple[Any, dict[str, Any], Path]:
     return task, pair, directory
 
 
-def test_missing_goal_remains_in_schedule(tmp_path: Path) -> None:
-    _, _, _ = fixture(tmp_path)
-    report = audit_module().audit(tmp_path)
+def test_missing_goal_remains_in_schedule(tmp_path: Path, corpus_dir: Path) -> None:
+    _, _, _ = fixture(tmp_path, corpus_dir)
+    report = audit_module().audit(tmp_path, corpus_dir=corpus_dir)
     assert report["scheduled_pairs"] == 1
     assert report["groups"][0]["strict_artifact_success"]["unknown"] == 1
     assert report["pairs"][0]["strict_handoff"] is None
@@ -80,9 +88,9 @@ def test_missing_goal_remains_in_schedule(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("escape_token", [False, True])
 def test_recall_order_targets_valid_write_not_earlier_invalid_write(
-    tmp_path: Path, escape_token: bool
+    tmp_path: Path, escape_token: bool, corpus_dir: Path
 ) -> None:
-    task, pair, directory = fixture(tmp_path)
+    task, pair, directory = fixture(tmp_path, corpus_dir)
     token = task.current_opaque_values[0]
     content = json.dumps({"a": token})
     if escape_token:
@@ -136,7 +144,7 @@ def test_recall_order_targets_valid_write_not_earlier_invalid_write(
     }
     (directory / "legs" / "0.json").write_text(json.dumps(establish))
     (directory / "legs" / "1.json").write_text(json.dumps(goal))
-    report = audit_module().audit(tmp_path)
+    report = audit_module().audit(tmp_path, corpus_dir=corpus_dir)
     row = report["pairs"][0]
     assert row["strict_artifact_success"] is True
     assert row["qualifying_write_ids"] == ["good"]
@@ -157,8 +165,10 @@ def test_error_or_unanswered_write_cannot_qualify() -> None:
         assert not mod.valid_write(call, cwd="/work", required=("token",), forbidden=())
 
 
-def test_wrong_path_discrepancy_and_cli_preserve_raw_evidence(tmp_path: Path) -> None:
-    task, pair, directory = fixture(tmp_path)
+def test_wrong_path_discrepancy_and_cli_preserve_raw_evidence(
+    tmp_path: Path, corpus_dir: Path
+) -> None:
+    task, pair, directory = fixture(tmp_path, corpus_dir)
     stream = serialize_stream(
         [
             {"type": "system", "subtype": "init", "cwd": "/work"},
@@ -191,7 +201,10 @@ def test_wrong_path_discrepancy_and_cli_preserve_raw_evidence(tmp_path: Path) ->
     raw = json.dumps(goal).encode()
     path.write_bytes(raw)
     out = tmp_path / "audit"
-    assert audit_module().main([str(tmp_path), "--out", str(out)]) == 0
+    assert (
+        audit_module().main([str(tmp_path), "--out", str(out), "--corpus-dir", str(corpus_dir)])
+        == 0
+    )
     report = json.loads((out / "audit.json").read_text())
     assert len(report["discrepancies"]) == 1
     assert report["pairs"][0]["strict_handoff"] is False
@@ -201,33 +214,33 @@ def test_wrong_path_discrepancy_and_cli_preserve_raw_evidence(tmp_path: Path) ->
     assert "Qualifying Write" in (out / "report.md").read_text()
 
 
-def test_missing_or_conflicting_cwd_is_unknown() -> None:
+def test_missing_or_conflicting_cwd_is_unknown(corpus_dir: Path) -> None:
     mod = audit_module()
     assert mod.stream_cwd("not-json\n{}\n") is None
     stream = serialize_stream(
         [{"type": "system", "subtype": "init", "cwd": path} for path in ("/one", "/two")]
     )
     assert mod.stream_cwd(stream) is None
-    _, tasks = load_twin_corpus()
+    _, tasks = load_twin_corpus(corpus_dir)
     assert (
         mod.goal_audit(tasks[0], {"status": "ok", "stream": stream})["strict_artifact_success"]
         is None
     )
 
 
-def test_corpus_and_pair_identity_are_verified(tmp_path: Path) -> None:
-    _, _, directory = fixture(tmp_path)
+def test_corpus_and_pair_identity_are_verified(tmp_path: Path, corpus_dir: Path) -> None:
+    _, _, directory = fixture(tmp_path, corpus_dir)
     started = directory / "started.json"
     row = json.loads(started.read_text())
     started.write_text(json.dumps({**row, "manifest_digest": "bad"}))
     with pytest.raises(ValueError, match="identity"):
-        audit_module().audit(tmp_path)
+        audit_module().audit(tmp_path, corpus_dir=corpus_dir)
     started.write_text(json.dumps(row))
     path = tmp_path / "manifest.json"
     manifest = json.loads(path.read_text())
     path.write_text(json.dumps({**manifest, "corpus_fingerprint": "bad"}))
     with pytest.raises(ValueError, match="corpus"):
-        audit_module().audit(tmp_path)
+        audit_module().audit(tmp_path, corpus_dir=corpus_dir)
 
 
 def test_duplicate_json_keys_are_not_an_unambiguous_artifact() -> None:
@@ -241,8 +254,10 @@ def test_duplicate_json_keys_are_not_an_unambiguous_artifact() -> None:
     )
 
 
-def test_later_unrelated_write_cannot_move_goal_after_recall(tmp_path: Path) -> None:
-    task, pair, directory = fixture(tmp_path)
+def test_later_unrelated_write_cannot_move_goal_after_recall(
+    tmp_path: Path, corpus_dir: Path
+) -> None:
+    task, pair, directory = fixture(tmp_path, corpus_dir)
     token = task.current_opaque_values[0]
     stream = serialize_stream(
         [
@@ -291,7 +306,7 @@ def test_later_unrelated_write_cannot_move_goal_after_recall(tmp_path: Path) -> 
     }
     (directory / "legs" / "0.json").write_text(json.dumps(establish))
     (directory / "legs" / "1.json").write_text(json.dumps(goal))
-    report = audit_module().audit(tmp_path)
+    report = audit_module().audit(tmp_path, corpus_dir=corpus_dir)
     row = report["pairs"][0]
     assert row["strict_artifact_success"] is True
     assert row["strict_recall_before_action"] is False

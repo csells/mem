@@ -79,6 +79,9 @@ other; run the gates green before claiming done:
   subprocesses.** Bind the worklist to a dedicated file descriptor and redirect
   child stdin, or the first child can consume the remaining rows and make a
   multi-group run exit 0 after one group.
+- **Never leave real tools on PATH when testing a replacement executable.** A
+  broken shebang can make shell lookup fall through to the real tool and mutate
+  live data; restrict the child PATH to test binaries and use a temporary cwd.
 
 ## Where to look (references)
 

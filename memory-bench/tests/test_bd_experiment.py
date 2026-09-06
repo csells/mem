@@ -6,7 +6,8 @@ from typing import Any
 import pytest
 
 from membench.runner import bd_experiment as exp
-from membench.runner.toolreq_corpus import DEFAULT_CORPUS, load_twin_corpus
+from membench.runner.toolreq_corpus import load_twin_corpus
+from tests.toolreq_helpers import corpus
 
 BD_IDENTITY = {"path": "/fixture/bd", "sha256": "fixture", "version": "0.1"}
 
@@ -15,9 +16,16 @@ def execute(*args: Any, **kwargs: Any) -> dict[str, int]:
     return exp.execute(*args, bd_identity_reader=lambda: BD_IDENTITY, **kwargs)
 
 
-def setup_plan() -> tuple[list[Any], dict[str, Any]]:
-    _, corpus = load_twin_corpus(DEFAULT_CORPUS)
-    tasks = exp.select_tasks(corpus, n_tasks=2)
+@pytest.fixture
+def corpus_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    root = tmp_path_factory.mktemp("adoption-corpus")
+    corpus(root, "w-0", "w-1")
+    return root / "corpus"
+
+
+def setup_plan(corpus_dir: Path) -> tuple[list[Any], dict[str, Any]]:
+    _, tasks = load_twin_corpus(corpus_dir)
+    tasks = exp.select_tasks(tasks, n_tasks=2)
     manifest = exp.build_manifest(
         tasks,
         model="pinned-model",
@@ -36,11 +44,11 @@ class Cell:
         return {"runs": 2, "paid": True}
 
 
-def test_schedule_balances_and_freezes_treatments() -> None:
-    tasks, manifest = setup_plan()
+def test_schedule_balances_and_freezes_treatments(corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     assert len(tasks) == 4
     assert len(manifest["schedule"]) == 12
-    assert manifest == setup_plan()[1]
+    assert manifest == setup_plan(corpus_dir)[1]
     for offset in range(0, 12, 3):
         block = manifest["schedule"][offset : offset + 3]
         assert len({p["work_id"] for p in block}) == 1
@@ -50,8 +58,8 @@ def test_schedule_balances_and_freezes_treatments() -> None:
     assert manifest["native_memory_settings"] == {}
 
 
-def test_resume_and_pair_bound(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_resume_and_pair_bound(tmp_path: Path, corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     calls: list[dict[str, Any]] = []
 
     def run(task: Any, **kwargs: Any) -> Cell:
@@ -66,8 +74,8 @@ def test_resume_and_pair_bound(tmp_path: Path) -> None:
     assert all(c["repeats"] == 1 and c["rung"] == "R4" for c in calls)
 
 
-def test_mismatch_refuses_before_spend(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_mismatch_refuses_before_spend(tmp_path: Path, corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     execute(tmp_path, manifest, tasks, max_pairs=1, cell_runner=lambda *a, **k: Cell())
     with pytest.raises(exp.ResumeMismatchError):
         execute(
@@ -79,8 +87,10 @@ def test_mismatch_refuses_before_spend(tmp_path: Path) -> None:
         )
 
 
-def test_interruption_preserves_raw_and_refuses_repurchase(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_interruption_preserves_raw_and_refuses_repurchase(
+    tmp_path: Path, corpus_dir: Path
+) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
 
     class Leg:
         filename = "leg.json"
@@ -105,15 +115,17 @@ def test_interruption_preserves_raw_and_refuses_repurchase(tmp_path: Path) -> No
         )
 
 
-def test_invalid_selection_and_bounds(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_invalid_selection_and_bounds(tmp_path: Path, corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     with pytest.raises(ValueError):
         exp.select_tasks(tasks[:1], n_tasks=1)
     with pytest.raises(ValueError):
         execute(tmp_path, manifest, tasks, max_pairs=0)
 
 
-def test_cli_freezes_plan_and_bounds_fire(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_freezes_plan_and_bounds_fire(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corpus_dir: Path
+) -> None:
     import subprocess
 
     monkeypatch.setattr(exp, "resolve_cli_version", lambda: "1.2.3")
@@ -122,7 +134,16 @@ def test_cli_freezes_plan_and_bounds_fire(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(
         exp.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess([], 0, "bd 0.1")
     )
-    args = ["--out", str(tmp_path), "--model", "pinned-model", "--expect-cli-version", "1.2.3"]
+    args = [
+        "--out",
+        str(tmp_path),
+        "--model",
+        "pinned-model",
+        "--expect-cli-version",
+        "1.2.3",
+        "--corpus-dir",
+        str(corpus_dir),
+    ]
     assert exp.main(args) == 0
     assert (tmp_path / "manifest.json").exists()
     assert not (tmp_path / "pairs").exists()
@@ -140,8 +161,8 @@ def test_cli_freezes_plan_and_bounds_fire(tmp_path: Path, monkeypatch: pytest.Mo
     assert exp.main([*args, "--fire"]) == 2
 
 
-def test_unowned_directory_and_task_change_refuse(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_unowned_directory_and_task_change_refuse(tmp_path: Path, corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     (tmp_path / "unexpected").touch()
     with pytest.raises(exp.ResumeMismatchError):
         execute(tmp_path, manifest, tasks, max_pairs=1)
@@ -179,8 +200,8 @@ def test_bd_identity_uses_override(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     }
 
 
-def test_binary_drift_refuses_before_next_pair(tmp_path: Path) -> None:
-    tasks, manifest = setup_plan()
+def test_binary_drift_refuses_before_next_pair(tmp_path: Path, corpus_dir: Path) -> None:
+    tasks, manifest = setup_plan(corpus_dir)
     identities = iter(
         [manifest["bd_identity"], {"path": "/different", "sha256": "different", "version": "0.1"}]
     )

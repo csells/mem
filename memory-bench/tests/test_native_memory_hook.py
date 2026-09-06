@@ -10,7 +10,9 @@ run."""
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -39,9 +41,9 @@ def _fire(config_dir: Path, payload: dict[str, object]) -> subprocess.CompletedP
     the event JSON on stdin."""
     entry = json.loads((config_dir / "settings.json").read_text("utf-8"))
     command = entry["hooks"][NATIVE_MEMORY_HOOK_EVENT][0]["hooks"][0]["command"]
-    assert command.endswith(NATIVE_MEMORY_HOOK_SCRIPT_NAME)
+    assert shlex.split(command)[-1].endswith(NATIVE_MEMORY_HOOK_SCRIPT_NAME)
     return subprocess.run(
-        command.split(), input=json.dumps(payload), capture_output=True, text=True, timeout=60
+        command, shell=True, input=json.dumps(payload), capture_output=True, text=True, timeout=60
     )
 
 
@@ -71,9 +73,18 @@ def test_observe_mode_records_the_reach_and_lets_the_call_through(tmp_path: Path
     assert reach["session_id"] == "s-1"
 
 
-def test_redirect_mode_blocks_the_reach_and_names_the_bd_verbs(tmp_path: Path) -> None:
+@pytest.mark.parametrize("spaced_paths", [False, True])
+def test_redirect_mode_blocks_the_reach_and_names_the_bd_verbs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, spaced_paths: bool
+) -> None:
     """The treatment. Exit 2 is the CLI's block-and-tell-the-model code, so what lands on stderr
     is what the agent reads in place of the file it asked for."""
+    if spaced_paths:
+        tmp_path = tmp_path / "team member's checkout"
+        tmp_path.mkdir()
+        interpreter = tmp_path / "python interpreter"
+        interpreter.symlink_to(sys.executable)
+        monkeypatch.setattr(sys, "executable", str(interpreter))
     config_dir = tmp_path / "config"
     log = install_native_memory_hook(config_dir, mode=NATIVE_MEMORY_HOOK_MODE_REDIRECT)
 
@@ -134,7 +145,7 @@ def test_a_malformed_event_allows_the_call_and_leaves_its_own_fault_in_the_log(
     command = entry["hooks"][NATIVE_MEMORY_HOOK_EVENT][0]["hooks"][0]["command"]
 
     done = subprocess.run(
-        command.split(), input="{not json", capture_output=True, text=True, timeout=60
+        command, shell=True, input="{not json", capture_output=True, text=True, timeout=60
     )
 
     assert done.returncode == NATIVE_MEMORY_HOOK_EXIT_ALLOW
