@@ -1,5 +1,11 @@
 # Public interface checks during memory reuse
 
+**Scope correction, 2026-09-07:** both conditions included task-specific memory
+handoff instructions; all eight direct follow-ups requested recall. This measures
+public checking within a guided workflow, not unprompted memory adoption. See the
+[replacement design](../../specs/plans/0005-unprompted-memory-adoption.md).
+All original results and frozen evidence remain unchanged.
+
 Status: completed and independently rechecked; 32/32 artifacts passed.
 
 Baseline and checker each passed 16/16, so this screen found no correctness

@@ -3,6 +3,13 @@
 A harness for one question: **will a coding agent choose a memory tool on its own,
 recover what it stored in a later session, and act on it?**
 
+**Scope correction, 2026-09-07:** the later installed-guidance and public-checker
+experiments linked below included task-specific memory-handoff instructions.
+They demonstrate guided workflows, not adoption from standing rules/skills alone.
+The [replacement experiment](MEMORY-UNPROMPTED.md) specifies ordinary tasks,
+independent task review, and Claude Code, Codex, OpenCode, and zcode coverage.
+Its scored cohort has not been run; previous evidence remains unchanged.
+
 Task success cannot answer that question by itself. In our first run, the agents that
 were given only general "you have persistent memory" guidance solved their tasks
 without touching bd at all. They wrote the facts to Claude Code's own memory files

@@ -1,5 +1,12 @@
 # End-to-end Memory Beads experiment
 
+**Scope correction, 2026-09-07:** task bodies prescribed memory retention and
+referenced handoffs. These results establish a guided workflow, not autonomous
+memory adoption from standing rules/skills alone. The short launch prompt does
+not remove instructions in the issue being worked. See the
+[replacement design](../../specs/plans/0005-unprompted-memory-adoption.md).
+All original results and frozen evidence remain unchanged.
+
 **Status: completed, 32/32 sessions across four lifecycles.** All 32 components
 passed the tested runtime behavior, while 19 passed the complete artifact contract.
 The initial description was published at `8191a33` before implementation. This is

@@ -1,5 +1,12 @@
 # Memory handoffs through project rules and skills
 
+**Scope correction, 2026-09-07:** the issue bodies prescribed retention and
+referenced memory handoffs. This experiment does not establish adoption from
+standing rules/skills without task-specific memory instructions. Its results
+remain evidence about guided workflows. See the
+[replacement design](plans/0005-unprompted-memory-adoption.md); no frozen input,
+result, or verification record has been changed.
+
 **Agents discovered the installed workflow and retained complete agreements, but
 correct memory did not guarantee correct subsequent work.** All 32 sessions
 finished. All four initial captures and four permanent revisions preserved the

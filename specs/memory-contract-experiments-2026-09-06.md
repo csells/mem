@@ -1,5 +1,12 @@
 # Public interface checks during memory reuse
 
+**Scope correction, 2026-09-07:** both conditions included task-specific memory
+handoff instructions. All eight direct follow-ups requested recall, including
+six with literal `bd recall` commands. These results do not establish adoption
+from standing rules/skills alone. See the
+[replacement design](plans/0005-unprompted-memory-adoption.md); all measured
+outcomes and frozen evidence remain unchanged.
+
 **Both conditions produced 16/16 correct artifacts. This screen found no
 correctness advantage from adding the public checker.** All 32 sessions finished,
 all required runtime behaviors and exact artifact exports passed, and all issues
