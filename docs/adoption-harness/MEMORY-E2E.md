@@ -1,9 +1,10 @@
-# Proposed end-to-end Memory Beads experiment
+# End-to-end Memory Beads experiment
 
-**Status: planned, not implemented or run.** This is a separate experiment from
-the [paired adoption harness](README.md). There is no public runner or command
-recipe for this cohort yet. The existing README's run commands execute the paired
-experiment, not this proposal.
+**Status: completed, 32/32 sessions across four lifecycles.** All 32 components
+passed the tested runtime behavior, while 19 passed the complete artifact contract.
+The initial description was published at `8191a33` before implementation. This is
+a separate experiment from the [paired adoption harness](README.md); that README's
+run commands still execute the paired experiment.
 
 The question is whether an agent receiving an ordinary task assignment can
 discover the installed Beads workflow, preserve an approved durable decision,
@@ -11,34 +12,133 @@ author a useful reference to it, and use the actual retained knowledge correctly
 in later work. The test covers delivery and discovery as well as storage,
 retrieval, application, and unnecessary curation.
 
+## Completed results
+
+| Host   | Delivery  | Complete artifacts | Runtime behavior | Actual memory writes |
+| ------ | --------- | -----------------: | ---------------: | -------------------: |
+| Claude | Explicit  |                0/8 |              8/8 |                    4 |
+| Claude | Installed |                3/8 |              8/8 |                    3 |
+| Codex  | Explicit  |                8/8 |              8/8 |                    3 |
+| Codex  | Installed |                8/8 |              8/8 |                    3 |
+
+The 13 artifact failures exported a flattened `POLICY`, omitting required outer
+structure, despite faithful retained agreements and correct tested cache behavior.
+All 32 preserved the exact named source and rationale in their components. Correct
+memory retrieval did not ensure complete application of the public interface.
+
+All four initial capture occasions and all four permanent revisions retained the
+exact approved policy, source, and rationale. Each initial occasion preserved a
+current record and an original snapshot; those are not eight independent captures.
+All four historical bodies remained unchanged. Claude explicit made one
+unnecessary identical resave during reproduction, creating no new identity or
+body change. All four fully supplied controls made zero memory writes; three also
+made zero memory reads. Claude explicit searched and recalled the supplied
+agreement anyway.
+
+The [offline action audit](../../memory-bench/results/memory-routes/2026-09-06-e2e-01/action-audit-01.json)
+records **13 actual memory writes and 82 successful memory reads**: 26 queried
+searches, one unfiltered list, and 55 full recalls. It also records 17 help calls,
+32 prime calls, and two failed Beads invocations. These are operation counts;
+queries may return no candidates, additional reads may verify prior work, and
+shell failures before Beads starts are separate. Installed Claude's revised
+search found its record through listing after an empty literal query for `list`.
+That is list-and-recall success, not successful filtered search.
+
+This audit is an explicit posthoc measurement correction. The frozen counter
+mistook four successful `remember --help` requests for writes and counted the
+unfiltered list as a queried search. A separate
+[`memory_e2e_audit` helper](../../memory-bench/scripts/memory_e2e_audit.py)
+reclassifies recorded arguments and CLI responses, identifies each correction by
+invocation ID and input hashes, and preserves the original counters and all
+artifact/capture verdicts. Its 204 session-input hashes and own source hash were
+verified. The two smokes remain separate from the 32-slot cohort; Codex's smoke
+made one real write plus a help request, not two writes.
+
+See the [full experiment report](../../specs/memory-e2e-experiments-2026-09-06.md)
+and [trace audit](../../specs/memory-e2e-trace-audit-2026-09-06.md) for delivery,
+actual task references, command detours, source fidelity, costs, and limitations.
+The arm differences are descriptive results from four correlated lifecycles,
+not a reliability estimate or proof that installed delivery is superior.
+
 ## A small matched screen
 
-The proposed screen has **32 session slots**: one eight-stage lifecycle in each of
+The frozen screen has **32 session slots**: one eight-stage lifecycle in each of
 two delivery arms on each of the two previously usable hosts, Claude Code and
-Codex. At most one bounded integration smoke per host precedes the screen.
+Codex. One bounded integration smoke per host preceded the screen.
 
 | Arm                | How the procedure reaches the agent                                                                                            |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | Explicit delivery  | The complete candidate procedure appears in the initial prompt.                                                                |
 | Installed delivery | The prompt supplies only the task assignment; project rules, prime, the Beads skill, and task inspection deliver the workflow. |
 
-Both arms use the same tasks, procedure semantics, tools, memory-body exclusion,
-native-memory setting, and grading. The explicit arm keeps ordinary issue guidance
+Both arms use the same seeded task requirements, procedure semantics, tools,
+memory-body exclusion, native-memory setting, and grading. The actual authored
+successor tasks are retained outputs and can differ between arms. The explicit arm keeps ordinary issue guidance
 and tool help but does not also register or automatically load the candidate
 memory procedure through skills or prime. This compares two delivery packages;
 it cannot isolate the effect of one rule, hook, or skill description. Earlier
 cohorts remain historical evidence, not a matched control.
 
-Availability, models, CLI and source hashes, ordering, resource limits, and
-interruption handling must be frozen before calls. Gemini's billing blocker,
-Copilot's missing CLI, and OpenCode's context-delivery blocker remain visible until
-resolved. Blocked or interrupted slots stay in the accounting. The screen does
-not authorize changing user credentials, global configuration, models, or servers
-to repair those blockers.
+The [cohort manifest](../../memory-bench/results/memory-routes/2026-09-06-e2e-01/manifest.json)
+freezes availability, models, 294 source/package hashes, four executable hashes,
+ordering, resource limits, and interruption handling. Its inputs match both
+admitted smokes. Claude uses `claude-sonnet-4-6`; Codex uses `gpt-6-astra`. Each
+session has a 420-second limit; Claude also has a $1.50 CLI usage cap. Codex does
+not report a dollar cost or enforce that dollar cap.
+
+Gemini's billing blocker, Copilot's missing CLI, and OpenCode's context-delivery
+blocker remain recorded from the previous preflight; they were not rechecked by
+new model calls. Blocked or interrupted slots stay in the accounting. No user
+credentials, global configuration, models, or servers were changed to repair
+those blockers.
+
+## Verified integration and local execution
+
+The [Claude smoke](../../memory-bench/results/memory-routes/2026-09-06-e2e-smoke-claude-01/result.json)
+and [Codex smoke](../../memory-bench/results/memory-routes/2026-09-06-e2e-smoke-codex-01/result.json)
+both produced the exact smoke artifact, retained its agreement, recalled it, and
+closed the task. Claude made one native `Skill` call and one memory-reference
+read. Codex explicitly read the skill file and its memory reference once each;
+that is manual file loading, not a native skill invocation. These are integration
+checks, not evidence that the full lifecycle works. Claude's reported smoke usage
+estimate was $0.1920176; Codex's dollar cost is unknown. The estimate is not a claim
+of additional subscription billing.
+
+Before launch, 60 focused tests passed, as did full Python Ruff/Black checks
+(592 files), strict mypy across 278 source files, and explicit checks of the six
+new modules/scripts. The checks cover package isolation, imports and aliases,
+receipt handling, real task bodies, and independent grading. Prime checks with
+stored distractor records confirmed their bodies were absent from output.
+
+The posthoc audit adds 24 passing focused tests. The broader Python suite reported
+4,678 passed, 44 skipped, 27 pre-existing failures, and 12 setup errors; the full
+suite is not green. These results remain separate from the passing experiment
+checks and are recorded with the final verification evidence.
+
+The implementation is a locally runnable research harness, with pinned local CLI
+paths, existing authentication, Python dependencies, and macOS sandbox support.
+It is not a portable turnkey CLI. From `memory-bench/`, the entry module is
+[`scripts.memory_e2e_experiment`](../../memory-bench/scripts/memory_e2e_experiment.py).
+It accepts exactly one action and an `--out` directory:
+
+| Action                                            | Purpose                                                                                                           |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `--smoke claude` or `--smoke codex`               | Run one installed-package integration smoke in a new output directory; launches a model.                          |
+| `--freeze --claude-smoke PATH --codex-smoke PATH` | Validate the supplied smoke hashes and create a new frozen cohort directory.                                      |
+| `--fire`                                          | Execute admitted cases from that directory's manifest, preserving started sessions and failures; launches models. |
+| `--report`                                        | Append numbered JSON and Markdown summaries of saved case results without launching models.                       |
+
+The [parent launch record](../../memory-bench/results/memory-routes/2026-09-06-e2e-01/parent-launch.json)
+records the actual resolved Python invocation and dependency path. Launch uses the
+same Python 3.13 interpreter and environment dependencies through its resolved
+executable: the read-only feature grader denied access to `pyvenv.cfg` when invoked
+through the virtual-environment path. This launch adjustment changed no frozen
+source or executable bytes. New runs need their own output directories; the completed
+cohort is preserved as evidence.
 
 ## One shared project package
 
-Install one package in each disposable project fixture:
+The installed arm receives one package in each disposable project fixture:
 
 ```text
 AGENTS.md                               # short workflow occasions and skill pointer
@@ -49,6 +149,12 @@ GEMINI.md                               # @./AGENTS.md
 .claude/skills/beads                     # symlink to the canonical skill
 .beads/PRIME.md                          # compact orientation and skill routing
 ```
+
+The same PRIME text is also installed in the isolated store's `.beads/PRIME.md`,
+because the instrumented real `bd` runs with `-C` pointing to that store. The
+explicit arm receives ordinary issue rules and prime orientation, with the
+candidate memory procedure supplied only in its prompt. It registers no candidate
+memory skill. Both arms use the exact same detailed memory-procedure bytes.
 
 Host entries share the same instructions; they are not five separately maintained
 procedures. Verify imports, discovery, and actual content delivery against the
@@ -65,8 +171,8 @@ structured data for structured agreements. Not every memory needs JSON, and
 completing a task does not by itself justify another memory.
 
 Issue claiming and closure apply to the work. Memory records provide durable
-knowledge with a separate lifecycle. Start without automatic capture or a
-completion-blocking hook; those would be additional interventions.
+knowledge with a separate lifecycle. This implementation installs no automatic
+capture or completion-blocking hook; those would be additional interventions.
 
 ### Prime must not supply the answers
 
@@ -76,11 +182,11 @@ not suppress appended memory bodies. `--no-memories` suppresses them;
 `--memories-only` takes precedence over that flag and must not be combined with it
 here.
 
-Every configured startup or compaction hook must preserve this exclusion. Where
-the host has no suitable project hook, the project rule supplies the explicit
-command path. Check prime output with unrelated sentinel records before any model
-calls. Injecting stored bodies automatically would bypass the retrieval routes
-the experiment is intended to measure.
+The current package uses the project rule's explicit command path for startup or
+context restoration. Any later startup or compaction hook must preserve the same
+exclusion. Prime output is checked with stored distractors before model calls.
+Injecting stored bodies automatically would bypass the retrieval routes the
+experiment is intended to measure.
 
 ## Put the requirements in real tasks
 
@@ -89,9 +195,9 @@ requirements, approval evidence, and the intended use of references belong in
 the actual task body. Routine task requests do not supply capture keys or memory
 coaching.
 
-Use a small runnable service or CLI with independently testable behavior, such as
-a cache adapter followed by another component governed by the same policy. Its
-eight fresh agent sessions cover:
+The fixture is a small runnable Python cache project with independently testable
+behavior. Agents implement sibling components governed by a shared approved
+policy. Its eight fresh agent sessions cover:
 
 1. Initial approval and implementation.
 2. Reuse through an agent-authored task reference.
@@ -116,12 +222,14 @@ creating a duplicate. Grade the revised content and historical preservation
 independently of record selection.
 
 Carry actual project files, task history, Beads records, and condition-appropriate
-native memory forward. Do not erase source evidence to force memory use. A later
-agent may correctly recover an agreement from an earlier task, specification, or
+native memory forward. Each lifecycle starts with a fresh isolated workspace and
+native state; each host's normal native-memory default remains intact. Do not erase
+source evidence to force memory use. A later agent may correctly recover an
+agreement from an earlier task, specification, or
 code. That is a task success through an alternative source, not a demonstrated
 memory handoff. Report whether memory was necessary for each task.
 
-## What will be measured
+## Measurement and interpretation
 
 Independent hidden expectations grade the resulting feature behavior. Separate
 checks assess retained information, source fidelity, record identity, historical
@@ -134,11 +242,11 @@ unknown attribution stays unknown. Automatic and harness reads are counted
 separately from agent reads. Additional reads may be legitimate verification and
 are not automatically waste.
 
-Static checks and bounded integration smokes must establish project isolation,
-rule and skill delivery, prime body exclusion, real task bodies, subprocess-safe
-receipts, and rejection of wrong-but-mutually-consistent memory/artifact pairs.
-The previous adapters deliberately suppressed project rules or skills; new modes
-or adapters are needed without changing frozen experiments.
+The new isolated adapters enable project rules and skills while preserving the
+previous adapters and frozen experiments. Smoke traces distinguish observed skill
+access from automatic rule loading, which is not directly certified. Receipts
+record real subprocess execution separately from complete output seen somewhere
+in the session; neither alone proves that the model used the information.
 
 Report attempts, recorded sessions, complete lifecycles, blocked or unrun stages,
 known and unknown costs, and instruction/tool overhead. Eight stages sharing one

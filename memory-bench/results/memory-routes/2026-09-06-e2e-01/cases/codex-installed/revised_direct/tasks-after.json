@@ -1,0 +1,109 @@
+[
+  {
+    "id": "trial-nn8",
+    "title": "Implement catalog_preview_cache component",
+    "description": "Implement catalog_preview_cache.py for project catalog-api using the README.md component API. Export the complete approved nested POLICY with exact JSON keys and types, exact SOURCE and RATIONALE fields, and a working create_cache(clock). Reuse cache_engine.ResponseCache as appropriate.\n\nUse the current durable agreement at Beads key catalog-api.response-cache; retrieve the complete record with:\nbd recall catalog-api.response-cache\n\nThis reference was retained and verified by trial-smc as version v2, Operations approval CACHE-18 (2026-09-06). It applies because the preview component is another catalog-api response-cache reader, and the approval is the standing agreement for future catalog readers. Use the current agreement, not the historical catalog-api.response-cache.v1 audit snapshot. At handoff, v2 specifies TTL 300 seconds, max_entries 3, FIFO eviction, namespace catalog-response, and cache_misses true; recall the full agreement for its structure, types, source, and rationale.\n\nThis work depends on trial-smc, which implemented catalog_refresh_cache.py and permanently revised the current durable response-cache agreement to v2 while retaining the original v1 approval for audit replay. Preserve all earlier components, files, and task history.\n\nVerify cache hits, expiry at age >= TTL, FIFO without read reordering, live namespaced keys, expired-entry capacity release, cached None results, and instance isolation. Add relevant component tests and run python3 -m unittest discover -s tests.\n",
+    "status": "closed",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-09-07T03:35:12Z",
+    "created_by": "csells",
+    "updated_at": "2026-09-07T03:36:08Z",
+    "started_at": "2026-09-07T03:35:33Z",
+    "closed_at": "2026-09-07T03:36:08Z",
+    "close_reason": "Implemented catalog_preview_cache.py with the complete current CACHE-18 v2 policy and exact approval fields, reusing ResponseCache. Added six component tests covering agreement keys/types, hits, expiry at and beyond TTL, FIFO, live namespaced keys, expired-entry capacity release, cached None, and instance isolation. All 31 tests pass with python3 -m unittest discover -s tests. Earlier components and durable agreements preserved.",
+    "dependencies": [
+      {
+        "issue_id": "trial-nn8",
+        "depends_on_id": "trial-smc",
+        "type": "blocks",
+        "created_at": "2026-09-07T03:35:12Z",
+        "created_by": "csells",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 1,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "trial-smc",
+    "title": "Implement catalog_refresh_cache component",
+    "description": "Implement `catalog_refresh_cache.py` for project catalog-api using the component API in README.md: POLICY, SOURCE, RATIONALE, and a working create_cache(clock). Verify the resulting behavior. Preserve earlier project files and components.\n\nOperations permanently revises the standing catalog-api response-cache agreement to v2. Apply only the change below, retaining every other approved setting and type. This is a lasting change for future catalog readers. Earlier components remain historical implementations; keep the original v1 approval available for audit replay.\n\n```json\n{\"cache\": {\"ttl_seconds\": 300}}\n```\n\nSOURCE: Operations approval CACHE-18 (2026-09-06), version v2\n\nRATIONALE: Reduce stale catalog responses while retaining the other approved cache settings.\n\nCreate one follow-up issue titled 'Implement catalog_preview_cache component'. Its body must ask a teammate to implement `catalog_preview_cache.py` using the same approved response-cache agreement and the README component API, including create_cache, POLICY, SOURCE, and RATIONALE. Include a usable reference to the durable agreement you actually retained and explain why it applies. Do not implement that follow-up component now.",
+    "notes": "Implemented catalog_refresh_cache.py with the complete CACHE-18 v2 policy and approval fields. Only TTL changes to 300 seconds; earlier components remain intact. Updated and fully verified current memory catalog-api.response-cache; confirmed catalog-api.response-cache.v1 remains identical to the original v1 agreement. Added six component tests; python3 -m unittest discover -s tests passes all 25 tests. Created follow-up trial-nn8, dependent on trial-smc, referencing the current durable agreement; preview component remains unimplemented.",
+    "status": "closed",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-09-07T03:33:52Z",
+    "created_by": "csells",
+    "updated_at": "2026-09-07T03:35:18Z",
+    "started_at": "2026-09-07T03:34:06Z",
+    "closed_at": "2026-09-07T03:35:18Z",
+    "close_reason": "Closed",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  },
+  {
+    "id": "trial-u85",
+    "title": "Implement catalog_listing_cache component",
+    "description": "Implement `catalog_listing_cache.py` for project catalog-api using the component API in README.md: POLICY, SOURCE, RATIONALE, and a working create_cache(clock). Verify the resulting behavior. Preserve earlier project files and components.\n\nThis new catalog reader needs the existing agreement for caching API responses in catalog-api, original v1. Reproduce that agreement and its approval fields. This is another consumer of the agreement.",
+    "status": "closed",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-09-07T03:32:58Z",
+    "created_by": "csells",
+    "updated_at": "2026-09-07T03:33:47Z",
+    "started_at": "2026-09-07T03:33:12Z",
+    "closed_at": "2026-09-07T03:33:47Z",
+    "close_reason": "Closed",
+    "dependency_count": 0,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "trial-rcp",
+    "title": "Implement catalog_detail_cache component",
+    "description": "Implement catalog_detail_cache.py for project catalog-api as a sibling of catalog_cache.py, using the README.md component API. Export create_cache(clock), POLICY (the complete approved nested policy with JSON keys and types preserved), SOURCE, and RATIONALE (the exact named approval fields). Reuse cache_engine.ResponseCache where appropriate and preserve earlier components, files, and task history.\n\nUse the standing approved catalog-api response-cache agreement retained in Beads at key catalog-api.response-cache. Fully recall it with:\n\n    bd recall 'catalog-api.response-cache'\n\nThis task uses the current agreement at implementation time, rather than a historical approval. The reference was retained and read back during trial-nda. It applies because catalog_detail_cache is another catalog-api catalog reader, within the approved shared response-cache scope.\n\nThis work depends on trial-nda, which implements the initial catalog_cache component and retains the reusable agreement. Use that component as an API example; obtain the applicable policy, SOURCE, and RATIONALE from the recalled standing agreement.\n\nVerify cache hits, exact TTL expiry, FIFO behavior without read reordering, capacity, live namespaced keys, expired-entry removal, policy-directed handling of None, and independent cache instances. Add relevant component tests and run python3 -m unittest discover -s tests. Confirm the complete policy and exact approval fields match the recalled agreement.\n",
+    "status": "closed",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-09-07T03:31:33Z",
+    "created_by": "csells",
+    "updated_at": "2026-09-07T03:32:52Z",
+    "started_at": "2026-09-07T03:32:02Z",
+    "closed_at": "2026-09-07T03:32:52Z",
+    "close_reason": "Implemented catalog_detail_cache.py using ResponseCache with the complete current catalog-api.response-cache policy and exact SOURCE/RATIONALE. Added six component tests covering metadata, hits, exact TTL, FIFO/capacity, live namespaced keys, expired-entry removal, cached None, and independent instances including sibling isolation. All 13 tests pass via python3 -m unittest discover -s tests. Independently compared policy JSON types and approval fields against bd recall. Preserved earlier components and agreement.",
+    "dependencies": [
+      {
+        "issue_id": "trial-rcp",
+        "depends_on_id": "trial-nda",
+        "type": "blocks",
+        "created_at": "2026-09-07T03:31:33Z",
+        "created_by": "csells",
+        "metadata": "{}"
+      }
+    ],
+    "dependency_count": 1,
+    "dependent_count": 0,
+    "comment_count": 0
+  },
+  {
+    "id": "trial-nda",
+    "title": "Implement catalog_cache component",
+    "description": "Implement `catalog_cache.py` for project catalog-api using the component API in README.md: POLICY, SOURCE, RATIONALE, and a working create_cache(clock). Verify the resulting behavior. Preserve earlier project files and components.\n\nThe architecture review has approved the following reusable response-cache agreement for catalog readers. Implement this initial approval (v1). Future readers use the standing agreement; audit replay must also remain able to reproduce this original approval after a permanent revision.\n\n```json\n{\n  \"project\": \"catalog-api\",\n  \"cache\": {\n    \"ttl_seconds\": 600,\n    \"max_entries\": 3,\n    \"eviction_policy\": \"fifo\",\n    \"namespace\": \"catalog-response\",\n    \"cache_misses\": true\n  }\n}\n```\n\nSOURCE: Architecture approval CACHE-17 (2026-09-06), version v1\n\nRATIONALE: Share response-cache behavior across catalog readers; cache absent lookups to avoid repeated backend reads.\n\nCreate one follow-up issue titled 'Implement catalog_detail_cache component'. Its body must ask a teammate to implement `catalog_detail_cache.py` using the same approved response-cache agreement and the README component API, including create_cache, POLICY, SOURCE, and RATIONALE. Include a usable reference to the durable agreement you actually retained and explain why it applies. Do not implement that follow-up component now.",
+    "notes": "Implemented catalog_cache.py with the exact CACHE-17 v1 policy, SOURCE, RATIONALE, and create_cache(clock). Added component verification; python3 -m unittest discover -s tests passes all 7 tests. Retained and fully recalled standing agreement catalog-api.response-cache and identical original approval snapshot catalog-api.response-cache.v1 for future audit replay; preserve the snapshot body unchanged on permanent revisions. Created follow-up trial-rcp, depending on trial-nda and referencing the standing agreement. Earlier files preserved; catalog_detail_cache.py not implemented.",
+    "status": "closed",
+    "priority": 2,
+    "issue_type": "task",
+    "created_at": "2026-09-07T03:30:10Z",
+    "created_by": "csells",
+    "updated_at": "2026-09-07T03:31:39Z",
+    "started_at": "2026-09-07T03:30:29Z",
+    "closed_at": "2026-09-07T03:31:39Z",
+    "close_reason": "Closed",
+    "dependency_count": 0,
+    "dependent_count": 1,
+    "comment_count": 0
+  }
+]
