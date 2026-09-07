@@ -14,6 +14,10 @@ Agent trials run against the real `claude` CLI and a real `bd` binary. There is 
 simulation mode. Only the `--fire` step starts paid sessions; installation, the local
 smoke check, corpus generation, planning, and reporting do not call a model.
 
+A separate [proposed end-to-end Memory Beads experiment](MEMORY-E2E.md) tests
+installed project rules and a shared Beads skill through real issue work. Its
+32-session screen is planned, not implemented or run.
+
 ## What one trial looks like
 
 A trial is a **pair** of agent sessions against the same synthetic project.

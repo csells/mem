@@ -83,7 +83,8 @@ def test_redirect_mode_blocks_the_reach_and_names_the_bd_verbs(
         tmp_path = tmp_path / "team member's checkout"
         tmp_path.mkdir()
         interpreter = tmp_path / "python interpreter"
-        interpreter.symlink_to(sys.executable)
+        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
+        interpreter.chmod(0o700)
         monkeypatch.setattr(sys, "executable", str(interpreter))
     config_dir = tmp_path / "config"
     log = install_native_memory_hook(config_dir, mode=NATIVE_MEMORY_HOOK_MODE_REDIRECT)

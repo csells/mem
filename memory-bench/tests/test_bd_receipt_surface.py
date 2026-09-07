@@ -1,6 +1,7 @@
 """The neutral receipt hook and shim coexist with condition-specific native hooks."""
 
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +21,8 @@ def test_hook_preserves_settings_and_executes_attributed_shim(
         tmp_path = tmp_path / "team member's checkout"
         tmp_path.mkdir()
         interpreter = tmp_path / "python interpreter"
-        interpreter.symlink_to(sys.executable)
+        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
+        interpreter.chmod(0o700)
         monkeypatch.setattr(sys, "executable", str(interpreter))
     config = tmp_path / "config"
     config.mkdir()

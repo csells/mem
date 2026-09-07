@@ -1,0 +1,7 @@
+OpenCode’s configured local model cannot receive the current common prompt intact. The actual common smoke produced two explicit Ollama truncation warnings: 7,301→2,050 tokens and 7,121→2,050 tokens, matching its session timestamps. This is input loss, not a memory-behavior score.
+
+A no-model loopback receiver verified that `permission: {"*":"deny","bash":"allow","read":"allow","edit":"allow"}` exposes exactly `bash`, `edit`, `read`, and `write`. It reduces tool schema JSON from 21,203 to 10,189 bytes. The same model’s existing tokenizer counted 2,121 tokens for the resulting system+user text alone; tool JSON adds 2,375 tokens, making 4,496 before chat-template overhead. Those component counts are not a claim to reproduce the exact server template. The system+user count already exceeds the observed 2,050-token input budget.
+
+No adapter, model, server, or global configuration was changed. All request probes terminated at a local HTTP receiver; tokenizer calls performed no inference. No further scored cohort should be described as receiving the intact matched input under this configuration. The initial model responses and task failure remain preserved.
+
+Evidence: `matched-ollama-truncation.log`, `diagnosis.json`, `tokenization.json`, and full requests in both condition folders. Permission configuration is documented at https://opencode.ai/docs/permissions/; the write tool uses edit permission as documented at https://opencode.ai/docs/tools/.

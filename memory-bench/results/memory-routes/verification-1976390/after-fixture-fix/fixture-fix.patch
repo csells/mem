@@ -1,0 +1,36 @@
+diff --git a/memory-bench/tests/test_bd_receipt_surface.py b/memory-bench/tests/test_bd_receipt_surface.py
+index 82beedb..3d2ac59 100644
+--- a/memory-bench/tests/test_bd_receipt_surface.py
++++ b/memory-bench/tests/test_bd_receipt_surface.py
+@@ -1,6 +1,7 @@
+ """The neutral receipt hook and shim coexist with condition-specific native hooks."""
+ 
+ import json
++import shlex
+ import subprocess
+ import sys
+ from pathlib import Path
+@@ -20,7 +21,8 @@ def test_hook_preserves_settings_and_executes_attributed_shim(
+         tmp_path = tmp_path / "team member's checkout"
+         tmp_path.mkdir()
+         interpreter = tmp_path / "python interpreter"
+-        interpreter.symlink_to(sys.executable)
++        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
++        interpreter.chmod(0o700)
+         monkeypatch.setattr(sys, "executable", str(interpreter))
+     config = tmp_path / "config"
+     config.mkdir()
+diff --git a/memory-bench/tests/test_native_memory_hook.py b/memory-bench/tests/test_native_memory_hook.py
+index 8d45656..e5ca73f 100644
+--- a/memory-bench/tests/test_native_memory_hook.py
++++ b/memory-bench/tests/test_native_memory_hook.py
+@@ -83,7 +83,8 @@ def test_redirect_mode_blocks_the_reach_and_names_the_bd_verbs(
+         tmp_path = tmp_path / "team member's checkout"
+         tmp_path.mkdir()
+         interpreter = tmp_path / "python interpreter"
+-        interpreter.symlink_to(sys.executable)
++        interpreter.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} "$@"\n')
++        interpreter.chmod(0o700)
+         monkeypatch.setattr(sys, "executable", str(interpreter))
+     config_dir = tmp_path / "config"
+     log = install_native_memory_hook(config_dir, mode=NATIVE_MEMORY_HOOK_MODE_REDIRECT)
