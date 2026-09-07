@@ -14,9 +14,12 @@ Agent trials run against the real `claude` CLI and a real `bd` binary. There is 
 simulation mode. Only the `--fire` step starts paid sessions; installation, the local
 smoke check, corpus generation, planning, and reporting do not call a model.
 
-A separate [proposed end-to-end Memory Beads experiment](MEMORY-E2E.md) tests
-installed project rules and a shared Beads skill through real issue work. Its
-32-session screen is planned, not implemented or run.
+A separate [end-to-end Memory Beads experiment](MEMORY-E2E.md) tested installed
+project rules and a shared Beads skill through real issue work. Its completed
+32-session screen preserved all eight captures/revisions but produced only 19
+complete artifacts. A [public interface-check follow-up](MEMORY-CONTRACT-CHECK.md)
+tested whether ordinary project tests improve application of those memories;
+both baseline and checker passed 16/16 in that fresh comparison.
 
 ## What one trial looks like
 
@@ -32,10 +35,10 @@ A trial is a **pair** of agent sessions against the same synthetic project.
 
 Every task ships as twins:
 
-| Variant | Goal prompt | What a bd read means |
-|---|---|---|
-| `necessary` | omits the token | the agent had to recover it from memory |
-| `unnecessary` | supplies the token | reading memory was avoidable work |
+| Variant       | Goal prompt        | What a bd read means                    |
+| ------------- | ------------------ | --------------------------------------- |
+| `necessary`   | omits the token    | the agent had to recover it from memory |
+| `unnecessary` | supplies the token | reading memory was avoidable work       |
 
 The `unnecessary` twin is the control. Without it, a condition could score well on
 adoption purely by making the agent read memory constantly.
@@ -45,11 +48,11 @@ adoption purely by making the agent read memory constantly.
 All three run the same tasks, the same tools, the same isolated store lifecycle, and
 the same default native-memory settings. Only the guidance differs.
 
-| Condition | What the agent is told | Native memory |
-|---|---|---|
-| `generic` | general persistent-memory guidance, bd never named | observed |
-| `explicit` | bd deployment context plus working `remember` / `recall` / `memories` examples | observed |
-| `redirect` | the explicit context, plus a hook that blocks a native-memory access and answers it by naming the bd commands | intercepted |
+| Condition  | What the agent is told                                                                                        | Native memory |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ------------- |
+| `generic`  | general persistent-memory guidance, bd never named                                                            | observed      |
+| `explicit` | bd deployment context plus working `remember` / `recall` / `memories` examples                                | observed      |
+| `redirect` | the explicit context, plus a hook that blocks a native-memory access and answers it by naming the bd commands | intercepted   |
 
 "Observed" means a `PreToolUse` hook records the reach and lets it through.
 "Intercepted" means the same hook refuses the call and returns a message pointing at
@@ -64,11 +67,11 @@ clusters, $13.47 of estimated spend.
 The table shows the necessary twins (16 pairs per condition); the other 48 pairs
 are unnecessary-memory controls. Redirect recall also has one unknown outcome.
 
-| Condition | Captured the token | Recalled it | Recalled it *before* acting | Full bd handoff | Qualifying Write |
-|---|---:|---:|---:|---:|---:|
-| `generic` | 0/16 | 0/16 | 0/16 | **0/16** | 16/16 |
-| `explicit` | 10/16 | 9/16 | 8/16 | **8/16** | 14/16 |
-| `redirect` | 15/16 | 15/16 | 12/16 | **12/16** | 12/16 |
+| Condition  | Captured the token | Recalled it | Recalled it _before_ acting | Full bd handoff | Qualifying Write |
+| ---------- | -----------------: | ----------: | --------------------------: | --------------: | ---------------: |
+| `generic`  |               0/16 |        0/16 |                        0/16 |        **0/16** |            16/16 |
+| `explicit` |              10/16 |        9/16 |                        8/16 |        **8/16** |            14/16 |
+| `redirect` |              15/16 |       15/16 |                       12/16 |       **12/16** |            12/16 |
 
 Two details in that table matter as much as the headline. The `generic` row is an
 agent that never discovers the tool and produces a qualifying Write every time anyway.
@@ -212,7 +215,7 @@ PYTHONPATH=. uv run python -m membench.runner.bd_experiment \
   --fire --max-pairs 1
 ```
 
-`--max-pairs` bounds how many *new* pairs this invocation may buy. It defaults to 1, so
+`--max-pairs` bounds how many _new_ pairs this invocation may buy. It defaults to 1, so
 the obvious first command buys one pair and stops. Re-run with a larger `--max-pairs` to
 continue; already-completed pairs are reused, never repurchased. Budget roughly **$0.14
 per pair** at the rates our run saw, so a full 96-pair replication is around $13.
@@ -237,7 +240,7 @@ PYTHONPATH=. uv run python scripts/analyze_bd_experiment.py runs/my-first-run \
 
 That writes `analysis.json` and a human-readable `report.md`; the pair from our own run
 is in [`reference-run/`](reference-run/report.md) if you want to see the shape before you
-spend anything. Denominators come from the *schedule*, not from whatever completed, so a
+spend anything. Denominators come from the _schedule_, not from whatever completed, so a
 missing or unmeasured pair stays visible in the counts instead of quietly shrinking the
 sample.
 
@@ -272,7 +275,7 @@ runs/my-first-run/
 Every bd invocation inside a session is wrapped so that its actual argv, exit status
 and per-stream output are recorded. A verb on a command line is not an operation: in
 an earlier run the only apparent "memory write" was a `bd remember list` that bd
-*refused*, and only the recorded result could say so.
+_refused_, and only the recorded result could say so.
 
 ## Refusals you may hit
 
