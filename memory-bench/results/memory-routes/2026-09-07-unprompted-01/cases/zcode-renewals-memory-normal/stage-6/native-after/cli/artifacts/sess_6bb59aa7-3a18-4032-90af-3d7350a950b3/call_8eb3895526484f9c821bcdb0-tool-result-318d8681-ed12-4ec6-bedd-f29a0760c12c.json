@@ -1,0 +1,33 @@
+{
+  "createdAt": "2026-09-07T17:29:38.995Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\nfrom datetime import date, timedelta\n\n\ndef release_1_0_notice(account):\n    # Pinned to the approved customer-facing release 1.0 rules; support\n    # replays must keep these values even if the notice command changes later.\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=21)\n    if account[\"autopay\"] and account[\"completed_years\"] >= 2:\n        credit_cents = min(account[\"plan_cents\"] // 10, 2400)\n    else:\n        credit_cents = 0\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": account[\"plan_cents\"] - credit_cents,\n    }\n\n\ndef retention_notice(account):\n    # Revised retention policy: send 14 calendar days before renewal; at\n    # least 3 completed years earns 15% of plan_cents (rounded down to whole\n    # cents, capped at 3600); autopay does not affect eligibility.\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=14)\n    if account[\"completed_years\"] >= 3:\n        credit_cents = min(account[\"plan_cents\"] * 15 // 100, 3600)\n    else:\n        credit_cents = 0\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": account[\"plan_cents\"] - credit_cents,\n    }\n\n\ndef notice(account):\n    return retention_notice(account)\n\n\nCSV_COLUMNS = (\"customer_id\", \"send_on\", \"credit_cents\", \"amount_due_cents\")\n\n\ndef csv_field(value):\n    text = str(value)\n    if any(ch in text for ch in ',\"\\r\\n'):\n        text = '\"' + text.replace('\"', '\"\"') + '\"'\n    return text\n\n\ndef export(accounts):\n    lines = [\",\".join(CSV_COLUMNS)]\n    for account in accounts:\n        row = notice(account)\n        lines.append(\",\".join(csv_field(row[column]) for column in CSV_COLUMNS))\n    return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}\n\n\ndef batch(on, accounts):\n    notices = []\n    for account in accounts:\n        row = notice(account)\n        if row[\"send_on\"] == on:\n            notices.append(row)\n    total_due_cents = sum(row[\"amount_due_cents\"] for row in notices)\n    return {\"on\": on, \"notices\": notices, \"total_due_cents\": total_due_cents}\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    if request.get(\"command\") == \"notice\":\n        return notice(request[\"account\"])\n    if request.get(\"command\") == \"support_replay\":\n        return {\"case_id\": request[\"case_id\"], \"notice\": release_1_0_notice(request[\"account\"])}\n    if request.get(\"command\") == \"compat_notice\":\n        return {\"release\": request[\"release\"], \"notice\": release_1_0_notice(request[\"account\"])}\n    if request.get(\"command\") == \"export\":\n        return export(request[\"accounts\"])\n    if request.get(\"command\") == \"batch\":\n        return batch(request[\"on\"], request[\"accounts\"])\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-um6q64dw/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 7,
+          "oldLines": 7,
+          "newStart": 7,
+          "newLines": 8,
+          "lines": [
+            " ",
+            " def release_1_0_notice(account):",
+            "     # Pinned to the approved customer-facing release 1.0 rules; support",
+            "-    # replays must keep these values even if the notice command changes later.",
+            "+    # replays and compat receipts must keep these values even if the notice",
+            "+    # command changes later.",
+            "     send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=21)",
+            "     if account[\"autopay\"] and account[\"completed_years\"] >= 2:",
+            "         credit_cents = min(account[\"plan_cents\"] // 10, 2400)"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_8eb3895526484f9c821bcdb0",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,139 @@
+"""Month reconciliation for Northbank's marketplace operations team."""
+
+import json
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import sys
+
+from provider import LedgerLake, parse_timestamp
+
+
+LEDGER_CUTOFF_HOUR = 5
+
+
+def month_window(month):
+    """Finance ledger month: from 05:00 UTC on the month's first calendar date
+    (included) to 05:00 UTC on the next month's first calendar date (excluded).
+    The cutoff is fixed at 05:00 UTC all year; daylight saving time does not
+    move it."""
+    year, number = map(int, month.split("-"))
+    begin = datetime(year, number, 1, LEDGER_CUTOFF_HOUR, tzinfo=timezone.utc)
+    end = datetime(year + number // 12, number % 12 + 1, 1, LEDGER_CUTOFF_HOUR, tzinfo=timezone.utc)
+    return begin.isoformat(), end.isoformat()
+
+
+def reconcile(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    payments = sum(row["amount_cents"] for row in rows if row["kind"] == "payment")
+    refunds = sum(row["amount_cents"] for row in rows if row["kind"] == "refund")
+    return {
+        "month": month,
+        "transaction_ids": [row["id"] for row in rows],
+        "payment_total_cents": payments,
+        "refund_total_cents": refunds,
+        "net_total_cents": payments - refunds,
+    }
+
+
+def incident_replay(month, client):
+    """Frozen reproduction of the corrected INC-204 statement.
+
+    Deliberately does not call reconcile: this response stays fixed even if
+    the active reconcile report changes later.
+    """
+    year, number = map(int, month.split("-"))
+    begin = datetime(year, number, 1, tzinfo=timezone.utc)
+    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)
+    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())
+    payments = sum(row["amount_cents"] for row in rows if row["kind"] == "payment")
+    refunds = sum(row["amount_cents"] for row in rows if row["kind"] == "refund")
+    return {
+        "month": month,
+        "transaction_ids": [row["id"] for row in rows],
+        "payment_total_cents": payments,
+        "refund_total_cents": refunds,
+        "net_total_cents": payments - refunds,
+    }
+
+
+def ledger_day(posted_at):
+    """A ledger day runs from its calendar date's 05:00 UTC cutoff until the
+    next one, so an instant before 05:00 UTC falls on the prior date."""
+    instant = parse_timestamp(posted_at).astimezone(timezone.utc)
+    if instant.hour < LEDGER_CUTOFF_HOUR:
+        return instant.date() - timedelta(days=1)
+    return instant.date()
+
+
+def daily_net(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    totals = {}
+    for row in rows:
+        bucket = totals.setdefault(ledger_day(row["posted_at"]),
+                                   {"payments": 0, "refunds": 0})
+        if row["kind"] == "payment":
+            bucket["payments"] += row["amount_cents"]
+        else:
+            bucket["refunds"] += row["amount_cents"]
+    return {
+        "month": month,
+        "days": [
+            {
+                "date": day.isoformat(),
+                "payment_total_cents": bucket["payments"],
+                "refund_total_cents": bucket["refunds"],
+                "net_total_cents": bucket["payments"] - bucket["refunds"],
+            }
+            for day, bucket in sorted(totals.items())
+        ],
+    }
+
+
+def csv_field(value):
+    text = str(value)
+    if any(character in text for character in (",", '"', "\r", "\n")):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+def refunds_csv(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    lines = ["id,posted_at,amount_cents"]
+    for row in rows:
+        if row["kind"] == "refund":
+            lines.append(",".join([
+                csv_field(row["id"]),
+                csv_field(row["posted_at"]),
+                csv_field(row["amount_cents"]),
+            ]))
+    return {"month": month, "csv": "\n".join(lines) + "\n"}
+
+
+def dispatch(request):
+    rows = request.get("transactions")
+    if rows is None:
+        fixture = Path(__file__).parent / "fixtures" / "ledgerlake_snapshot.json"
+        rows = json.loads(fixture.read_text())["transactions"]
+    client = LedgerLake(rows)
+    if request["op"] == "reconcile":
+        return reconcile(request["month"], client)
+    if request["op"] == "refunds_csv":
+        return refunds_csv(request["month"], client)
+    if request["op"] == "daily_net":
+        return daily_net(request["month"], client)
+    if request["op"] == "incident_replay":
+        return incident_replay(request["month"], client)
+    raise ValueError("Unknown operation: " + request["op"])
+
+
+if __name__ == "__main__":
+    try:
+        result = dispatch(json.load(sys.stdin))
+    except (ValueError, KeyError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(2)
+    json.dump(result, sys.stdout)
+    sys.stdout.write("\n")

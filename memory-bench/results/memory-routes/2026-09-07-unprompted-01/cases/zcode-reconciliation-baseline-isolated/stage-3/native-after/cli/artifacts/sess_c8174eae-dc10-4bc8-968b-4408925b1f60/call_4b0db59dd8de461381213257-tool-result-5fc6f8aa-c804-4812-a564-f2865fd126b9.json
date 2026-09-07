@@ -1,0 +1,46 @@
+{
+  "createdAt": "2026-09-07T16:30:02.526Z",
+  "files": [
+    {
+      "beforeContent": "# Northbank reconciliation\n\nA small offline CLI for marketplace operations. It reads one JSON request from\nstdin and writes one JSON response to stdout. Requires Python 3.10+ and only the\nstandard library. Run `python3 cli.py`; run public tests with\n`python3 -m unittest discover -s tests -v`.\n\nThe available operations are `reconcile` and `refunds_csv`. A month is\n`YYYY-MM`. The product's initial contract is the complete UTC calendar month:\ninclude payments and refunds posted in that month, subtract refunds from\npayments, and return IDs ordered by posting instant then lexicographically by\nID. The current release has a customer-reported discrepancy under\ninvestigation.\n\n```json\n{\"op\":\"reconcile\",\"month\":\"2025-02\"}\n```\n\nThe default input is `fixtures/ledgerlake_snapshot.json`. Requests may instead\ninclude `transactions`, an array with the same row shape as the snapshot. An\nempty array means no rows. This override is part of the supported CLI contract\nand makes customer examples reproducible without editing files.\n\n```json\n{\"op\":\"reconcile\",\"month\":\"2025-02\",\"transactions\":[{\"id\":\"p-1\",\"kind\":\"payment\",\"posted_at\":\"2025-02-12T12:00:00Z\",\"amount_cents\":1250}]}\n```\n\nResponse:\n\n```json\n{\"month\":\"2025-02\",\"transaction_ids\":[\"p-1\"],\"payment_total_cents\":1250,\"refund_total_cents\":0,\"net_total_cents\":1250}\n```\n\nInput guarantees: valid month years 2000–2099; unique IDs; valid timezone-aware\ntimestamps with `Z` or numeric offsets and at most millisecond precision;\n`kind` is `payment` or `refund`; integer cents are nonnegative. Unknown extra\nrow fields may be ignored. Invalid-input behavior is outside this exercise.\nNo success logs belong on stdout. JSON key order is immaterial.\n\nThe adapter contract and a worked response are in\n`provider_docs/transactions.md`.\n\nProduct issues include public JSON examples. Run an issue's examples with\n`python3 test_public.py --cases /path/to/stage_N.json`.\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/README.md",
+      "structuredPatch": [
+        {
+          "oldStart": 31,
+          "oldLines": 6,
+          "newStart": 31,
+          "newLines": 22,
+          "lines": [
+            " {\"month\":\"2025-02\",\"transaction_ids\":[\"p-1\"],\"payment_total_cents\":1250,\"refund_total_cents\":0,\"net_total_cents\":1250}",
+            " ```",
+            " ",
+            "+`refunds_csv` exports the refund detail behind a reconciliation: the refunds",
+            "+belonging to that month's reconcile result, in the same posting-instant/ID",
+            "+order, as CSV with header `id,posted_at,amount_cents` and one final LF. Fields",
+            "+are quoted only when they contain a comma, double quote, CR, or LF. It accepts",
+            "+the same `transactions` override.",
+            "+",
+            "+```json",
+            "+{\"op\":\"refunds_csv\",\"month\":\"2025-02\"}",
+            "+```",
+            "+",
+            "+Response:",
+            "+",
+            "+```json",
+            "+{\"month\":\"2025-02\",\"csv\":\"id,posted_at,amount_cents\\nr-feb-last,2025-02-28T17:30:00Z,400\\n\"}",
+            "+```",
+            "+",
+            " Input guarantees: valid month years 2000–2099; unique IDs; valid timezone-aware",
+            " timestamps with `Z` or numeric offsets and at most millisecond precision;",
+            " `kind` is `payment` or `refund`; integer cents are nonnegative. Unknown extra"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_4b0db59dd8de461381213257",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,159 @@
+import json
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class SmokeTests(unittest.TestCase):
+    def call(self, request):
+        result = subprocess.run([sys.executable, str(ROOT / "main.py")], input=json.dumps(request), capture_output=True, text=True, check=True, timeout=3)
+        return json.loads(result.stdout)
+
+    def test_ping(self):
+        self.assertEqual(self.call({"command": "ping"}), {"status": "ok", "product": "HarborPass"})
+
+    def test_unknown_command(self):
+        self.assertEqual(self.call({"command": "not_a_command"}), {"error": "unknown_command"})
+
+    def test_notice(self):
+        self.assertEqual(
+            self.call({"command": "notice", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 3, "autopay": False}}),
+            {"customer_id": "M-17", "send_on": "2026-04-01", "credit_cents": 2999, "amount_due_cents": 17000},
+        )
+
+    def test_notice_below_tenure_gets_no_credit_even_with_autopay(self):
+        self.assertEqual(
+            self.call({"command": "notice", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True}}),
+            {"customer_id": "M-17", "send_on": "2026-04-01", "credit_cents": 0, "amount_due_cents": 19999},
+        )
+
+    def test_notice_credit_is_capped(self):
+        self.assertEqual(
+            self.call({"command": "notice", "account": {"customer_id": "M-9", "renewal_on": "2026-06-01", "plan_cents": 90000, "completed_years": 8, "autopay": False}}),
+            {"customer_id": "M-9", "send_on": "2026-05-18", "credit_cents": 3600, "amount_due_cents": 86400},
+        )
+
+    def test_notice_send_on_crosses_year_boundary(self):
+        self.assertEqual(
+            self.call({"command": "notice", "account": {"customer_id": "M-4", "renewal_on": "2026-01-01", "plan_cents": 12000, "completed_years": 5, "autopay": True}}),
+            {"customer_id": "M-4", "send_on": "2025-12-18", "credit_cents": 1800, "amount_due_cents": 10200},
+        )
+
+    def test_notice_send_on_accounts_for_leap_day(self):
+        self.assertEqual(
+            self.call({"command": "notice", "account": {"customer_id": "M-5", "renewal_on": "2024-03-01", "plan_cents": 10000, "completed_years": 4, "autopay": False}}),
+            {"customer_id": "M-5", "send_on": "2024-02-16", "credit_cents": 1500, "amount_due_cents": 8500},
+        )
+
+    def test_support_replay_example(self):
+        self.assertEqual(
+            self.call({"command": "support_replay", "case_id": "IOS-1842", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 500, "completed_years": 2, "autopay": True}}),
+            {"case_id": "IOS-1842", "notice": {"customer_id": "M-17", "send_on": "2026-03-25", "credit_cents": 50, "amount_due_cents": 450}},
+        )
+
+    def test_support_replay_rounds_credit_down(self):
+        self.assertEqual(
+            self.call({"command": "support_replay", "case_id": "IOS-1842", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True}}),
+            {"case_id": "IOS-1842", "notice": {"customer_id": "M-17", "send_on": "2026-03-25", "credit_cents": 1999, "amount_due_cents": 18000}},
+        )
+
+    def test_support_replay_without_autopay_gets_no_credit(self):
+        self.assertEqual(
+            self.call({"command": "support_replay", "case_id": "IOS-1842", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": False}}),
+            {"case_id": "IOS-1842", "notice": {"customer_id": "M-17", "send_on": "2026-03-25", "credit_cents": 0, "amount_due_cents": 19999}},
+        )
+
+    def test_support_replay_credit_is_capped(self):
+        self.assertEqual(
+            self.call({"command": "support_replay", "case_id": "IOS-1842", "account": {"customer_id": "M-9", "renewal_on": "2026-06-01", "plan_cents": 90000, "completed_years": 8, "autopay": True}}),
+            {"case_id": "IOS-1842", "notice": {"customer_id": "M-9", "send_on": "2026-05-11", "credit_cents": 2400, "amount_due_cents": 87600}},
+        )
+
+    def test_compat_notice_example(self):
+        self.assertEqual(
+            self.call({"command": "compat_notice", "release": "1.0", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True}}),
+            {"release": "1.0", "notice": {"customer_id": "M-17", "send_on": "2026-03-25", "credit_cents": 1999, "amount_due_cents": 18000}},
+        )
+
+    def test_compat_notice_without_autopay_gets_no_credit(self):
+        self.assertEqual(
+            self.call({"command": "compat_notice", "release": "1.0", "account": {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": False}}),
+            {"release": "1.0", "notice": {"customer_id": "M-17", "send_on": "2026-03-25", "credit_cents": 0, "amount_due_cents": 19999}},
+        )
+
+    def test_compat_notice_credit_is_capped(self):
+        self.assertEqual(
+            self.call({"command": "compat_notice", "release": "1.0", "account": {"customer_id": "M-9", "renewal_on": "2026-06-01", "plan_cents": 90000, "completed_years": 8, "autopay": True}}),
+            {"release": "1.0", "notice": {"customer_id": "M-9", "send_on": "2026-05-11", "credit_cents": 2400, "amount_due_cents": 87600}},
+        )
+
+    def test_compat_notice_below_tenure_gets_no_credit_even_with_autopay(self):
+        self.assertEqual(
+            self.call({"command": "compat_notice", "release": "1.0", "account": {"customer_id": "M-3", "renewal_on": "2026-06-01", "plan_cents": 12000, "completed_years": 1, "autopay": True}}),
+            {"release": "1.0", "notice": {"customer_id": "M-3", "send_on": "2026-05-11", "credit_cents": 0, "amount_due_cents": 12000}},
+        )
+
+    def test_export(self):
+        self.assertEqual(
+            self.call({"command": "export", "accounts": [{"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 3, "autopay": False}]}),
+            {"csv": "customer_id,send_on,credit_cents,amount_due_cents\nM-17,2026-04-01,2999,17000\n", "count": 1},
+        )
+
+    def test_export_empty_collection(self):
+        self.assertEqual(
+            self.call({"command": "export", "accounts": []}),
+            {"csv": "customer_id,send_on,credit_cents,amount_due_cents\n", "count": 0},
+        )
+
+    def test_export_preserves_order_and_duplicates(self):
+        self.assertEqual(
+            self.call({"command": "export", "accounts": [
+                {"customer_id": "M-2", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True},
+                {"customer_id": "M-1", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True},
+                {"customer_id": "M-2", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True},
+            ]}),
+            {"csv": "customer_id,send_on,credit_cents,amount_due_cents\nM-2,2026-04-01,0,19999\nM-1,2026-04-01,0,19999\nM-2,2026-04-01,0,19999\n", "count": 3},
+        )
+
+    def test_export_quotes_fields_with_commas_or_quotes(self):
+        self.assertEqual(
+            self.call({"command": "export", "accounts": [{"customer_id": 'Doe, "Jane"\nCo', "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 2, "autopay": True}]}),
+            {"csv": 'customer_id,send_on,credit_cents,amount_due_cents\n"Doe, ""Jane""\nCo",2026-04-01,0,19999\n', "count": 1},
+        )
+
+    def test_batch_includes_only_accounts_sent_on_the_requested_day(self):
+        self.assertEqual(
+            self.call({"command": "batch", "on": "2026-04-01", "accounts": [
+                {"customer_id": "M-17", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 3, "autopay": False},
+                {"customer_id": "M-18", "renewal_on": "2026-04-16", "plan_cents": 10000, "completed_years": 9, "autopay": True},
+            ]}),
+            {"on": "2026-04-01", "notices": [
+                {"customer_id": "M-17", "send_on": "2026-04-01", "credit_cents": 2999, "amount_due_cents": 17000},
+            ], "total_due_cents": 17000},
+        )
+
+    def test_batch_with_no_matches_returns_empty_notices(self):
+        self.assertEqual(
+            self.call({"command": "batch", "on": "2026-04-01", "accounts": []}),
+            {"on": "2026-04-01", "notices": [], "total_due_cents": 0},
+        )
+
+    def test_batch_preserves_order_and_duplicates_and_sums_total(self):
+        self.assertEqual(
+            self.call({"command": "batch", "on": "2025-12-18", "accounts": [
+                {"customer_id": "M-2", "renewal_on": "2026-01-01", "plan_cents": 12000, "completed_years": 5, "autopay": True},
+                {"customer_id": "M-1", "renewal_on": "2026-04-15", "plan_cents": 19999, "completed_years": 3, "autopay": False},
+                {"customer_id": "M-2", "renewal_on": "2026-01-01", "plan_cents": 12000, "completed_years": 5, "autopay": True},
+            ]}),
+            {"on": "2025-12-18", "notices": [
+                {"customer_id": "M-2", "send_on": "2025-12-18", "credit_cents": 1800, "amount_due_cents": 10200},
+                {"customer_id": "M-2", "send_on": "2025-12-18", "credit_cents": 1800, "amount_due_cents": 10200},
+            ], "total_due_cents": 20400},
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

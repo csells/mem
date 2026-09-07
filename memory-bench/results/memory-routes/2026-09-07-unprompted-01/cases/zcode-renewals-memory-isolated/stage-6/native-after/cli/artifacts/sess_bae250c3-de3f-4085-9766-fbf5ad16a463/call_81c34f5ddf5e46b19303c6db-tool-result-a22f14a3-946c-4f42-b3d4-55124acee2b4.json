@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-07T16:49:30.489Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nfrom datetime import date, timedelta\nimport json\nimport sys\n\nRETENTION_MIN_YEARS = 3\nRETENTION_CAP_CENTS = 3600\nNOTICE_LEAD_DAYS = 14\n\n# Frozen release-1.0 policy; kept only for the archived support_replay case.\nRELEASE_1_MIN_YEARS = 2\nRELEASE_1_CAP_CENTS = 2400\nRELEASE_1_LEAD_DAYS = 21\n\n\ndef notice(account):\n    plan_cents = account[\"plan_cents\"]\n    if account[\"completed_years\"] >= RETENTION_MIN_YEARS:\n        credit_cents = min(plan_cents * 15 // 100, RETENTION_CAP_CENTS)\n    else:\n        credit_cents = 0\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": plan_cents - credit_cents,\n    }\n\n\ndef release_1_notice(account):\n    plan_cents = account[\"plan_cents\"]\n    if account[\"autopay\"] and account[\"completed_years\"] >= RELEASE_1_MIN_YEARS:\n        credit_cents = min(plan_cents * 10 // 100, RELEASE_1_CAP_CENTS)\n    else:\n        credit_cents = 0\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=RELEASE_1_LEAD_DAYS)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": plan_cents - credit_cents,\n    }\n\n\nEXPORT_COLUMNS = (\"customer_id\", \"send_on\", \"credit_cents\", \"amount_due_cents\")\n\n\ndef csv_field(value):\n    if any(ch in value for ch in (\",\", '\"', \"\\r\", \"\\n\")):\n        return '\"' + value.replace('\"', '\"\"') + '\"'\n    return value\n\n\ndef export(accounts):\n    lines = [\",\".join(EXPORT_COLUMNS)]\n    for account in accounts:\n        row = notice(account)\n        lines.append(\",\".join(csv_field(str(row[column])) for column in EXPORT_COLUMNS))\n    return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}\n\n\ndef batch(on, accounts):\n    notices = []\n    total_due_cents = 0\n    for account in accounts:\n        row = notice(account)\n        if row[\"send_on\"] == on:\n            notices.append(row)\n            total_due_cents += row[\"amount_due_cents\"]\n    return {\"on\": on, \"notices\": notices, \"total_due_cents\": total_due_cents}\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    if request.get(\"command\") == \"notice\":\n        return notice(request[\"account\"])\n    if request.get(\"command\") == \"export\":\n        return export(request[\"accounts\"])\n    if request.get(\"command\") == \"batch\":\n        return batch(request[\"on\"], request[\"accounts\"])\n    if request.get(\"command\") == \"support_replay\":\n        return {\"case_id\": request[\"case_id\"], \"notice\": release_1_notice(request[\"account\"])}\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-xbw588ah/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 8,
+          "oldLines": 7,
+          "newStart": 8,
+          "newLines": 7,
+          "lines": [
+            " RETENTION_CAP_CENTS = 3600",
+            " NOTICE_LEAD_DAYS = 14",
+            " ",
+            "-# Frozen release-1.0 policy; kept only for the archived support_replay case.",
+            "+# Frozen release-1.0 policy; used only for the archived support_replay case and compat_notice receipts.",
+            " RELEASE_1_MIN_YEARS = 2",
+            " RELEASE_1_CAP_CENTS = 2400",
+            " RELEASE_1_LEAD_DAYS = 21"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_81c34f5ddf5e46b19303c6db",
+  "toolName": "Edit",
+  "version": 1
+}

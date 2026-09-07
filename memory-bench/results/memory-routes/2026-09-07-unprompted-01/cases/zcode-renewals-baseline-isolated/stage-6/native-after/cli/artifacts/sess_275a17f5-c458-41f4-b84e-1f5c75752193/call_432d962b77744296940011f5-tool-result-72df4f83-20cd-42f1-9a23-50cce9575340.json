@@ -1,0 +1,34 @@
+{
+  "createdAt": "2026-09-07T16:57:14.494Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\nfrom datetime import date, timedelta\n\nNOTICE_LEAD_DAYS = 14\nLOYALTY_MIN_YEARS = 3\nLOYALTY_RATE_PERCENT = 15\nLOYALTY_MAX_CENTS = 3600\n\n\ndef loyalty_credit_cents(account):\n    if account[\"completed_years\"] < LOYALTY_MIN_YEARS:\n        return 0\n    return min(account[\"plan_cents\"] * LOYALTY_RATE_PERCENT // 100, LOYALTY_MAX_CENTS)\n\n\ndef notice(account):\n    credit = loyalty_credit_cents(account)\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit,\n        \"amount_due_cents\": account[\"plan_cents\"] - credit,\n    }\n\n\nCSV_COLUMNS = (\"customer_id\", \"send_on\", \"credit_cents\", \"amount_due_cents\")\n\n\ndef csv_field(value):\n    text = str(value)\n    if any(ch in text for ch in ',\"\\r\\n'):\n        return '\"' + text.replace('\"', '\"\"') + '\"'\n    return text\n\n\ndef export(accounts):\n    lines = [\",\".join(CSV_COLUMNS)]\n    for account in accounts:\n        row = notice(account)\n        lines.append(\",\".join(csv_field(row[column]) for column in CSV_COLUMNS))\n    return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}\n\n\ndef batch(on, accounts):\n    notices = [row for row in (notice(account) for account in accounts) if row[\"send_on\"] == on]\n    return {\n        \"on\": on,\n        \"notices\": notices,\n        \"total_due_cents\": sum(row[\"amount_due_cents\"] for row in notices),\n    }\n\n\ndef release_1_0_notice(account):\n    \"\"\"Notice under the release 1.0 rules approved in issue trial-a6m.\n\n    The live notice() policy changed in trial-sc7; these values stay fixed,\n    so the rules are restated here on purpose. Used by support_replay\n    (IOS-1842) and compat_notice receipts.\n    \"\"\"\n    if account[\"autopay\"] and account[\"completed_years\"] >= 2:\n        credit = min(account[\"plan_cents\"] * 10 // 100, 2400)\n    else:\n        credit = 0\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=21)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit,\n        \"amount_due_cents\": account[\"plan_cents\"] - credit,\n    }\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    if request.get(\"command\") == \"notice\":\n        return notice(request[\"account\"])\n    if request.get(\"command\") == \"export\":\n        return export(request[\"accounts\"])\n    if request.get(\"command\") == \"batch\":\n        return batch(request[\"on\"], request[\"accounts\"])\n    if request.get(\"command\") == \"support_replay\":\n        return {\"case_id\": request[\"case_id\"], \"notice\": replay_notice(request[\"account\"])}\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-z39gmo_t/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 84,
+          "oldLines": 7,
+          "newStart": 84,
+          "newLines": 9,
+          "lines": [
+            "     if request.get(\"command\") == \"batch\":",
+            "         return batch(request[\"on\"], request[\"accounts\"])",
+            "     if request.get(\"command\") == \"support_replay\":",
+            "-        return {\"case_id\": request[\"case_id\"], \"notice\": replay_notice(request[\"account\"])}",
+            "+        return {\"case_id\": request[\"case_id\"], \"notice\": release_1_0_notice(request[\"account\"])}",
+            "+    if request.get(\"command\") == \"compat_notice\":",
+            "+        return {\"release\": request[\"release\"], \"notice\": release_1_0_notice(request[\"account\"])}",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_432d962b77744296940011f5",
+  "toolName": "Edit",
+  "version": 1
+}

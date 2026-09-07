@@ -1,0 +1,51 @@
+{
+  "createdAt": "2026-09-07T16:29:23.934Z",
+  "files": [
+    {
+      "beforeContent": "\"\"\"Month reconciliation for Northbank's marketplace operations team.\"\"\"\n\nimport json\nfrom datetime import datetime, timezone\nfrom pathlib import Path\nimport sys\n\nfrom provider import LedgerLake\n\n\ndef month_window(month):\n    year, number = map(int, month.split(\"-\"))\n    begin = datetime(year, number, 1, tzinfo=timezone.utc)\n    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)\n    return begin.isoformat(), end.isoformat()\n\n\ndef reconcile(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")\n    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")\n    return {\n        \"month\": month,\n        \"transaction_ids\": [row[\"id\"] for row in rows],\n        \"payment_total_cents\": payments,\n        \"refund_total_cents\": refunds,\n        \"net_total_cents\": payments - refunds,\n    }\n\n\ndef dispatch(request):\n    rows = request.get(\"transactions\")\n    if rows is None:\n        fixture = Path(__file__).parent / \"fixtures\" / \"ledgerlake_snapshot.json\"\n        rows = json.loads(fixture.read_text())[\"transactions\"]\n    client = LedgerLake(rows)\n    if request[\"op\"] == \"reconcile\":\n        return reconcile(request[\"month\"], client)\n    raise ValueError(\"Unknown operation: \" + request[\"op\"])\n\n\nif __name__ == \"__main__\":\n    try:\n        result = dispatch(json.load(sys.stdin))\n    except (ValueError, KeyError) as error:\n        print(str(error), file=sys.stderr)\n        sys.exit(2)\n    json.dump(result, sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/cli.py",
+      "structuredPatch": [
+        {
+          "oldStart": 29,
+          "oldLines": 6,
+          "newStart": 29,
+          "newLines": 27,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+def csv_field(value):",
+            "+    text = str(value)",
+            "+    if any(character in text for character in (\",\", '\"', \"\\r\", \"\\n\")):",
+            "+        return '\"' + text.replace('\"', '\"\"') + '\"'",
+            "+    return text",
+            "+",
+            "+",
+            "+def refunds_csv(month, client):",
+            "+    begin, end = month_window(month)",
+            "+    rows = client.list_transactions(created_from=begin, created_to=end)",
+            "+    lines = [\"id,posted_at,amount_cents\"]",
+            "+    for row in rows:",
+            "+        if row[\"kind\"] == \"refund\":",
+            "+            lines.append(\",\".join([",
+            "+                csv_field(row[\"id\"]),",
+            "+                csv_field(row[\"posted_at\"]),",
+            "+                csv_field(row[\"amount_cents\"]),",
+            "+            ]))",
+            "+    return {\"month\": month, \"csv\": \"\\n\".join(lines) + \"\\n\"}",
+            "+",
+            "+",
+            " def dispatch(request):",
+            "     rows = request.get(\"transactions\")",
+            "     if rows is None:"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_77a31f86e4e04eb29137bd24",
+  "toolName": "Edit",
+  "version": 1
+}

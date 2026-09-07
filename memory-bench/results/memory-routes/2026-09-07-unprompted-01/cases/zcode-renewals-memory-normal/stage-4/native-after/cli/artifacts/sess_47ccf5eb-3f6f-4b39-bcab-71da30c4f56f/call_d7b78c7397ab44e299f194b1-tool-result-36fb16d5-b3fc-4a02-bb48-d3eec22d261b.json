@@ -1,0 +1,52 @@
+{
+  "createdAt": "2026-09-07T17:19:58.040Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-um6q64dw/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 2,
+          "oldLines": 11,
+          "newStart": 2,
+          "newLines": 28,
+          "lines": [
+            " \"\"\"HarborPass JSON command-line application.\"\"\"",
+            " import json",
+            " import sys",
+            "+from datetime import date, timedelta",
+            " ",
+            " ",
+            "+def notice(account):",
+            "+    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=21)",
+            "+    if account[\"autopay\"] and account[\"completed_years\"] >= 2:",
+            "+        credit_cents = min(account[\"plan_cents\"] // 10, 2400)",
+            "+    else:",
+            "+        credit_cents = 0",
+            "+    return {",
+            "+        \"customer_id\": account[\"customer_id\"],",
+            "+        \"send_on\": send_on.isoformat(),",
+            "+        \"credit_cents\": credit_cents,",
+            "+        \"amount_due_cents\": account[\"plan_cents\"] - credit_cents,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"HarborPass\"}",
+            "+    if request.get(\"command\") == \"notice\":",
+            "+        return notice(request[\"account\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_d7b78c7397ab44e299f194b1",
+  "toolName": "Edit",
+  "version": 1
+}

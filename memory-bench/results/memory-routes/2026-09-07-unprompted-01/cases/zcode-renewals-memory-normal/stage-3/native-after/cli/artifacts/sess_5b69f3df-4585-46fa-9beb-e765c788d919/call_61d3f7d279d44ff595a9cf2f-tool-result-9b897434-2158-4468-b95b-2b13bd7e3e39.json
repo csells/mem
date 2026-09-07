@@ -1,0 +1,54 @@
+{
+  "createdAt": "2026-09-07T17:23:32.081Z",
+  "files": [
+    {
+      "beforeContent": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\n\nclass SmokeTests(unittest.TestCase):\n    def call(self, request):\n        result = subprocess.run([sys.executable, str(ROOT / \"main.py\")], input=json.dumps(request), capture_output=True, text=True, check=True, timeout=3)\n        return json.loads(result.stdout)\n\n    def test_ping(self):\n        self.assertEqual(self.call({\"command\": \"ping\"}), {\"status\": \"ok\", \"product\": \"HarborPass\"})\n\n    def test_unknown_command(self):\n        self.assertEqual(self.call({\"command\": \"not_a_command\"}), {\"error\": \"unknown_command\"})\n\n    def test_notice(self):\n        self.assertEqual(\n            self.call({\"command\": \"notice\", \"account\": {\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True}}),\n            {\"customer_id\": \"M-17\", \"send_on\": \"2026-03-25\", \"credit_cents\": 1999, \"amount_due_cents\": 18000},\n        )\n\n    def test_notice_without_autopay_gets_no_credit(self):\n        self.assertEqual(\n            self.call({\"command\": \"notice\", \"account\": {\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": False}}),\n            {\"customer_id\": \"M-17\", \"send_on\": \"2026-03-25\", \"credit_cents\": 0, \"amount_due_cents\": 19999},\n        )\n\n    def test_notice_credit_is_capped(self):\n        self.assertEqual(\n            self.call({\"command\": \"notice\", \"account\": {\"customer_id\": \"M-9\", \"renewal_on\": \"2026-06-01\", \"plan_cents\": 90000, \"completed_years\": 8, \"autopay\": True}}),\n            {\"customer_id\": \"M-9\", \"send_on\": \"2026-05-11\", \"credit_cents\": 2400, \"amount_due_cents\": 87600},\n        )\n\n    def test_export(self):\n        self.assertEqual(\n            self.call({\"command\": \"export\", \"accounts\": [{\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True}]}),\n            {\"csv\": \"customer_id,send_on,credit_cents,amount_due_cents\\nM-17,2026-03-25,1999,18000\\n\", \"count\": 1},\n        )\n\n    def test_export_empty_collection(self):\n        self.assertEqual(\n            self.call({\"command\": \"export\", \"accounts\": []}),\n            {\"csv\": \"customer_id,send_on,credit_cents,amount_due_cents\\n\", \"count\": 0},\n        )\n\n    def test_export_preserves_order_and_duplicates(self):\n        self.assertEqual(\n            self.call({\"command\": \"export\", \"accounts\": [\n                {\"customer_id\": \"M-2\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True},\n                {\"customer_id\": \"M-1\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True},\n                {\"customer_id\": \"M-2\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True},\n            ]}),\n            {\"csv\": \"customer_id,send_on,credit_cents,amount_due_cents\\nM-2,2026-03-25,1999,18000\\nM-1,2026-03-25,1999,18000\\nM-2,2026-03-25,1999,18000\\n\", \"count\": 3},\n        )\n\n    def test_export_quotes_fields_with_commas_or_quotes(self):\n        self.assertEqual(\n            self.call({\"command\": \"export\", \"accounts\": [{\"customer_id\": 'Doe, \"Jane\"\\nCo', \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True}]}),\n            {\"csv\": 'customer_id,send_on,credit_cents,amount_due_cents\\n\"Doe, \"\"Jane\"\"\\nCo\",2026-03-25,1999,18000\\n', \"count\": 1},\n        )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-um6q64dw/work/tests/test_cli.py",
+      "structuredPatch": [
+        {
+          "oldStart": 36,
+          "oldLines": 6,
+          "newStart": 36,
+          "newLines": 30,
+          "lines": [
+            "             {\"customer_id\": \"M-9\", \"send_on\": \"2026-05-11\", \"credit_cents\": 2400, \"amount_due_cents\": 87600},",
+            "         )",
+            " ",
+            "+    def test_support_replay_example(self):",
+            "+        self.assertEqual(",
+            "+            self.call({\"command\": \"support_replay\", \"case_id\": \"IOS-1842\", \"account\": {\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 500, \"completed_years\": 2, \"autopay\": True}}),",
+            "+            {\"case_id\": \"IOS-1842\", \"notice\": {\"customer_id\": \"M-17\", \"send_on\": \"2026-03-25\", \"credit_cents\": 50, \"amount_due_cents\": 450}},",
+            "+        )",
+            "+",
+            "+    def test_support_replay_rounds_credit_down(self):",
+            "+        self.assertEqual(",
+            "+            self.call({\"command\": \"support_replay\", \"case_id\": \"IOS-1842\", \"account\": {\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True}}),",
+            "+            {\"case_id\": \"IOS-1842\", \"notice\": {\"customer_id\": \"M-17\", \"send_on\": \"2026-03-25\", \"credit_cents\": 1999, \"amount_due_cents\": 18000}},",
+            "+        )",
+            "+",
+            "+    def test_support_replay_without_autopay_gets_no_credit(self):",
+            "+        self.assertEqual(",
+            "+            self.call({\"command\": \"support_replay\", \"case_id\": \"IOS-1842\", \"account\": {\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": False}}),",
+            "+            {\"case_id\": \"IOS-1842\", \"notice\": {\"customer_id\": \"M-17\", \"send_on\": \"2026-03-25\", \"credit_cents\": 0, \"amount_due_cents\": 19999}},",
+            "+        )",
+            "+",
+            "+    def test_support_replay_credit_is_capped(self):",
+            "+        self.assertEqual(",
+            "+            self.call({\"command\": \"support_replay\", \"case_id\": \"IOS-1842\", \"account\": {\"customer_id\": \"M-9\", \"renewal_on\": \"2026-06-01\", \"plan_cents\": 90000, \"completed_years\": 8, \"autopay\": True}}),",
+            "+            {\"case_id\": \"IOS-1842\", \"notice\": {\"customer_id\": \"M-9\", \"send_on\": \"2026-05-11\", \"credit_cents\": 2400, \"amount_due_cents\": 87600}},",
+            "+        )",
+            "+",
+            "     def test_export(self):",
+            "         self.assertEqual(",
+            "             self.call({\"command\": \"export\", \"accounts\": [{\"customer_id\": \"M-17\", \"renewal_on\": \"2026-04-15\", \"plan_cents\": 19999, \"completed_years\": 2, \"autopay\": True}]}),"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_61d3f7d279d44ff595a9cf2f",
+  "toolName": "Edit",
+  "version": 1
+}

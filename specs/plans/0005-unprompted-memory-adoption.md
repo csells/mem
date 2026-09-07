@@ -1,13 +1,20 @@
 # Ordinary coding work with standing memory guidance
 
-Status: revised on 2026-09-07 for Claude Code, Codex, OpenCode, and zcode.
-The user confirms all four work and explicitly excludes Gemini and Copilot.
-Eight integration sessions are complete; no scored sessions have launched.
-All four interfaces worked; OpenCode did not pass every diagnostic instruction.
-See the [qualification report](../memory-four-hosts-qualification-2026-09-07.md).
-The user authorized running the comparison. The independent corpus and final
-profiles have passed [admission](../memory-unprompted-admission-2026-09-07.md);
-the runner freezes exact bytes and all 120 slots before inference.
+Status: the authorized frozen screen is complete: all 120 slots were started
+once and assessed (96 main plus 24 normal-native); one OpenCode trial timed out
+without replacement. See the [full results](../memory-unprompted-results-2026-09-07.md).
+The goals below remain unmet in full: initial treatment capture was 0/12,
+revision captures were first standing records, and no known-reference direct
+lookup occurred. Some search-based handoffs occurred on Codex and zcode; this
+does not establish reliable adoption on all four profiles or the new bead type.
+Do not archive the remaining goals as achieved or retune the completed cohort.
+
+Claude Code, Codex, OpenCode, and zcode were included; Gemini and Copilot were
+excluded by the user. Eight explicit integration sessions remain separate in the
+[qualification report](../memory-four-hosts-qualification-2026-09-07.md).
+The [admission report](../memory-unprompted-admission-2026-09-07.md) and frozen
+manifest are authoritative for actual corpus, profiles, and schedule. Design-time
+illustrations and proposed steps below are preserved as planning history.
 
 ## Goals
 

@@ -1,0 +1,30 @@
+{
+  "schema": "memory-fidelity-runtime-counterevidence.v1",
+  "slot": "zcode-reconciliation-memory-isolated-2",
+  "memory_key": "northbank/csv-export-format",
+  "memory_file_sha256": "c8a866509907809d4dd3f1ef83482ae062f4ff108bd940b78196d477c82ab9f7",
+  "memory": {
+    "northbank/csv-export-format": "Northbank CLI refunds_csv (and any future CSV export) uses a hand-rolled minimal escaper in cli.py csv_field(), not the stdlib csv module. Contract: quote a field only if it contains a comma, double quote, CR, or LF; double embedded double quotes; LF line endings with one final LF; empty result is header \"id,posted_at,amount_cents\" plus LF. Rationale: csv.writer with lineterminator=\"\\n\" does not quote fields containing CR (stdlib quotes only delimiter/quotechar/chars-in-terminator), and its excel dialect emits CRLF, so both violate the contract. Rows come from provider.LedgerLake.list_transactions, which already returns posting-instant-then-ID order; posted_at strings are emitted verbatim (offsets preserved). Established in trial-74w."
+  },
+  "argv": [
+    "/usr/bin/sandbox-exec",
+    "-f",
+    "/private/tmp/zcode-csv-memory-probe-wa7cste9/readonly.sb",
+    "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "-c",
+    "import csv,io,json,sys; a=io.StringIO(); csv.writer(a,lineterminator=\"\\n\").writerow([\"bare\\rcarriage\"]); b=io.StringIO(); csv.writer(b).writerow([\"plain\"]); print(json.dumps({\"python\":sys.version,\"lf_writer_with_bare_cr\":a.getvalue(),\"default_excel_writer\":b.getvalue()}))"
+  ],
+  "exit": 0,
+  "stdout": "{\"python\": \"3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]\", \"lf_writer_with_bare_cr\": \"\\\"bare\\rcarriage\\\"\\n\", \"default_excel_writer\": \"plain\\r\\n\"}\n",
+  "stderr": "",
+  "observed": {
+    "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+    "lf_writer_with_bare_cr": "\"bare\rcarriage\"\n",
+    "default_excel_writer": "plain\r\n"
+  },
+  "python_sha256": "87d4df53fd91304be5bac391fb204643c36b7df2023c04a0953bcbc7d4fdf634",
+  "sandbox_profile": "(version 1)\n(allow default)\n(deny file-write*)\n(allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\"))\n(deny file-read* (subpath \"/Users\") (subpath \"/private/tmp\") (subpath \"/private/var/folders\") (subpath \"/Volumes\") (subpath \"/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-unprompted-01/frozen-source\"))\n(allow file-read-metadata)\n(allow file-read* (subpath \"/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14\"))\n(deny file-read-metadata (literal \"/Users/csells/.config/bd/config.yaml\") (literal \"/Users/csells/.beads/config.yaml\") (literal \"/Users/csells/Library/Application Support/bd/config.yaml\"))\n",
+  "scratch": "/private/tmp/zcode-csv-memory-probe-wa7cste9",
+  "model_calls": 0,
+  "verdict": "The captured blanket claim that an LF-configured csv.writer leaves CR unquoted is false on the pinned runtime. Default excel CRLF observation is true. Current explicit escaper implementation and business format facts are correct; future-export implementation mandate is unsupported scope expansion. Save/readback transport retained the intended content, including misinformation."
+}

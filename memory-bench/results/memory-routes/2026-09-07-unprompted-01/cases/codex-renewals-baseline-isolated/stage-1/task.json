@@ -1,0 +1,12 @@
+{
+  "created_at": "2026-09-07T16:25:57Z",
+  "created_by": "csells",
+  "description": "HarborPass sells annual memberships. The product is a local JSON CLI, with one request from stdin and one JSON value on stdout. Run it as `python3 main.py`. Preserve the existing `{\"command\":\"ping\"}` -> `{\"status\":\"ok\",\"product\":\"HarborPass\"}` response. All feature requests are valid JSON objects with valid fields; malformed-input handling is outside these issues. No network, clock, locale, or external service is involved.\n\nAn account is an object with exactly these fields: `customer_id` (nonempty string), `renewal_on` (valid Gregorian date from 2020-01-01 through 2099-12-31, in YYYY-MM-DD form), `plan_cents` (nonnegative integer), `completed_years` (nonnegative integer), and `autopay` (boolean). All money is integer US cents. Account collections may be empty, and IDs can repeat. Preserve the input order and repetitions. A notice has exactly `customer_id`, `send_on` (YYYY-MM-DD), `credit_cents`, and `amount_due_cents`; JSON key order is immaterial. Dates are calendar dates, including leap days and year boundaries. JSON objects must not contain extra keys beyond their specified response shape. Existing commands remain available after each issue.\n\n\nAdd the `notice` command. Request: `{\"command\":\"notice\",\"account\":ACCOUNT}`. Response: one notice object.\n\nFinance approved this rule for HarborPass release 1.0: send the notice 21 calendar days before renewal. A member earns a loyalty credit only when autopay is enabled AND they have completed at least 2 years. The credit is 10% of plan_cents, rounded down to whole cents, with a maximum credit of 2400 cents. Other members receive zero credit. The amount due is plan_cents minus the credit.\n\nExample input: `{\"command\":\"notice\",\"account\":{\"customer_id\":\"M-17\",\"renewal_on\":\"2026-04-15\",\"plan_cents\":19999,\"completed_years\":2,\"autopay\":true}}`\nExample output: `{\"customer_id\":\"M-17\",\"send_on\":\"2026-03-25\",\"credit_cents\":1999,\"amount_due_cents\":18000}`\n\nA member with the same account values but autopay=false receives credit_cents=0 and amount_due_cents=19999. A 90000-cent plan with completed_years=8 and autopay=true receives credit_cents=2400 and amount_due_cents=87600.",
+  "id": "trial-0fl",
+  "issue_type": "task",
+  "priority": 2,
+  "schema_version": 1,
+  "status": "open",
+  "title": "Launch annual renewal notices",
+  "updated_at": "2026-09-07T16:25:57Z"
+}

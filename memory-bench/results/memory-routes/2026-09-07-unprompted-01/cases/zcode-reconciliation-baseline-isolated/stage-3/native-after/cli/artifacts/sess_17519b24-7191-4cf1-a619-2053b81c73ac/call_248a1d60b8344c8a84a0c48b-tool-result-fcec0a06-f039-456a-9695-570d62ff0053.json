@@ -1,0 +1,39 @@
+{
+  "createdAt": "2026-09-07T16:33:47.959Z",
+  "files": [
+    {
+      "beforeContent": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\n\ndef replay(request):\n    result = subprocess.run([sys.executable, \"cli.py\"], input=json.dumps(request),\n                            text=True, capture_output=True, cwd=ROOT, check=True)\n    return json.loads(result.stdout)\n\n\nclass IncidentReplayTests(unittest.TestCase):\n    def test_incident_statement_from_snapshot(self):\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-02\"}), {\n            \"month\": \"2025-02\",\n            \"transaction_ids\": [\"p-feb-mid\", \"p-feb-last\", \"r-feb-last\", \"p-offset-feb\"],\n            \"payment_total_cents\": 15200,\n            \"refund_total_cents\": 400,\n            \"net_total_cents\": 14800,\n        })\n\n    def test_offset_timestamps_bucket_by_absolute_instant(self):\n        rows = [\n            {\"id\": \"before\", \"kind\": \"payment\", \"posted_at\": \"2025-01-31T23:00:00-01:00\", \"amount_cents\": 100},\n            {\"id\": \"inside\", \"kind\": \"payment\", \"posted_at\": \"2025-02-01T00:30:00+01:00\", \"amount_cents\": 200},\n            {\"id\": \"after\", \"kind\": \"payment\", \"posted_at\": \"2025-03-01T00:00:00Z\", \"amount_cents\": 400},\n        ]\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\", \"transaction_ids\": [\"inside\"],\n            \"payment_total_cents\": 200, \"refund_total_cents\": 0, \"net_total_cents\": 200,\n        })\n\n    def test_entire_final_calendar_date_is_included(self):\n        rows = [\n            {\"id\": \"feb-end\", \"kind\": \"refund\", \"posted_at\": \"2025-02-28T23:59:59Z\", \"amount_cents\": 300},\n            {\"id\": \"mar-open\", \"kind\": \"payment\", \"posted_at\": \"2025-03-01T00:00:00Z\", \"amount_cents\": 500},\n        ]\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\", \"transaction_ids\": [\"feb-end\"],\n            \"payment_total_cents\": 0, \"refund_total_cents\": 300, \"net_total_cents\": -300,\n        })\n\n    def test_leap_year_upper_cutoff_is_march_first(self):\n        rows = [\n            {\"id\": \"leap-day\", \"kind\": \"payment\", \"posted_at\": \"2024-02-29T23:59:59Z\", \"amount_cents\": 2900},\n            {\"id\": \"mar-open\", \"kind\": \"payment\", \"posted_at\": \"2024-03-01T00:00:00Z\", \"amount_cents\": 300},\n        ]\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2024-02\", \"transactions\": rows}), {\n            \"month\": \"2024-02\", \"transaction_ids\": [\"leap-day\"],\n            \"payment_total_cents\": 2900, \"refund_total_cents\": 0, \"net_total_cents\": 2900,\n        })\n\n    def test_year_rollover_upper_cutoff_is_january_first(self):\n        rows = [\n            {\"id\": \"dec-last\", \"kind\": \"payment\", \"posted_at\": \"2025-12-31T23:30:00Z\", \"amount_cents\": 6400},\n            {\"id\": \"dec-offset\", \"kind\": \"payment\", \"posted_at\": \"2026-01-01T00:45:00+01:00\", \"amount_cents\": 700},\n            {\"id\": \"jan-open\", \"kind\": \"payment\", \"posted_at\": \"2026-01-01T00:00:00Z\", \"amount_cents\": 100},\n        ]\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-12\", \"transactions\": rows}), {\n            \"month\": \"2025-12\", \"transaction_ids\": [\"dec-last\", \"dec-offset\"],\n            \"payment_total_cents\": 7100, \"refund_total_cents\": 0, \"net_total_cents\": 7100,\n        })\n\n    def test_ties_order_lexicographically_by_id(self):\n        rows = [\n            {\"id\": \"b\", \"kind\": \"payment\", \"posted_at\": \"2025-06-15T12:00:00Z\", \"amount_cents\": 100},\n            {\"id\": \"a\", \"kind\": \"refund\", \"posted_at\": \"2025-06-15T12:00:00Z\", \"amount_cents\": 25},\n        ]\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-06\", \"transactions\": rows}), {\n            \"month\": \"2025-06\", \"transaction_ids\": [\"a\", \"b\"],\n            \"payment_total_cents\": 100, \"refund_total_cents\": 25, \"net_total_cents\": 75,\n        })\n\n    def test_empty_override_returns_zero_totals(self):\n        self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-02\", \"transactions\": []}), {\n            \"month\": \"2025-02\", \"transaction_ids\": [],\n            \"payment_total_cents\": 0, \"refund_total_cents\": 0, \"net_total_cents\": 0,\n        })\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/tests/test_incident_replay.py",
+      "structuredPatch": [
+        {
+          "oldStart": 25,
+          "oldLines": 12,
+          "newStart": 25,
+          "newLines": 12,
+          "lines": [
+            " ",
+            "     def test_offset_timestamps_bucket_by_absolute_instant(self):",
+            "         rows = [",
+            "-            {\"id\": \"before\", \"kind\": \"payment\", \"posted_at\": \"2025-01-31T23:00:00-01:00\", \"amount_cents\": 100},",
+            "-            {\"id\": \"inside\", \"kind\": \"payment\", \"posted_at\": \"2025-02-01T00:30:00+01:00\", \"amount_cents\": 200},",
+            "+            {\"id\": \"jan-written\", \"kind\": \"payment\", \"posted_at\": \"2025-01-31T23:30:00-01:00\", \"amount_cents\": 200},",
+            "+            {\"id\": \"feb-written\", \"kind\": \"payment\", \"posted_at\": \"2025-02-01T00:30:00+01:00\", \"amount_cents\": 100},",
+            "             {\"id\": \"after\", \"kind\": \"payment\", \"posted_at\": \"2025-03-01T00:00:00Z\", \"amount_cents\": 400},",
+            "         ]",
+            "         self.assertEqual(replay({\"op\": \"incident_replay\", \"month\": \"2025-02\", \"transactions\": rows}), {",
+            "-            \"month\": \"2025-02\", \"transaction_ids\": [\"inside\"],",
+            "+            \"month\": \"2025-02\", \"transaction_ids\": [\"jan-written\"],",
+            "             \"payment_total_cents\": 200, \"refund_total_cents\": 0, \"net_total_cents\": 200,",
+            "         })",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_248a1d60b8344c8a84a0c48b",
+  "toolName": "Edit",
+  "version": 1
+}

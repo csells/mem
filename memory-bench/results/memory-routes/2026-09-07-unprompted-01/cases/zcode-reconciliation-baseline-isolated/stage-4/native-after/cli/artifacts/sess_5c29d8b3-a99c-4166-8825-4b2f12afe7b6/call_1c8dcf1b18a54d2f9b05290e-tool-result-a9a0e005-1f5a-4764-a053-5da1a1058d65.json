@@ -1,0 +1,62 @@
+{
+  "createdAt": "2026-09-07T17:00:54.490Z",
+  "files": [
+    {
+      "beforeContent": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\n\ndef refunds_csv(request):\n    result = subprocess.run([sys.executable, \"cli.py\"], input=json.dumps(request),\n                            text=True, capture_output=True, cwd=ROOT, check=True)\n    return json.loads(result.stdout)\n\n\nclass RefundsCsvTests(unittest.TestCase):\n    def test_february_refund_detail_from_snapshot(self):\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\"}), {\n            \"month\": \"2025-02\",\n            \"csv\": \"id,posted_at,amount_cents\\nr-feb-last,2025-02-28T17:30:00Z,400\\n\",\n        })\n\n    def test_month_without_refunds_is_header_only(self):\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-03\"}), {\n            \"month\": \"2025-03\",\n            \"csv\": \"id,posted_at,amount_cents\\n\",\n        })\n\n    def test_override_with_no_rows_is_header_only(self):\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": []}), {\n            \"month\": \"2025-02\",\n            \"csv\": \"id,posted_at,amount_cents\\n\",\n        })\n\n    def test_payments_never_appear(self):\n        rows = [\n            {\"id\": \"p-1\", \"kind\": \"payment\", \"posted_at\": \"2025-02-12T12:00:00Z\", \"amount_cents\": 1250},\n            {\"id\": \"r-1\", \"kind\": \"refund\", \"posted_at\": \"2025-02-13T12:00:00Z\", \"amount_cents\": 250},\n        ]\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\",\n            \"csv\": \"id,posted_at,amount_cents\\nr-1,2025-02-13T12:00:00Z,250\\n\",\n        })\n\n    def test_refunds_follow_reconcile_order(self):\n        rows = [\n            {\"id\": \"r-late\", \"kind\": \"refund\", \"posted_at\": \"2025-02-20T00:00:00Z\", \"amount_cents\": 700},\n            {\"id\": \"r-early-b\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T00:00:00Z\", \"amount_cents\": 300},\n            {\"id\": \"r-early-a\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T00:00:00Z\", \"amount_cents\": 100},\n            {\"id\": \"r-out\", \"kind\": \"refund\", \"posted_at\": \"2025-01-31T23:59:59Z\", \"amount_cents\": 999},\n        ]\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\",\n            \"csv\": (\"id,posted_at,amount_cents\\n\"\n                    \"r-early-a,2025-02-01T00:00:00Z,100\\n\"\n                    \"r-early-b,2025-02-01T00:00:00Z,300\\n\"\n                    \"r-late,2025-02-20T00:00:00Z,700\\n\"),\n        })\n\n    def test_offset_timestamp_buckets_by_instant_and_preserves_string(self):\n        rows = [\n            {\"id\": \"r-offset\", \"kind\": \"refund\", \"posted_at\": \"2025-03-01T00:45:00+01:00\", \"amount_cents\": 600},\n            {\"id\": \"r-mar\", \"kind\": \"refund\", \"posted_at\": \"2025-03-01T00:00:00Z\", \"amount_cents\": 500},\n        ]\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\",\n            \"csv\": \"id,posted_at,amount_cents\\nr-offset,2025-03-01T00:45:00+01:00,600\\n\",\n        })\n\n    def test_fields_with_comma_quote_and_newline_are_minimally_quoted(self):\n        rows = [\n            {\"id\": 'a,b \"c\"\\nd', \"kind\": \"refund\", \"posted_at\": \"2025-02-15T12:00:00Z\", \"amount_cents\": 200},\n        ]\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\",\n            \"csv\": 'id,posted_at,amount_cents\\n\"a,b \"\"c\"\"\\nd\",2025-02-15T12:00:00Z,200\\n',\n        })\n\n    def test_carriage_return_in_id_is_quoted(self):\n        rows = [\n            {\"id\": \"customer\\rreturn\", \"kind\": \"refund\", \"posted_at\": \"2025-02-15T12:00:00Z\", \"amount_cents\": 200},\n        ]\n        self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {\n            \"month\": \"2025-02\",\n            \"csv\": 'id,posted_at,amount_cents\\n\"customer\\rreturn\",2025-02-15T12:00:00Z,200\\n',\n        })\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/tests/test_refunds_csv.py",
+      "structuredPatch": [
+        {
+          "oldStart": 45,
+          "oldLines": 15,
+          "newStart": 45,
+          "newLines": 15,
+          "lines": [
+            "     def test_refunds_follow_reconcile_order(self):",
+            "         rows = [",
+            "             {\"id\": \"r-late\", \"kind\": \"refund\", \"posted_at\": \"2025-02-20T00:00:00Z\", \"amount_cents\": 700},",
+            "-            {\"id\": \"r-early-b\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T00:00:00Z\", \"amount_cents\": 300},",
+            "-            {\"id\": \"r-early-a\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T00:00:00Z\", \"amount_cents\": 100},",
+            "-            {\"id\": \"r-out\", \"kind\": \"refund\", \"posted_at\": \"2025-01-31T23:59:59Z\", \"amount_cents\": 999},",
+            "+            {\"id\": \"r-early-b\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T05:00:00Z\", \"amount_cents\": 300},",
+            "+            {\"id\": \"r-early-a\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T05:00:00Z\", \"amount_cents\": 100},",
+            "+            {\"id\": \"r-out\", \"kind\": \"refund\", \"posted_at\": \"2025-02-01T04:59:59.999Z\", \"amount_cents\": 999},",
+            "         ]",
+            "         self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {",
+            "             \"month\": \"2025-02\",",
+            "             \"csv\": (\"id,posted_at,amount_cents\\n\"",
+            "-                    \"r-early-a,2025-02-01T00:00:00Z,100\\n\"",
+            "-                    \"r-early-b,2025-02-01T00:00:00Z,300\\n\"",
+            "+                    \"r-early-a,2025-02-01T05:00:00Z,100\\n\"",
+            "+                    \"r-early-b,2025-02-01T05:00:00Z,300\\n\"",
+            "                     \"r-late,2025-02-20T00:00:00Z,700\\n\"),",
+            "         })",
+            " "
+          ]
+        },
+        {
+          "oldStart": 64,
+          "oldLines": 7,
+          "newStart": 64,
+          "newLines": 9,
+          "lines": [
+            "         ]",
+            "         self.assertEqual(refunds_csv({\"op\": \"refunds_csv\", \"month\": \"2025-02\", \"transactions\": rows}), {",
+            "             \"month\": \"2025-02\",",
+            "-            \"csv\": \"id,posted_at,amount_cents\\nr-offset,2025-03-01T00:45:00+01:00,600\\n\",",
+            "+            \"csv\": (\"id,posted_at,amount_cents\\n\"",
+            "+                    \"r-offset,2025-03-01T00:45:00+01:00,600\\n\"",
+            "+                    \"r-mar,2025-03-01T00:00:00Z,500\\n\"),",
+            "         })",
+            " ",
+            "     def test_fields_with_comma_quote_and_newline_are_minimally_quoted(self):"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_1c8dcf1b18a54d2f9b05290e",
+  "toolName": "Edit",
+  "version": 1
+}

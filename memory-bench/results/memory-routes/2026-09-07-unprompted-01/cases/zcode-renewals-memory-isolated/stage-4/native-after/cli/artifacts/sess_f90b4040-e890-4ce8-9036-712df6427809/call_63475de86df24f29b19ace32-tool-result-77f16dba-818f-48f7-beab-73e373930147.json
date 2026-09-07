@@ -1,0 +1,54 @@
+{
+  "createdAt": "2026-09-07T16:16:41.508Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nfrom datetime import date, timedelta\nimport json\nimport sys\n\nLOYALTY_MIN_YEARS = 2\nLOYALTY_CAP_CENTS = 2400\nNOTICE_LEAD_DAYS = 21\n\n\ndef notice(account):\n    plan_cents = account[\"plan_cents\"]\n    if account[\"autopay\"] and account[\"completed_years\"] >= LOYALTY_MIN_YEARS:\n        credit_cents = min(plan_cents * 10 // 100, LOYALTY_CAP_CENTS)\n    else:\n        credit_cents = 0\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": plan_cents - credit_cents,\n    }\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    if request.get(\"command\") == \"notice\":\n        return notice(request[\"account\"])\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-xbw588ah/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 24,
+          "oldLines": 11,
+          "newStart": 24,
+          "newLines": 30,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+EXPORT_COLUMNS = (\"customer_id\", \"send_on\", \"credit_cents\", \"amount_due_cents\")",
+            "+",
+            "+",
+            "+def csv_field(value):",
+            "+    if any(ch in value for ch in (\",\", '\"', \"\\r\", \"\\n\")):",
+            "+        return '\"' + value.replace('\"', '\"\"') + '\"'",
+            "+    return value",
+            "+",
+            "+",
+            "+def export(accounts):",
+            "+    lines = [\",\".join(EXPORT_COLUMNS)]",
+            "+    for account in accounts:",
+            "+        row = notice(account)",
+            "+        lines.append(\",\".join(csv_field(str(row[column])) for column in EXPORT_COLUMNS))",
+            "+    return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"HarborPass\"}",
+            "     if request.get(\"command\") == \"notice\":",
+            "         return notice(request[\"account\"])",
+            "+    if request.get(\"command\") == \"export\":",
+            "+        return export(request[\"accounts\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_63475de86df24f29b19ace32",
+  "toolName": "Edit",
+  "version": 1
+}

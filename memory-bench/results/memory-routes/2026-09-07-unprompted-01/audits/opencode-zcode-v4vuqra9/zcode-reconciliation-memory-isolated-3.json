@@ -1,0 +1,235 @@
+{
+  "schema": "independent-ordinary-session-audit.v1",
+  "created_utc": "2026-09-07T16:40:56.448490+00:00",
+  "slot": "zcode-reconciliation-memory-isolated-3",
+  "host": "zcode",
+  "arm": "memory",
+  "family": "reconciliation",
+  "stage": 3,
+  "session_id": "sess_35c4bd8b-fa7d-4af3-85ad-e3ffb94b4924",
+  "model": [
+    "zai/glm-5.3"
+  ],
+  "artifact": {
+    "passed": true,
+    "correct": 30,
+    "total": 30
+  },
+  "instruction_observation": {
+    "native_skill_calls": 0,
+    "skill_file_read_calls": 1,
+    "memory_workflow_read_calls": 1,
+    "skill_read_attempts": 1,
+    "task_closed": true,
+    "infrastructure_fault": false
+  },
+  "memory_before": {
+    "northbank/csv-export-format": "Northbank CLI refunds_csv (and any future CSV export) uses a hand-rolled minimal escaper in cli.py csv_field(), not the stdlib csv module. Contract: quote a field only if it contains a comma, double quote, CR, or LF; double embedded double quotes; LF line endings with one final LF; empty result is header \"id,posted_at,amount_cents\" plus LF. Rationale: csv.writer with lineterminator=\"\\n\" does not quote fields containing CR (stdlib quotes only delimiter/quotechar/chars-in-terminator), and its excel dialect emits CRLF, so both violate the contract. Rows come from provider.LedgerLake.list_transactions, which already returns posting-instant-then-ID order; posted_at strings are emitted verbatim (offsets preserved). Established in trial-74w."
+  },
+  "memory_after": {
+    "northbank/csv-export-format": "Northbank CLI refunds_csv (and any future CSV export) uses a hand-rolled minimal escaper in cli.py csv_field(), not the stdlib csv module. Contract: quote a field only if it contains a comma, double quote, CR, or LF; double embedded double quotes; LF line endings with one final LF; empty result is header \"id,posted_at,amount_cents\" plus LF. Rationale: csv.writer with lineterminator=\"\\n\" does not quote fields containing CR (stdlib quotes only delimiter/quotechar/chars-in-terminator), and its excel dialect emits CRLF, so both violate the contract. Rows come from provider.LedgerLake.list_transactions, which already returns posting-instant-then-ID order; posted_at strings are emitted verbatim (offsets preserved). Established in trial-74w.",
+    "northbank/incident-replay-freeze": "northbank/cli incident_replay freeze: The incident_replay op (added for INC-204, issue trial-3z6) is a permanent frozen reproduction of the corrected release-1 statement. It computes its own month window inline (begin = month first calendar date 00:00 UTC inclusive, end = next month first calendar date 00:00 UTC exclusive, absolute-instant UTC comparison via the LedgerLake adapter). It must NOT be refactored to delegate to reconcile() or month_window(): reconcile is the active accounting report and may change behavior in later issues, while incident_replay must keep reproducing the corrected statement forever. It does not alter reconcile or refunds_csv. The transactions override applies as with every op."
+  },
+  "receipt_operations": [
+    {
+      "argv": [
+        "prime",
+        "--no-memories"
+      ],
+      "returncode": 0,
+      "invocation_id": "6ef8bb658bfa45568188b48c3dd63d2c"
+    },
+    {
+      "argv": [
+        "show",
+        "trial-3z6"
+      ],
+      "returncode": 0,
+      "invocation_id": "fc0dc47d1dad434aa2f22532b660b664"
+    },
+    {
+      "argv": [
+        "update",
+        "trial-3z6",
+        "--status",
+        "in_progress"
+      ],
+      "returncode": 0,
+      "invocation_id": "122e32e9cc8043aabbf49cc92329430c"
+    },
+    {
+      "argv": [
+        "memories",
+        "incident_replay"
+      ],
+      "returncode": 0,
+      "invocation_id": "9e2279507a91488aaf5af9489fc6f7bf"
+    },
+    {
+      "argv": [
+        "memories",
+        "reconcile"
+      ],
+      "returncode": 0,
+      "invocation_id": "dd5fa3074f834ae6afd503b0c075e042"
+    },
+    {
+      "argv": [
+        "remember",
+        "northbank/cli incident_replay freeze: The incident_replay op (added for INC-204, issue trial-3z6) is a permanent frozen reproduction of the corrected release-1 statement. It computes its own month window inline (begin = month first calendar date 00:00 UTC inclusive, end = next month first calendar date 00:00 UTC exclusive, absolute-instant UTC comparison via the LedgerLake adapter). It must NOT be refactored to delegate to reconcile() or month_window(): reconcile is the active accounting report and may change behavior in later issues, while incident_replay must keep reproducing the corrected statement forever. It does not alter reconcile or refunds_csv. The transactions override applies as with every op.",
+        "--key",
+        "northbank/incident-replay-freeze"
+      ],
+      "returncode": 0,
+      "invocation_id": "296267240a5e40e88a3417dfc79285c6"
+    },
+    {
+      "argv": [
+        "recall",
+        "northbank/incident-replay-freeze"
+      ],
+      "returncode": 0,
+      "invocation_id": "c4aa220f29d847de894a77c37cf76545"
+    },
+    {
+      "argv": [
+        "close",
+        "trial-3z6"
+      ],
+      "returncode": 0,
+      "invocation_id": "908f1d30249a4142835696125225da42"
+    }
+  ],
+  "tool_names": [
+    "Bash",
+    "Bash",
+    "Bash",
+    "Bash",
+    "Read",
+    "Read",
+    "Read",
+    "Bash",
+    "Read",
+    "Read",
+    "Read",
+    "Bash",
+    "Bash",
+    "Bash",
+    "Read",
+    "Edit",
+    "Edit",
+    "Edit",
+    "Edit",
+    "Bash",
+    "Bash",
+    "Read",
+    "Bash",
+    "Bash",
+    "Bash",
+    "Bash"
+  ],
+  "workspace_changed_paths": [
+    "cli.py",
+    "tests/test_public.py"
+  ],
+  "task_status_before": [
+    {
+      "id": "trial-3z6",
+      "title": "Replay the incident export for support comparisons",
+      "status": "open",
+      "comment_count": 0
+    },
+    {
+      "id": "trial-74w",
+      "title": "Export the refunds included in a close",
+      "status": "closed",
+      "comment_count": 0
+    },
+    {
+      "id": "trial-9id",
+      "title": "February close is missing posted transactions",
+      "status": "closed",
+      "comment_count": 0
+    }
+  ],
+  "task_status_after": [
+    {
+      "id": "trial-3z6",
+      "title": "Replay the incident export for support comparisons",
+      "status": "closed",
+      "comment_count": 0
+    },
+    {
+      "id": "trial-74w",
+      "title": "Export the refunds included in a close",
+      "status": "closed",
+      "comment_count": 0
+    },
+    {
+      "id": "trial-9id",
+      "title": "February close is missing posted transactions",
+      "status": "closed",
+      "comment_count": 0
+    }
+  ],
+  "manual_assessment": {
+    "slot": "zcode-reconciliation-memory-isolated-3",
+    "capture": "After implementing/testing supplied stage3, reads memory procedure and performs two deduplication searches (incident_replay/reconcile), both no match. Saves new northbank/incident-replay-freeze then recalls it for save verification; store1->2. Existing CSV topic does not already contain frozen replay scope, so this is justified newly scoped capture rather than a duplicate of an existing agreement record. Stage1 initial-policy omission remains separate.",
+    "fidelity": "Core frozen release1 UTC inclusive-first/exclusive-next-first boundaries, source issue trial-3z6/INC-204, current inline implementation, unchanged other operations and transactions override are accurate. Advice 'must NOT be refactored to delegate to reconcile() or month_window()' is an implementation guard stronger than the business contract: required property is independently preserved frozen output, not permanent prohibition of all possible helper-based implementations. Do not attribute that absolute implementation rule to user approval. Record is a scoped finding, not a complete serialization of every output field.",
+    "retrieval": "No existing memory returned or recalled. Both searches occurred after implementation/testing and returned no match. Immediate recall after save is capture verification. Existing CSV memory remained byte-for-byte unchanged and was not retrieved; reading existing cli.py exposed its CSV comment, but stage3 made no CSV implementation change and demonstrates no downstream reliance on the false library-avoidance claim.",
+    "behavior": "30/30 frozen cases pass. Added self-contained incident replay and regression tests, ran all public stages/unit suite, closed assigned issue.",
+    "history": "All issues closed with zero comments. No issue-authored memory keys or lookup reminders, earlier factual close_reason preserved; no history mutation.",
+    "validity": "No new task/harness/oracle fault. New useful frozen-endpoint capture can be justified under supplied-stage3 control; do not automatically score a control write as duplicate."
+  },
+  "input_sha256": {
+    "cases/zcode-reconciliation-memory-isolated/stage-3/tool-calls.json": "c4aa95c796f925a5bf05dd7f046fca770d7f347b1b3bbe68e2f0cab7f3fb09fc",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/stream.jsonl": "710fe93a71f67cd9db05ce9507aca07128215a780eae92044f4ddf248ebb0fd1",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/result.json": "5e95741c0b1f26e0c1e5b0cde8e14284da3354861dd29e6f6e5f273f0875eb07",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/memory-before.json": "c8a866509907809d4dd3f1ef83482ae062f4ff108bd940b78196d477c82ab9f7",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/task.json": "9b45b6749f79554064b9e9e5b19e8c46d2ca368ffc41cf4382c6601514bfaa0e",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/raw-receipts.json": "a0d6d4c9b689768cb1594d04c000ab88a9a0a7153d050e1afc81525856f34230",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/prompt.txt": "bf3f17800d99be37dadd38fc861f4019c9a02d339136dc82d64ab6a579d79360",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/artifact-grade.json": "11daa489097cf9e2cf36ca0d5128c00fe09df9d8f69555e66e11c5bb564db258",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/tasks-before.json": "18f6b7f1d975bc2d6cd6911e34f71198f93b30c739bb56dfd9f5851cdabc8b71",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/memory-after.json": "099151dfaa4061967f22ab9cb27a239ff7a1aef766c9f080e6ae50bab9ba6285",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/tasks-after.json": "aafae16dfc8804cb4587731587ac56b22857a6c803f2cce7e30d7ac1f692f133",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/launch.json": "2ceb3265fd816828b096b1b03848162cac6a1dff360f5c8d89ad245304bfef7d",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/process.json": "1e796baee960f138b2968b44b85ac1632de0be53924cf3644871e6ba81a54e51",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/provider.py": "1a7b873580ae1b0bd7a190a48fec7f53b0dee90607f1e48b39f8d83bc3af450f",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/zcode.json": "fe96d0bcc3e7709e9c1ea7473902b5e63b0df280693cafc9b6b45d766103a94e",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/README.md": "60bee0a425a410f52e5b0dc27e051c1dd3044dbd2472f4ba68eb6befb7963ed3",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/test_public.py": "a12558b365a6eab443b868d04b6da8d6224017552a7093a647505d88c9b35fae",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/cli.py": "59ba9e5a1162fe05dc9a0a1778e1c0699cfeb0a4913c311347fe84e46eb98ae0",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/GEMINI.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/AGENTS.md": "902eeb3858dc705e115b545d42ee49837900514238126d33102b07bf4e0d92b9",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/CLAUDE.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/provider_docs/transactions.md": "d8a3de85baa3aa2eae69d77f94ce9270a4269e358e88b29312bc54ef21b071e7",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/tests/test_public.py": "dfbc60240a02902266c1e61918c9f75ed6fc79f86e45ce139ecd8b92fd7d6154",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/.beads/PRIME.md": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/public_tests/stage_2.json": "fe46727c19447e3295b51ecca6ae139634a881782594815648a85ef9e6e5b932",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/public_tests/stage_3.json": "ede3855146f7b60de817c187828b556b2873de413aacd6bbb9b2f41658b8bc6b",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/public_tests/stage_1.json": "87416939fb1f7e4ebdbc86d190745537840247ac1268eb2f599196a4e97dde3d",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/fixtures/ledgerlake_snapshot.json": "3fc0eecc23c6e127173909863d562f5a397052aab93bb4b19be1a29391fe4d60",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/.agents/skills/beads/SKILL.md": "f807a0566b56bfa962cdd59ad015e1dd7358526002e0a8818d8465453c54061b",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-before/.agents/skills/beads/references/memory.md": "6fb8fb175311bf635c3274f1958f3a525bb3da94c691a59f9e17dc71fcaa718a",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/provider.py": "1a7b873580ae1b0bd7a190a48fec7f53b0dee90607f1e48b39f8d83bc3af450f",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/zcode.json": "fe96d0bcc3e7709e9c1ea7473902b5e63b0df280693cafc9b6b45d766103a94e",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/README.md": "60bee0a425a410f52e5b0dc27e051c1dd3044dbd2472f4ba68eb6befb7963ed3",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/test_public.py": "a12558b365a6eab443b868d04b6da8d6224017552a7093a647505d88c9b35fae",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/cli.py": "b5897e54b64a9b1d2912484e925c89c1a8f0f5bb0783066f28a8afe5edce8933",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/GEMINI.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/AGENTS.md": "902eeb3858dc705e115b545d42ee49837900514238126d33102b07bf4e0d92b9",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/CLAUDE.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/provider_docs/transactions.md": "d8a3de85baa3aa2eae69d77f94ce9270a4269e358e88b29312bc54ef21b071e7",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/tests/test_public.py": "aeefd00d13c5e483e6f6d92e32f8b5b44fcb137b8362cf31f2afed56f4de50b1",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/.beads/PRIME.md": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/public_tests/stage_2.json": "fe46727c19447e3295b51ecca6ae139634a881782594815648a85ef9e6e5b932",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/public_tests/stage_3.json": "ede3855146f7b60de817c187828b556b2873de413aacd6bbb9b2f41658b8bc6b",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/public_tests/stage_1.json": "87416939fb1f7e4ebdbc86d190745537840247ac1268eb2f599196a4e97dde3d",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/fixtures/ledgerlake_snapshot.json": "3fc0eecc23c6e127173909863d562f5a397052aab93bb4b19be1a29391fe4d60",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/.agents/skills/beads/SKILL.md": "f807a0566b56bfa962cdd59ad015e1dd7358526002e0a8818d8465453c54061b",
+    "cases/zcode-reconciliation-memory-isolated/stage-3/workspace-after/.agents/skills/beads/references/memory.md": "6fb8fb175311bf635c3274f1958f3a525bb3da94c691a59f9e17dc71fcaa718a"
+  },
+  "model_calls_by_auditor": 0
+}

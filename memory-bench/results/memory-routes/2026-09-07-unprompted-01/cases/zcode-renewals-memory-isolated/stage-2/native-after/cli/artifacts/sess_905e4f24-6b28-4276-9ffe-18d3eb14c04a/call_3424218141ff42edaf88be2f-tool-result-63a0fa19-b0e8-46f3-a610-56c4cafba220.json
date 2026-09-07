@@ -1,0 +1,58 @@
+{
+  "createdAt": "2026-09-07T16:15:06.368Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-xbw588ah/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 1,
+          "oldLines": 12,
+          "newStart": 1,
+          "newLines": 34,
+          "lines": [
+            " #!/usr/bin/env python3",
+            " \"\"\"HarborPass JSON command-line application.\"\"\"",
+            "+from datetime import date, timedelta",
+            " import json",
+            " import sys",
+            " ",
+            "+LOYALTY_MIN_YEARS = 2",
+            "+LOYALTY_CAP_CENTS = 2400",
+            "+NOTICE_LEAD_DAYS = 21",
+            " ",
+            "+",
+            "+def notice(account):",
+            "+    plan_cents = account[\"plan_cents\"]",
+            "+    if account[\"autopay\"] and account[\"completed_years\"] >= LOYALTY_MIN_YEARS:",
+            "+        credit_cents = min(plan_cents * 10 // 100, LOYALTY_CAP_CENTS)",
+            "+    else:",
+            "+        credit_cents = 0",
+            "+    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)",
+            "+    return {",
+            "+        \"customer_id\": account[\"customer_id\"],",
+            "+        \"send_on\": send_on.isoformat(),",
+            "+        \"credit_cents\": credit_cents,",
+            "+        \"amount_due_cents\": plan_cents - credit_cents,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"HarborPass\"}",
+            "+    if request.get(\"command\") == \"notice\":",
+            "+        return notice(request[\"account\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_3424218141ff42edaf88be2f",
+  "toolName": "Edit",
+  "version": 1
+}

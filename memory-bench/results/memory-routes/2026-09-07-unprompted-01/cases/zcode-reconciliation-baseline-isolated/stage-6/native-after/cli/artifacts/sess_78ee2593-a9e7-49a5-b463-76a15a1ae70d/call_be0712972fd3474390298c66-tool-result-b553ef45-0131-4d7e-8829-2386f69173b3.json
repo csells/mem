@@ -1,0 +1,54 @@
+{
+  "createdAt": "2026-09-07T17:05:37.072Z",
+  "files": [
+    {
+      "beforeContent": "\"\"\"Month reconciliation for Northbank's marketplace operations team.\"\"\"\n\nimport json\nfrom datetime import datetime, timedelta, timezone\nfrom pathlib import Path\nimport sys\n\nfrom provider import LedgerLake, parse_timestamp\n\n\nLEDGER_CUTOFF_HOUR = 5\n\n\ndef month_window(month):\n    \"\"\"Finance ledger month: from 05:00 UTC on the month's first calendar date\n    (included) to 05:00 UTC on the next month's first calendar date (excluded).\n    The cutoff is fixed at 05:00 UTC all year; daylight saving time does not\n    move it.\"\"\"\n    year, number = map(int, month.split(\"-\"))\n    begin = datetime(year, number, 1, LEDGER_CUTOFF_HOUR, tzinfo=timezone.utc)\n    end = datetime(year + number // 12, number % 12 + 1, 1, LEDGER_CUTOFF_HOUR, tzinfo=timezone.utc)\n    return begin.isoformat(), end.isoformat()\n\n\ndef reconcile(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")\n    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")\n    return {\n        \"month\": month,\n        \"transaction_ids\": [row[\"id\"] for row in rows],\n        \"payment_total_cents\": payments,\n        \"refund_total_cents\": refunds,\n        \"net_total_cents\": payments - refunds,\n    }\n\n\ndef incident_replay(month, client):\n    \"\"\"Frozen reproduction of the corrected INC-204 statement.\n\n    Deliberately does not call reconcile: this response stays fixed even if\n    the active reconcile report changes later.\n    \"\"\"\n    year, number = map(int, month.split(\"-\"))\n    begin = datetime(year, number, 1, tzinfo=timezone.utc)\n    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)\n    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())\n    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")\n    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")\n    return {\n        \"month\": month,\n        \"transaction_ids\": [row[\"id\"] for row in rows],\n        \"payment_total_cents\": payments,\n        \"refund_total_cents\": refunds,\n        \"net_total_cents\": payments - refunds,\n    }\n\n\ndef ledger_day(posted_at):\n    \"\"\"A ledger day runs from its calendar date's 05:00 UTC cutoff until the\n    next one, so an instant before 05:00 UTC falls on the prior date.\"\"\"\n    instant = parse_timestamp(posted_at).astimezone(timezone.utc)\n    if instant.hour < LEDGER_CUTOFF_HOUR:\n        return instant.date() - timedelta(days=1)\n    return instant.date()\n\n\ndef daily_net(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    totals = {}\n    for row in rows:\n        bucket = totals.setdefault(ledger_day(row[\"posted_at\"]),\n                                   {\"payments\": 0, \"refunds\": 0})\n        if row[\"kind\"] == \"payment\":\n            bucket[\"payments\"] += row[\"amount_cents\"]\n        else:\n            bucket[\"refunds\"] += row[\"amount_cents\"]\n    return {\n        \"month\": month,\n        \"days\": [\n            {\n                \"date\": day.isoformat(),\n                \"payment_total_cents\": bucket[\"payments\"],\n                \"refund_total_cents\": bucket[\"refunds\"],\n                \"net_total_cents\": bucket[\"payments\"] - bucket[\"refunds\"],\n            }\n            for day, bucket in sorted(totals.items())\n        ],\n    }\n\n\ndef csv_field(value):\n    text = str(value)\n    if any(character in text for character in (\",\", '\"', \"\\r\", \"\\n\")):\n        return '\"' + text.replace('\"', '\"\"') + '\"'\n    return text\n\n\ndef refunds_csv(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    lines = [\"id,posted_at,amount_cents\"]\n    for row in rows:\n        if row[\"kind\"] == \"refund\":\n            lines.append(\",\".join([\n                csv_field(row[\"id\"]),\n                csv_field(row[\"posted_at\"]),\n                csv_field(row[\"amount_cents\"]),\n            ]))\n    return {\"month\": month, \"csv\": \"\\n\".join(lines) + \"\\n\"}\n\n\ndef dispatch(request):\n    rows = request.get(\"transactions\")\n    if rows is None:\n        fixture = Path(__file__).parent / \"fixtures\" / \"ledgerlake_snapshot.json\"\n        rows = json.loads(fixture.read_text())[\"transactions\"]\n    client = LedgerLake(rows)\n    if request[\"op\"] == \"reconcile\":\n        return reconcile(request[\"month\"], client)\n    if request[\"op\"] == \"refunds_csv\":\n        return refunds_csv(request[\"month\"], client)\n    if request[\"op\"] == \"daily_net\":\n        return daily_net(request[\"month\"], client)\n    if request[\"op\"] == \"incident_replay\":\n        return incident_replay(request[\"month\"], client)\n    raise ValueError(\"Unknown operation: \" + request[\"op\"])\n\n\nif __name__ == \"__main__\":\n    try:\n        result = dispatch(json.load(sys.stdin))\n    except (ValueError, KeyError) as error:\n        print(str(error), file=sys.stderr)\n        sys.exit(2)\n    json.dump(result, sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/cli.py",
+      "structuredPatch": [
+        {
+          "oldStart": 57,
+          "oldLines": 6,
+          "newStart": 57,
+          "newLines": 30,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+def release1_reconcile(month, client):",
+            "+    \"\"\"Release 1's archived report: the complete UTC calendar month, from",
+            "+    00:00 UTC on the month's first calendar date (included) to 00:00 UTC on",
+            "+    the next month's first calendar date (excluded).",
+            "+",
+            "+    Deliberately does not call reconcile: release 1 predates the 05:00 UTC",
+            "+    ledger cutoff, and this response stays fixed even if the active reports",
+            "+    change later.",
+            "+    \"\"\"",
+            "+    year, number = map(int, month.split(\"-\"))",
+            "+    begin = datetime(year, number, 1, tzinfo=timezone.utc)",
+            "+    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)",
+            "+    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())",
+            "+    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")",
+            "+    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")",
+            "+    return {",
+            "+        \"month\": month,",
+            "+        \"transaction_ids\": [row[\"id\"] for row in rows],",
+            "+        \"payment_total_cents\": payments,",
+            "+        \"refund_total_cents\": refunds,",
+            "+        \"net_total_cents\": payments - refunds,",
+            "+    }",
+            "+",
+            "+",
+            " def ledger_day(posted_at):",
+            "     \"\"\"A ledger day runs from its calendar date's 05:00 UTC cutoff until the",
+            "     next one, so an instant before 05:00 UTC falls on the prior date.\"\"\""
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_be0712972fd3474390298c66",
+  "toolName": "Edit",
+  "version": 1
+}

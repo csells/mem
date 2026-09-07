@@ -1,0 +1,39 @@
+{
+  "schema": "offline-static-coverage-observation.v1",
+  "slot": "opencode-reconciliation-memory-isolated-2",
+  "candidate_execution": false,
+  "model_calls": 0,
+  "source": "cases/opencode-reconciliation-memory-isolated/stage-2/workspace-after/cli.py",
+  "sha256": "e5b16e0dce499cef122ef17efa1b5a7bddb59df8493a00bf64d486ad1adf491f",
+  "contract": "Refund CSV rows are ordered by posting instant, then ID. Preserve original posted_at strings.",
+  "observed_code": "refunds.sort(key=lambda x: (x[\"posted_at\"], x[\"id\"]))",
+  "counterexample_input": {
+    "op": "refunds_csv",
+    "month": "2025-02",
+    "transactions": [
+      {
+        "id": "a",
+        "kind": "refund",
+        "posted_at": "2025-02-15T01:00:00Z",
+        "amount_cents": 1
+      },
+      {
+        "id": "b",
+        "kind": "refund",
+        "posted_at": "2025-02-15T02:00:00+02:00",
+        "amount_cents": 2
+      }
+    ]
+  },
+  "required_row_id_order": [
+    "b",
+    "a"
+  ],
+  "source_implied_row_id_order": [
+    "a",
+    "b"
+  ],
+  "reason": "b is 00:00 UTC; a is 01:00 UTC. The raw strings sort a before b.",
+  "frozen_grade": "20/20 cases passed; existing offset case does not put lexical and instant order in conflict among refund rows.",
+  "assessment": "Bounded coverage limitation. Preserve original score and report it as frozen-case score, not proof of full contract correctness. No task/oracle semantic contradiction or missing memory route is established."
+}

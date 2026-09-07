@@ -1,0 +1,154 @@
+"""Month reconciliation for Northbank's marketplace operations team."""
+
+from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
+import sys
+
+from provider import LedgerLake, parse_timestamp
+
+
+def month_window(month):
+    # Finance ledger month: 05:00 UTC on the month's first calendar date
+    # (included) through 05:00 UTC on the next month's first date (excluded).
+    # Fixed at 05:00 UTC year-round; no daylight-saving shift.
+    year, number = map(int, month.split("-"))
+    next_year, next_number = (year + 1, 1) if number == 12 else (year, number + 1)
+    begin = datetime(year, number, 1, 5, 0, tzinfo=timezone.utc)
+    end = datetime(next_year, next_number, 1, 5, 0, tzinfo=timezone.utc)
+    return begin.isoformat(), end.isoformat()
+
+
+def reconcile(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    payments = sum(row["amount_cents"] for row in rows if row["kind"] == "payment")
+    refunds = sum(row["amount_cents"] for row in rows if row["kind"] == "refund")
+    return {
+        "month": month,
+        "transaction_ids": [row["id"] for row in rows],
+        "payment_total_cents": payments,
+        "refund_total_cents": refunds,
+        "net_total_cents": payments - refunds,
+    }
+
+
+def release1_reconcile(month, client):
+    # Archived release-1 reports shipped after the February omission was fixed
+    # and before the 05:00 UTC ledger cutoff existed, so their window is the
+    # complete UTC calendar month: 00:00 UTC on the month's first date
+    # (included) through 00:00 UTC on the next month's first date (excluded).
+    year, number = map(int, month.split("-"))
+    next_year, next_number = (year + 1, 1) if number == 12 else (year, number + 1)
+    begin = datetime(year, number, 1, tzinfo=timezone.utc)
+    end = datetime(next_year, next_number, 1, tzinfo=timezone.utc)
+    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())
+    payments = sum(row["amount_cents"] for row in rows if row["kind"] == "payment")
+    refunds = sum(row["amount_cents"] for row in rows if row["kind"] == "refund")
+    return {
+        "month": month,
+        "transaction_ids": [row["id"] for row in rows],
+        "payment_total_cents": payments,
+        "refund_total_cents": refunds,
+        "net_total_cents": payments - refunds,
+    }
+
+
+def incident_replay(month, client):
+    # Frozen reproduction of the corrected release-1 statement attached to
+    # INC-204: the complete UTC calendar month. Deliberately self-contained so
+    # later changes to reconcile cannot alter support comparisons.
+    year, number = map(int, month.split("-"))
+    next_year, next_number = (year + 1, 1) if number == 12 else (year, number + 1)
+    begin = datetime(year, number, 1, tzinfo=timezone.utc)
+    end = datetime(next_year, next_number, 1, tzinfo=timezone.utc)
+    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())
+    payments = sum(row["amount_cents"] for row in rows if row["kind"] == "payment")
+    refunds = sum(row["amount_cents"] for row in rows if row["kind"] == "refund")
+    return {
+        "month": month,
+        "transaction_ids": [row["id"] for row in rows],
+        "payment_total_cents": payments,
+        "refund_total_cents": refunds,
+        "net_total_cents": payments - refunds,
+    }
+
+
+def csv_field(value):
+    text = str(value)
+    # Quote only when required; the csv module with an LF terminator would
+    # leave carriage returns unquoted.
+    if any(character in text for character in (",", '"', "\r", "\n")):
+        text = '"' + text.replace('"', '""') + '"'
+    return text
+
+
+def refunds_csv(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    lines = ["id,posted_at,amount_cents"]
+    for row in rows:
+        if row["kind"] == "refund":
+            fields = (row["id"], row["posted_at"], row["amount_cents"])
+            lines.append(",".join(csv_field(field) for field in fields))
+    return {"month": month, "csv": "\n".join(lines) + "\n"}
+
+
+def ledger_day(posted_at):
+    # A ledger day carries the calendar date on which its 05:00 UTC cutoff
+    # begins; an instant before 05:00 UTC belongs to the previous date.
+    instant = parse_timestamp(posted_at).astimezone(timezone.utc)
+    date = instant.date()
+    return date if instant.hour >= 5 else date - timedelta(days=1)
+
+
+def daily_net(month, client):
+    begin, end = month_window(month)
+    rows = client.list_transactions(created_from=begin, created_to=end)
+    totals = {}
+    for row in rows:
+        date = ledger_day(row["posted_at"]).isoformat()
+        payment, refund = totals.get(date, (0, 0))
+        if row["kind"] == "payment":
+            totals[date] = (payment + row["amount_cents"], refund)
+        else:
+            totals[date] = (payment, refund + row["amount_cents"])
+    days = [
+        {
+            "date": date,
+            "payment_total_cents": payment,
+            "refund_total_cents": refund,
+            "net_total_cents": payment - refund,
+        }
+        for date, (payment, refund) in sorted(totals.items())
+    ]
+    return {"month": month, "days": days}
+
+
+def dispatch(request):
+    rows = request.get("transactions")
+    if rows is None:
+        fixture = Path(__file__).parent / "fixtures" / "ledgerlake_snapshot.json"
+        rows = json.loads(fixture.read_text())["transactions"]
+    client = LedgerLake(rows)
+    if request["op"] == "reconcile":
+        return reconcile(request["month"], client)
+    if request["op"] == "release1_reconcile":
+        return release1_reconcile(request["month"], client)
+    if request["op"] == "refunds_csv":
+        return refunds_csv(request["month"], client)
+    if request["op"] == "daily_net":
+        return daily_net(request["month"], client)
+    if request["op"] == "incident_replay":
+        return incident_replay(request["month"], client)
+    raise ValueError("Unknown operation: " + request["op"])
+
+
+if __name__ == "__main__":
+    try:
+        result = dispatch(json.load(sys.stdin))
+    except (ValueError, KeyError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(2)
+    json.dump(result, sys.stdout)
+    sys.stdout.write("\n")

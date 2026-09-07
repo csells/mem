@@ -1,7 +1,13 @@
 # Memory Beads during ordinary coding work
 
-Status: admitted for execution; eight integration sessions complete. Scored
-results will be reported separately from integration checks.
+Status: **120/120 ordinary-task sessions assessed**, separately from the eight
+integration sessions. See the [full setup, results, costs, and recommendations](../../specs/memory-unprompted-results-2026-09-07.md).
+Standing guidance produced capture and later search-based use on Codex and zcode,
+but initial treatment capture was 0/12 and no known-reference direct lookup
+occurred. Frozen artifact checks pass 100/120; a uniform posthoc supplement
+reduces the count passing all applied checks to 98/120. One OpenCode session
+timed out and was not retried. This did not establish reliable four-profile
+memory adoption or validate the new Memory bead type.
 The in-scope CLIs are **Claude Code, Codex, OpenCode, and zcode**. The user confirms
 all four work. Gemini and Copilot are excluded by request.
 
@@ -36,11 +42,12 @@ or bug fix, a related extension, a fully supplied reproduction, a permanent
 business change, an affected extension, and historical product compatibility.
 These labels belong to the evaluator, not to the agent's task instructions.
 
-One candidate pair is "Fix reconciliation dropping transactions on the last day
+One admitted pair is "Fix reconciliation dropping transactions on the last day
 of a selected month," followed by "Add filtered refund CSV export." The first
 investigation can uncover exclusive UTC date boundaries useful to the second.
-Neither task tells the agent what to save or where to look. This candidate still
-needs task admission and executable grading before it can enter the corpus.
+Neither task tells the agent what to save or where to look. The frozen corpus
+contains this Northbank family and HarborPass renewal-policy work, with complete
+admission and executable grading evidence linked in the results.
 
 Code, issue history, and actual memories carry forward without repair. Other
 sources remain legitimate. Direct lookup and search must be observed choices;
@@ -48,7 +55,7 @@ we will not insert memory keys to manufacture route coverage. If a route is neve
 used, that part of the goal remains unvalidated. Agent-created task reminders are
 preserved and subsequent instructed reuse is reported separately.
 
-The proposed bound is **96 main sessions**: four CLIs × two guidance arms × two
+The completed bound is **96 main sessions**: four CLIs × two guidance arms × two
 project families × six tasks, with a checkpoint after 48. A separate **24-session
 check** uses normal native-memory settings. It tests robustness, not the causal
 effect of native memory. Actual models and settings are pinned per CLI.
@@ -79,7 +86,8 @@ the final package, and pre-launch verification are now documented in the
 OpenCode remains included with those failures recorded. The runner freezes the
 complete corpus, profiles, and slots before any scored session.
 
-The [full plan](../../specs/plans/0005-unprompted-memory-adoption.md) defines task
+The [full plan](../../specs/plans/0005-unprompted-memory-adoption.md) preserves the
+remaining goals and defines task
 admission, data preservation, grading, costs, failure classifications, and limits.
 The [four-host inventory](../../specs/memory-four-hosts-inventory-2026-09-07.md)
 records host interfaces and profiles. Earlier guided experiments and their scope

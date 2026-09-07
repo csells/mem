@@ -1,0 +1,51 @@
+{
+  "createdAt": "2026-09-07T16:32:30.362Z",
+  "files": [
+    {
+      "beforeContent": "\"\"\"Month reconciliation for Northbank's marketplace operations team.\"\"\"\n\nimport json\nfrom datetime import datetime, timezone\nfrom pathlib import Path\nimport sys\n\nfrom provider import LedgerLake\n\n\ndef month_window(month):\n    year, number = map(int, month.split(\"-\"))\n    begin = datetime(year, number, 1, tzinfo=timezone.utc)\n    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)\n    return begin.isoformat(), end.isoformat()\n\n\ndef reconcile(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")\n    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")\n    return {\n        \"month\": month,\n        \"transaction_ids\": [row[\"id\"] for row in rows],\n        \"payment_total_cents\": payments,\n        \"refund_total_cents\": refunds,\n        \"net_total_cents\": payments - refunds,\n    }\n\n\ndef csv_field(value):\n    text = str(value)\n    if any(character in text for character in (\",\", '\"', \"\\r\", \"\\n\")):\n        return '\"' + text.replace('\"', '\"\"') + '\"'\n    return text\n\n\ndef refunds_csv(month, client):\n    begin, end = month_window(month)\n    rows = client.list_transactions(created_from=begin, created_to=end)\n    lines = [\"id,posted_at,amount_cents\"]\n    for row in rows:\n        if row[\"kind\"] == \"refund\":\n            lines.append(\",\".join([\n                csv_field(row[\"id\"]),\n                csv_field(row[\"posted_at\"]),\n                csv_field(row[\"amount_cents\"]),\n            ]))\n    return {\"month\": month, \"csv\": \"\\n\".join(lines) + \"\\n\"}\n\n\ndef dispatch(request):\n    rows = request.get(\"transactions\")\n    if rows is None:\n        fixture = Path(__file__).parent / \"fixtures\" / \"ledgerlake_snapshot.json\"\n        rows = json.loads(fixture.read_text())[\"transactions\"]\n    client = LedgerLake(rows)\n    if request[\"op\"] == \"reconcile\":\n        return reconcile(request[\"month\"], client)\n    if request[\"op\"] == \"refunds_csv\":\n        return refunds_csv(request[\"month\"], client)\n    raise ValueError(\"Unknown operation: \" + request[\"op\"])\n\n\nif __name__ == \"__main__\":\n    try:\n        result = dispatch(json.load(sys.stdin))\n    except (ValueError, KeyError) as error:\n        print(str(error), file=sys.stderr)\n        sys.exit(2)\n    json.dump(result, sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/cli.py",
+      "structuredPatch": [
+        {
+          "oldStart": 29,
+          "oldLines": 6,
+          "newStart": 29,
+          "newLines": 27,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+def incident_replay(month, client):",
+            "+    \"\"\"Frozen reproduction of the corrected INC-204 statement.",
+            "+",
+            "+    Deliberately does not call reconcile: this response stays fixed even if",
+            "+    the active reconcile report changes later.",
+            "+    \"\"\"",
+            "+    year, number = map(int, month.split(\"-\"))",
+            "+    begin = datetime(year, number, 1, tzinfo=timezone.utc)",
+            "+    end = datetime(year + number // 12, number % 12 + 1, 1, tzinfo=timezone.utc)",
+            "+    rows = client.list_transactions(created_from=begin.isoformat(), created_to=end.isoformat())",
+            "+    payments = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"payment\")",
+            "+    refunds = sum(row[\"amount_cents\"] for row in rows if row[\"kind\"] == \"refund\")",
+            "+    return {",
+            "+        \"month\": month,",
+            "+        \"transaction_ids\": [row[\"id\"] for row in rows],",
+            "+        \"payment_total_cents\": payments,",
+            "+        \"refund_total_cents\": refunds,",
+            "+        \"net_total_cents\": payments - refunds,",
+            "+    }",
+            "+",
+            "+",
+            " def csv_field(value):",
+            "     text = str(value)",
+            "     if any(character in text for character in (\",\", '\"', \"\\r\", \"\\n\")):"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_4b4f210b18214fc39b2a394a",
+  "toolName": "Edit",
+  "version": 1
+}

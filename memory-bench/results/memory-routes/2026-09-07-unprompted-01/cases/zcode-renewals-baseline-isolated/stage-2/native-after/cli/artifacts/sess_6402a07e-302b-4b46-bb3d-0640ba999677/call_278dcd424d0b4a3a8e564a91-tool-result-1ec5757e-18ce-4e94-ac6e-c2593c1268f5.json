@@ -1,0 +1,60 @@
+{
+  "createdAt": "2026-09-07T16:20:34.449Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-z39gmo_t/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 2,
+          "oldLines": 11,
+          "newStart": 2,
+          "newLines": 36,
+          "lines": [
+            " \"\"\"HarborPass JSON command-line application.\"\"\"",
+            " import json",
+            " import sys",
+            "+from datetime import date, timedelta",
+            " ",
+            "+NOTICE_LEAD_DAYS = 21",
+            "+LOYALTY_MIN_YEARS = 2",
+            "+LOYALTY_RATE_PERCENT = 10",
+            "+LOYALTY_MAX_CENTS = 2400",
+            " ",
+            "+",
+            "+def loyalty_credit_cents(account):",
+            "+    if not account[\"autopay\"] or account[\"completed_years\"] < LOYALTY_MIN_YEARS:",
+            "+        return 0",
+            "+    return min(account[\"plan_cents\"] * LOYALTY_RATE_PERCENT // 100, LOYALTY_MAX_CENTS)",
+            "+",
+            "+",
+            "+def notice(account):",
+            "+    credit = loyalty_credit_cents(account)",
+            "+    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)",
+            "+    return {",
+            "+        \"customer_id\": account[\"customer_id\"],",
+            "+        \"send_on\": send_on.isoformat(),",
+            "+        \"credit_cents\": credit,",
+            "+        \"amount_due_cents\": account[\"plan_cents\"] - credit,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"HarborPass\"}",
+            "+    if request.get(\"command\") == \"notice\":",
+            "+        return notice(request[\"account\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_278dcd424d0b4a3a8e564a91",
+  "toolName": "Edit",
+  "version": 1
+}

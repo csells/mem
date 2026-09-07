@@ -1,0 +1,174 @@
+[
+  {
+    "name": "IOS-1842 example case",
+    "request": {
+      "command": "support_replay",
+      "case_id": "IOS-1842",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 500,
+        "completed_years": 2,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "case_id": "IOS-1842",
+      "notice": {
+        "customer_id": "M-17",
+        "send_on": "2026-03-25",
+        "credit_cents": 50,
+        "amount_due_cents": 450
+      }
+    }
+  },
+  {
+    "name": "IOS-1842 plan_cents=19999, completed_years=2, autopay=true",
+    "request": {
+      "command": "support_replay",
+      "case_id": "IOS-1842",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 19999,
+        "completed_years": 2,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "case_id": "IOS-1842",
+      "notice": {
+        "customer_id": "M-17",
+        "send_on": "2026-03-25",
+        "credit_cents": 1999,
+        "amount_due_cents": 18000
+      }
+    }
+  },
+  {
+    "name": "IOS-1842 autopay=false case",
+    "request": {
+      "command": "support_replay",
+      "case_id": "IOS-1842",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 500,
+        "completed_years": 2,
+        "autopay": false
+      }
+    },
+    "expected": {
+      "case_id": "IOS-1842",
+      "notice": {
+        "customer_id": "M-17",
+        "send_on": "2026-03-25",
+        "credit_cents": 0,
+        "amount_due_cents": 500
+      }
+    }
+  },
+  {
+    "name": "IOS-1842 plan_cents=90000, completed_years=8, autopay=true",
+    "request": {
+      "command": "support_replay",
+      "case_id": "IOS-1842",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 90000,
+        "completed_years": 8,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "case_id": "IOS-1842",
+      "notice": {
+        "customer_id": "M-17",
+        "send_on": "2026-03-25",
+        "credit_cents": 2400,
+        "amount_due_cents": 87600
+      }
+    }
+  },
+  {
+    "name": "Unsupported case",
+    "request": {
+      "command": "support_replay",
+      "case_id": "IOS-1843",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 500,
+        "completed_years": 2,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "error": "unsupported_case"
+    }
+  },
+  {
+    "name": "compat_notice release 1.0 basic case",
+    "request": {
+      "command": "compat_notice",
+      "release": "1.0",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 500,
+        "completed_years": 2,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "release": "1.0",
+      "notice": {
+        "customer_id": "M-17",
+        "send_on": "2026-03-25",
+        "credit_cents": 0,
+        "amount_due_cents": 500
+      }
+    }
+  },
+  {
+    "name": "compat_notice release 1.0 high plan_cents case",
+    "request": {
+      "command": "compat_notice",
+      "release": "1.0",
+      "account": {
+        "customer_id": "M-23",
+        "renewal_on": "2026-06-30",
+        "plan_cents": 90000,
+        "completed_years": 5,
+        "autopay": false
+      }
+    },
+    "expected": {
+      "release": "1.0",
+      "notice": {
+        "customer_id": "M-23",
+        "send_on": "2026-06-15",
+        "credit_cents": 0,
+        "amount_due_cents": 90000
+      }
+    }
+  },
+  {
+    "name": "compat_notice release 1.0 invalid release",
+    "request": {
+      "command": "compat_notice",
+      "release": "2.0",
+      "account": {
+        "customer_id": "M-17",
+        "renewal_on": "2026-04-15",
+        "plan_cents": 500,
+        "completed_years": 2,
+        "autopay": true
+      }
+    },
+    "expected": {
+      "error": "unsupported_release"
+    }
+  }
+]

@@ -1,0 +1,65 @@
+{
+  "createdAt": "2026-09-07T16:23:58.131Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"HarborPass JSON command-line application.\"\"\"\nimport json\nimport sys\nfrom datetime import date, timedelta\n\nNOTICE_LEAD_DAYS = 21\nLOYALTY_MIN_YEARS = 2\nLOYALTY_RATE_PERCENT = 10\nLOYALTY_MAX_CENTS = 2400\n\n\ndef loyalty_credit_cents(account):\n    if not account[\"autopay\"] or account[\"completed_years\"] < LOYALTY_MIN_YEARS:\n        return 0\n    return min(account[\"plan_cents\"] * LOYALTY_RATE_PERCENT // 100, LOYALTY_MAX_CENTS)\n\n\ndef notice(account):\n    credit = loyalty_credit_cents(account)\n    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=NOTICE_LEAD_DAYS)\n    return {\n        \"customer_id\": account[\"customer_id\"],\n        \"send_on\": send_on.isoformat(),\n        \"credit_cents\": credit,\n        \"amount_due_cents\": account[\"plan_cents\"] - credit,\n    }\n\n\nCSV_COLUMNS = (\"customer_id\", \"send_on\", \"credit_cents\", \"amount_due_cents\")\n\n\ndef csv_field(value):\n    text = str(value)\n    if any(ch in text for ch in ',\"\\r\\n'):\n        return '\"' + text.replace('\"', '\"\"') + '\"'\n    return text\n\n\ndef export(accounts):\n    lines = [\",\".join(CSV_COLUMNS)]\n    for account in accounts:\n        row = notice(account)\n        lines.append(\",\".join(csv_field(row[column]) for column in CSV_COLUMNS))\n    return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"HarborPass\"}\n    if request.get(\"command\") == \"notice\":\n        return notice(request[\"account\"])\n    if request.get(\"command\") == \"export\":\n        return export(request[\"accounts\"])\n    return {\"error\": \"unknown_command\"}\n\n\ndef main():\n    request = json.load(sys.stdin)\n    response = handle(request)\n    json.dump(response, sys.stdout)\n    sys.stdout.write(\"\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-z39gmo_t/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 45,
+          "oldLines": 6,
+          "newStart": 45,
+          "newLines": 25,
+          "lines": [
+            "     return {\"csv\": \"\".join(line + \"\\n\" for line in lines), \"count\": len(accounts)}",
+            " ",
+            " ",
+            "+def replay_notice(account):",
+            "+    \"\"\"Notice under the approved release 1.0 rules, pinned for support replay.",
+            "+",
+            "+    The live notice() policy may change in later releases; these values stay",
+            "+    fixed for case IOS-1842, so the rules are restated here on purpose.",
+            "+    \"\"\"",
+            "+    if account[\"autopay\"] and account[\"completed_years\"] >= 2:",
+            "+        credit = min(account[\"plan_cents\"] * 10 // 100, 2400)",
+            "+    else:",
+            "+        credit = 0",
+            "+    send_on = date.fromisoformat(account[\"renewal_on\"]) - timedelta(days=21)",
+            "+    return {",
+            "+        \"customer_id\": account[\"customer_id\"],",
+            "+        \"send_on\": send_on.isoformat(),",
+            "+        \"credit_cents\": credit,",
+            "+        \"amount_due_cents\": account[\"plan_cents\"] - credit,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"HarborPass\"}"
+          ]
+        },
+        {
+          "oldStart": 52,
+          "oldLines": 6,
+          "newStart": 71,
+          "newLines": 8,
+          "lines": [
+            "         return notice(request[\"account\"])",
+            "     if request.get(\"command\") == \"export\":",
+            "         return export(request[\"accounts\"])",
+            "+    if request.get(\"command\") == \"support_replay\":",
+            "+        return {\"case_id\": request[\"case_id\"], \"notice\": replay_notice(request[\"account\"])}",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_09f2b1661f8449a2b4375c1c",
+  "toolName": "Edit",
+  "version": 1
+}

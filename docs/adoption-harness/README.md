@@ -8,7 +8,11 @@ experiments linked below included task-specific memory-handoff instructions.
 They demonstrate guided workflows, not adoption from standing rules/skills alone.
 The [replacement experiment](MEMORY-UNPROMPTED.md) specifies ordinary tasks,
 independent task review, and Claude Code, Codex, OpenCode, and zcode coverage.
-Its scored cohort has not been run; previous evidence remains unchanged.
+Its [120-session scored cohort](../../specs/memory-unprompted-results-2026-09-07.md)
+is complete: some unprompted capture/search handoffs occurred on Codex and zcode,
+but initial treatment capture was 0/12 and direct known-reference lookup was
+unobserved. Frozen checks pass 100/120 artifacts; independent posthoc coverage
+exposes two additional failing artifacts. Earlier evidence remains unchanged.
 
 Task success cannot answer that question by itself. In our first run, the agents that
 were given only general "you have persistent memory" guidance solved their tasks

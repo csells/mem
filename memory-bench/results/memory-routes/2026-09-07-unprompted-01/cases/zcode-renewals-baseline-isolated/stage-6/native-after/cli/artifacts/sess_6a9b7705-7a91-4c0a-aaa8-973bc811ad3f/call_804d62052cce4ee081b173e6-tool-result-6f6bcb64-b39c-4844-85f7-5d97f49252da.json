@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-07T16:24:31.246Z",
+  "files": [
+    {
+      "afterContent": "\"\"\"Run the public stage tests against main.py and report pass/fail.\"\"\"\nimport json\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nfailures = 0\nfor stage in sorted(Path(\"public_tests\").glob(\"stage_*.json\")):\n    for case in json.loads(stage.read_text()):\n        result = subprocess.run(\n            [sys.executable, \"main.py\"],\n            input=json.dumps(case[\"request\"]),\n            capture_output=True,\n            text=True,\n            check=True,\n        )\n        got = json.loads(result.stdout)\n        if got == case[\"expected\"]:\n            print(f\"{stage.name}: {case['name']} -> PASS\")\n        else:\n            failures += 1\n            print(f\"{stage.name}: {case['name']} -> FAIL got {got}\")\nsys.exit(1 if failures else 0)\n",
+      "afterContentLength": 748,
+      "beforeContent": null,
+      "existedBefore": false,
+      "path": "/private/tmp/ordinary-work-z39gmo_t/work/run_public_tests.py",
+      "structuredPatch": []
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_804d62052cce4ee081b173e6",
+  "toolName": "Write",
+  "version": 1
+}

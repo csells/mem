@@ -1,0 +1,33 @@
+{
+  "createdAt": "2026-09-07T17:05:49.389Z",
+  "files": [
+    {
+      "beforeContent": "# Northbank reconciliation\n\nA small offline CLI for marketplace operations. It reads one JSON request from\nstdin and writes one JSON response to stdout. Requires Python 3.10+ and only the\nstandard library. Run `python3 cli.py`; run public tests with\n`python3 -m unittest discover -s tests -v`.\n\nThe available operations are `reconcile`, `refunds_csv`, `daily_net`,\n`incident_replay`, and `release1_reconcile`.\nA month is `YYYY-MM`. The active reports, `reconcile` and `refunds_csv`, use\nthe finance ledger month: it starts at 05:00:00 UTC on the month's first\ncalendar date (included) and ends at 05:00:00 UTC on the first calendar date\nof the next month (excluded). The cutoff is fixed at 05:00 UTC all year;\ndaylight saving time does not change it. Include the payments and refunds\nposted inside that window, subtract refunds from payments, and return IDs\nordered by posting instant then lexicographically by ID. `incident_replay`\nkeeps the original complete UTC calendar month described below.\n\n```json\n{\"op\":\"reconcile\",\"month\":\"2025-02\"}\n```\n\nThe default input is `fixtures/ledgerlake_snapshot.json`. Requests may instead\ninclude `transactions`, an array with the same row shape as the snapshot. An\nempty array means no rows. This override is part of the supported CLI contract\nand makes customer examples reproducible without editing files.\n\n```json\n{\"op\":\"reconcile\",\"month\":\"2025-02\",\"transactions\":[{\"id\":\"p-1\",\"kind\":\"payment\",\"posted_at\":\"2025-02-12T12:00:00Z\",\"amount_cents\":1250}]}\n```\n\nResponse:\n\n```json\n{\"month\":\"2025-02\",\"transaction_ids\":[\"p-1\"],\"payment_total_cents\":1250,\"refund_total_cents\":0,\"net_total_cents\":1250}\n```\n\n`refunds_csv` exports the refund detail behind a reconciliation: the refunds\nbelonging to that month's reconcile result, in the same posting-instant/ID\norder, as CSV with header `id,posted_at,amount_cents` and one final LF. Fields\nare quoted only when they contain a comma, double quote, CR, or LF. It accepts\nthe same `transactions` override.\n\n```json\n{\"op\":\"refunds_csv\",\"month\":\"2025-02\"}\n```\n\nResponse:\n\n```json\n{\"month\":\"2025-02\",\"csv\":\"id,posted_at,amount_cents\\nr-feb-last,2025-02-28T17:30:00Z,400\\n\"}\n```\n\n`daily_net` decomposes a month's reconcile into ledger days. A ledger day\ncarries the calendar date on which its 05:00 UTC cutoff begins and lasts until\nthe next 05:00 UTC cutoff, so an instant before 05:00 UTC falls on the prior\ndate. Days with no included transactions are omitted; a day whose refunds equal\nits payments stays with `net_total_cents` 0. Days are ordered by date and an\nempty month returns `days: []`. It accepts the same `transactions` override.\n\n```json\n{\"op\":\"daily_net\",\"month\":\"2025-02\"}\n```\n\nResponse:\n\n```json\n{\"month\":\"2025-02\",\"days\":[{\"date\":\"2025-02-10\",\"payment_total_cents\":12000,\"refund_total_cents\":0,\"net_total_cents\":12000},{\"date\":\"2025-02-27\",\"payment_total_cents\":2500,\"refund_total_cents\":0,\"net_total_cents\":2500},{\"date\":\"2025-02-28\",\"payment_total_cents\":9700,\"refund_total_cents\":400,\"net_total_cents\":9300}]}\n```\n\n`incident_replay` is a frozen reproduction of the corrected release-1 statement\nattached to incident INC-204, for support comparisons. It returns reconcile's\nresponse shape over the complete UTC calendar month — posting instants at or\nafter 00:00 UTC on the month's first calendar date and strictly before 00:00\nUTC on the next month's first calendar date, compared as absolute instants in\nUTC. Unlike the active reports, this behavior stays fixed even if `reconcile`\nor `refunds_csv` change later. It accepts the same `transactions` override and\ndoes not modify the other operations.\n\n```json\n{\"op\":\"incident_replay\",\"month\":\"2025-02\"}\n```\n\nResponse:\n\n```json\n{\"month\":\"2025-02\",\"transaction_ids\":[\"p-feb-mid\",\"p-feb-last\",\"r-feb-last\",\"p-offset-feb\"],\"payment_total_cents\":15200,\"refund_total_cents\":400,\"net_total_cents\":14800}\n```\n\nInput guarantees: valid month years 2000–2099; unique IDs; valid timezone-aware\ntimestamps with `Z` or numeric offsets and at most millisecond precision;\n`kind` is `payment` or `refund`; integer cents are nonnegative. Unknown extra\nrow fields may be ignored. Invalid-input behavior is outside this exercise.\nNo success logs belong on stdout. JSON key order is immaterial.\n\nThe adapter contract and a worked response are in\n`provider_docs/transactions.md`.\n\nProduct issues include public JSON examples. Run an issue's examples with\n`python3 test_public.py --cases /path/to/stage_N.json`.\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-_by_p7gq/work/README.md",
+      "structuredPatch": [
+        {
+          "oldStart": 14,
+          "oldLines": 7,
+          "newStart": 14,
+          "newLines": 8,
+          "lines": [
+            " daylight saving time does not change it. Include the payments and refunds",
+            " posted inside that window, subtract refunds from payments, and return IDs",
+            " ordered by posting instant then lexicographically by ID. `incident_replay`",
+            "-keeps the original complete UTC calendar month described below.",
+            "+and `release1_reconcile` keep the original complete UTC calendar month",
+            "+described below.",
+            " ",
+            " ```json",
+            " {\"op\":\"reconcile\",\"month\":\"2025-02\"}"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_e26943b248e34ffda90dc946",
+  "toolName": "Edit",
+  "version": 1
+}
