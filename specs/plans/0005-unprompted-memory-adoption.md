@@ -5,7 +5,9 @@ The user confirms all four work and explicitly excludes Gemini and Copilot.
 Eight integration sessions are complete; no scored sessions have launched.
 All four interfaces worked; OpenCode did not pass every diagnostic instruction.
 See the [qualification report](../memory-four-hosts-qualification-2026-09-07.md).
-The task corpus, final model/profile selection, and scored-run budget are not yet frozen.
+The user authorized running the comparison. The independent corpus and final
+profiles have passed [admission](../memory-unprompted-admission-2026-09-07.md);
+the runner freezes exact bytes and all 120 slots before inference.
 
 ## Goals
 
@@ -94,6 +96,11 @@ An independent task author has drafted customer-list, renewal-notice, and suppor
 ticket CLI work without seeing the memory intervention. These drafts are inputs
 to task review, not a frozen corpus. Select two unrelated families and write
 six ordinary tasks per family:
+
+Admission selected independently authored HarborPass renewals and Northbank
+reconciliation. Their original drafts, revised controls, cross-review findings,
+and executable verification are recorded in the admission report. The examples
+below describe the design; the frozen corpus is authoritative for actual tasks.
 
 Stage labels and measurement opportunities below are evaluator metadata, never
 text supplied to an agent. Ordinary project names, release identifiers, and

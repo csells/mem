@@ -47,14 +47,16 @@ line-length = 100
 target-version = ["py311"]
 # Immutable experiment evidence includes historical source snapshots; formatting
 # changes their pinned bytes. Graders retain their own explicit quality gates.
-extend-exclude = "/results/"
+# The independent ordinary-task corpus likewise preserves authored app/defect
+# bytes and is validated by reference, mutation, and external artifact checks.
+extend-exclude = "/results/|/fixtures/memory-unprompted-corpus/"
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 # Historical diagnostic scripts and grader snapshots are immutable evidence,
 # not maintained package source. Qualified graders are checked explicitly.
-extend-exclude = ["results"]
+extend-exclude = ["results", "fixtures/memory-unprompted-corpus"]
 
 [tool.ruff.lint]
 # PEP8 (E) + pyflakes (F) + isort (I) + pyupgrade (UP) + bugbear (B) +
@@ -94,6 +96,10 @@ untyped_calls_exclude = ["opentelemetry"]
 # mem-1ql4w — the durable fix is package-legal example directories.
 files = ["."]
 exclude = [
+    # Independently authored exercise apps, historical reference implementations,
+    # and deliberate defect variants share entrypoint names. Preserve their
+    # admitted bytes; execute the external JSON behavior graders instead.
+    "^fixtures/memory-unprompted-corpus/",
     # Immutable experiment evidence contains independent historical modules with
     # duplicate names. Each qualified grader has explicit strict checks; crawling
     # snapshots together cannot assign them a single Python module identity.

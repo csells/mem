@@ -1,6 +1,7 @@
 # Memory Beads during ordinary coding work
 
-Status: experiment design; eight integration sessions complete. No scored results.
+Status: admitted for execution; eight integration sessions complete. Scored
+results will be reported separately from integration checks.
 The in-scope CLIs are **Claude Code, Codex, OpenCode, and zcode**. The user confirms
 all four work. Gemini and Copilot are excluded by request.
 
@@ -73,7 +74,10 @@ Codex, and zcode passed both complete smoke checks. OpenCode produced correct
 artifacts and retained records but failed marker checks and omitted search and
 prime in its second session. Those failures remain failures; tool availability
 does not imply that the model reliably follows the workflow. Corpus admission,
-the final package, and the scored-run freeze remain outstanding.
+the final package, and pre-launch verification are now documented in the
+[admission report](../../specs/memory-unprompted-admission-2026-09-07.md).
+OpenCode remains included with those failures recorded. The runner freezes the
+complete corpus, profiles, and slots before any scored session.
 
 The [full plan](../../specs/plans/0005-unprompted-memory-adoption.md) defines task
 admission, data preservation, grading, costs, failure classifications, and limits.
