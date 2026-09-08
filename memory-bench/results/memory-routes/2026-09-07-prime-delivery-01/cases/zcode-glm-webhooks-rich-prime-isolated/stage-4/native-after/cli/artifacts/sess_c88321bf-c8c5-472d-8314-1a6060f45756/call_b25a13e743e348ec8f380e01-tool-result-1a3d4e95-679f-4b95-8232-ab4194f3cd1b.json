@@ -1,0 +1,71 @@
+{
+  "createdAt": "2026-09-07T23:50:58.794Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\n\nCURRENT_PROTOCOL = \"1\"\nSUPPORTED_PROTOCOLS = (\"1\",)\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        return count(q)\n    return {\"error\": \"unknown_command\"}\n\ndef count(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    # Protocol 1: (account_id, delivery_id) identifies a delivery; exactly one\n    # receipt per identity is accepted, the rest are duplicates.\n    identities = {(r[\"account_id\"], r[\"delivery_id\"]) for r in receipts}\n    accepted = len(identities)\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": accepted,\n        \"duplicate_count\": len(receipts) - accepted,\n    }\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 11,
+          "oldLines": 15,
+          "newStart": 11,
+          "newLines": 15,
+          "lines": [
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}",
+            "     if command == \"count\":",
+            "         return count(q)",
+            "+    if command == \"summary\":",
+            "+        return summary(q)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            "-def count(q):",
+            "-    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "-    if protocol not in SUPPORTED_PROTOCOLS:",
+            "-        return {\"error\": \"unsupported_protocol\"}",
+            "-    receipts = q.get(\"receipts\", [])",
+            "-    # Protocol 1: (account_id, delivery_id) identifies a delivery; exactly one",
+            "-    # receipt per identity is accepted, the rest are duplicates.",
+            "+def accepted_duplicate_counts(protocol, receipts):",
+            "+    # Protocol 1 (vendor/protocol-1.md): the pair (account_id, delivery_id)",
+            "+    # identifies a delivery; the same delivery_id under a different account is",
+            "+    # a separate delivery. Exactly one receipt per identity is accepted, the",
+            "+    # rest are duplicates.",
+            "     identities = {(r[\"account_id\"], r[\"delivery_id\"]) for r in receipts}",
+            "     accepted = len(identities)",
+            "     return {"
+          ]
+        },
+        {
+          "oldStart": 28,
+          "oldLines": 5,
+          "newStart": 28,
+          "newLines": 17,
+          "lines": [
+            "         \"duplicate_count\": len(receipts) - accepted,",
+            "     }",
+            " ",
+            "+def protocol_response(q, compute):",
+            "+    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+    if protocol not in SUPPORTED_PROTOCOLS:",
+            "+        return {\"error\": \"unsupported_protocol\"}",
+            "+    return compute(protocol, q.get(\"receipts\", []))",
+            "+",
+            "+def count(q):",
+            "+    return protocol_response(q, accepted_duplicate_counts)",
+            "+",
+            "+def summary(q):",
+            "+    return protocol_response(q, accepted_duplicate_counts)",
+            "+",
+            " if __name__ == \"__main__\":",
+            "     print(json.dumps(run(json.load(sys.stdin))))"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_b25a13e743e348ec8f380e01",
+  "toolName": "Edit",
+  "version": 1
+}

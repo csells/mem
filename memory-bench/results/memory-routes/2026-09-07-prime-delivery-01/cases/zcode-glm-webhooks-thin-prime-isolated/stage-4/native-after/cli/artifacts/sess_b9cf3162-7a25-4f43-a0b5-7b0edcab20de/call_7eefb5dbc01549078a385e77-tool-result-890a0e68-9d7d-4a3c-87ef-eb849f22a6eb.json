@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-08T01:02:10.815Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"1\"\n\ndef parse_instant(text):\n    # RFC3339 with Z or an explicit offset; aware datetimes compare as UTC instants.\n    return datetime.fromisoformat(text)\n\ndef protocol1_accepted(receipts):\n    # (account_id, delivery_id) identifies a delivery; the accepted receipt is\n    # the earliest occurred_at instant, ties broken by smallest record_id.\n    winners = {}\n    for receipt in receipts:\n        key = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n        if key not in winners or rank < winners[key][0]:\n            winners[key] = (rank, receipt)\n    won = {receipt[\"record_id\"] for _, receipt in winners.values()}\n    return [receipt for receipt in receipts if receipt[\"record_id\"] in won]\n\ndef protocol1_counts(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol != \"1\":\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    accepted_count = len(protocol1_accepted(receipts))\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": accepted_count,\n        \"duplicate_count\": len(receipts) - accepted_count,\n    }\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command in (\"count\", \"summary\"):\n        return protocol1_counts(q)\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-pybycfec/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 3,
+          "oldLines": 7,
+          "newStart": 3,
+          "newLines": 7,
+          "lines": [
+            " import sys",
+            " from datetime import datetime",
+            " ",
+            "-CURRENT_PROTOCOL = \"1\"",
+            "+CURRENT_PROTOCOL = \"2\"",
+            " ",
+            " def parse_instant(text):",
+            "     # RFC3339 with Z or an explicit offset; aware datetimes compare as UTC instants."
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_7eefb5dbc01549078a385e77",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,46 @@
+{
+  "createdAt": "2026-09-08T01:37:55.232Z",
+  "files": [
+    {
+      "beforeContent": "import json\nimport subprocess\nimport sys\nimport unittest\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parents[1]\n\n\nclass QuoteTests(unittest.TestCase):\n    def check_request(self, request, expected):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps(request), text=True, capture_output=True, check=True)\n        self.assertEqual(json.loads(got.stdout), expected)\n\n    def line(self, **overrides):\n        line = {\n            \"line_id\": \"L-1\",\n            \"account_id\": \"A\",\n            \"subscription_id\": \"S\",\n            \"service_on\": \"2026-04-15\",\n            \"charge_cents\": 19999,\n        }\n        line.update(overrides)\n        return line\n\n    def test_issue_example(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": self.line()},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1999, \"amount_due_cents\": 18000},\n        )\n\n    def test_omitted_release_selects_current(self):\n        self.check_request(\n            {\"command\": \"quote\", \"line\": self.line()},\n            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 2999, \"amount_due_cents\": 17000},\n        )\n\n    def test_issue_example_release_2(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"2.0\", \"line\": self.line()},\n            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 2999, \"amount_due_cents\": 17000},\n        )\n\n    def test_release_2_credit_rounds_down(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"2.0\", \"line\": self.line(charge_cents=5)},\n            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 5},\n        )\n\n    def test_release_2_cap_3000(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"2.0\", \"line\": self.line(charge_cents=30000)},\n            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 3000, \"amount_due_cents\": 27000},\n        )\n\n    def test_unsupported_release(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"3.0\", \"line\": self.line()},\n            {\"error\": \"unsupported_release\"},\n        )\n\n    def test_credit_rounds_down(self):\n        self.check_request(\n            {\"command\": \"quote\", \"line\": self.line(charge_cents=5)},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 5},\n        )\n\n    def test_cap_2400(self):\n        self.check_request(\n            {\"command\": \"quote\", \"line\": self.line(charge_cents=30000)},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 2400, \"amount_due_cents\": 27600},\n        )\n\n    def test_zero_charge(self):\n        self.check_request(\n            {\"command\": \"quote\", \"line\": self.line(charge_cents=0)},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 0},\n        )\n\n    def test_response_has_exactly_specified_keys(self):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps({\"command\": \"quote\", \"line\": self.line()}),\n                             text=True, capture_output=True, check=True)\n        self.assertEqual(set(json.loads(got.stdout)),\n                         {\"release\", \"line_id\", \"credit_cents\", \"amount_due_cents\"})\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-swvkyhed/work/tests/test_quote.py",
+      "structuredPatch": [
+        {
+          "oldStart": 62,
+          "oldLines": 19,
+          "newStart": 62,
+          "newLines": 19,
+          "lines": [
+            " ",
+            "     def test_credit_rounds_down(self):",
+            "         self.check_request(",
+            "-            {\"command\": \"quote\", \"line\": self.line(charge_cents=5)},",
+            "+            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": self.line(charge_cents=5)},",
+            "             {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 5},",
+            "         )",
+            " ",
+            "     def test_cap_2400(self):",
+            "         self.check_request(",
+            "-            {\"command\": \"quote\", \"line\": self.line(charge_cents=30000)},",
+            "+            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": self.line(charge_cents=30000)},",
+            "             {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 2400, \"amount_due_cents\": 27600},",
+            "         )",
+            " ",
+            "     def test_zero_charge(self):",
+            "         self.check_request(",
+            "-            {\"command\": \"quote\", \"line\": self.line(charge_cents=0)},",
+            "+            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": self.line(charge_cents=0)},",
+            "             {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 0},",
+            "         )",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_bbaa0f6fdc45474eb0ca0ffe",
+  "toolName": "Edit",
+  "version": 1
+}

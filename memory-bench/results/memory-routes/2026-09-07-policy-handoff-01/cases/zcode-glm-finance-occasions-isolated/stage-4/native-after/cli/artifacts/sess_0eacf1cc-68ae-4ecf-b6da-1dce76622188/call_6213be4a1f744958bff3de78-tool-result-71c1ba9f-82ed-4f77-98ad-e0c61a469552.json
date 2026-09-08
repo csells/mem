@@ -1,0 +1,60 @@
+{
+  "createdAt": "2026-09-07T19:22:44.947Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCAP_CENTS_1_0 = 2400\nCAP_CENTS_2_0 = 3000\nCURRENT_RELEASE = \"2.0\"\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Release 1.0 credits for one statement's complete charge set: 10% of\n    each charge rounded down to integer cents, with CAP_CENTS_1_0 shared by\n    all lines of one account_id across its subscriptions. Within a cap group,\n    credit goes to lines by earliest service_on, then increasing line_id.\"\"\"\n    assigned = {}\n    remaining = {}\n    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):\n        left = remaining.setdefault(line[\"account_id\"], CAP_CENTS_1_0)\n        credit = min(line[\"charge_cents\"] // 10, left)\n        assigned[line[\"line_id\"]] = credit\n        remaining[line[\"account_id\"]] = left - credit\n    return assigned\n\n\ndef assign_credits_2_0(lines):\n    \"\"\"Release 2.0 credits for one statement's complete charge set: 15% of\n    each charge rounded down separately to integer cents, with CAP_CENTS_2_0\n    shared by all lines of one (account_id, subscription_id) pair. Within a\n    cap group, credit goes to lines by largest charge_cents, then increasing\n    line_id; each line receives its uncapped credit up to the remaining cap.\"\"\"\n    assigned = {}\n    remaining = {}\n    for line in sorted(lines, key=lambda l: (-l[\"charge_cents\"], l[\"line_id\"])):\n        group = (line[\"account_id\"], line[\"subscription_id\"])\n        left = remaining.setdefault(group, CAP_CENTS_2_0)\n        credit = min(line[\"charge_cents\"] * 15 // 100, left)\n        assigned[line[\"line_id\"]] = credit\n        remaining[group] = left - credit\n    return assigned\n\n\ndef quote_1_0(line):\n    credit = assign_credits_1_0([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\ndef total_1_0(lines):\n    credit = sum(assign_credits_1_0(lines).values())\n    return {\n        \"release\": \"1.0\",\n        \"credit_cents\": credit,\n        \"amount_due_cents\": sum(l[\"charge_cents\"] for l in lines) - credit,\n    }\n\n\ndef quote_2_0(line):\n    credit = assign_credits_2_0([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"2.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\ndef total_2_0(lines):\n    credit = sum(assign_credits_2_0(lines).values())\n    return {\n        \"release\": \"2.0\",\n        \"credit_cents\": credit,\n        \"amount_due_cents\": sum(l[\"charge_cents\"] for l in lines) - credit,\n    }\n\n\nRELEASES = {\"1.0\": quote_1_0, \"2.0\": quote_2_0}\nTOTALS = {\"1.0\": total_1_0, \"2.0\": total_2_0}\n\n\ndef handle(request):\n    command = request.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if command == \"quote\":\n        release = request.get(\"release\", CURRENT_RELEASE)\n        if release not in RELEASES:\n            return {\"error\": \"unsupported_release\"}\n        return RELEASES[release](request[\"line\"])\n    if command == \"total\":\n        release = request.get(\"release\", CURRENT_RELEASE)\n        if release not in TOTALS:\n            return {\"error\": \"unsupported_release\"}\n        return TOTALS[release](request[\"lines\"])\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-om9eo_hw/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 40,
+          "oldLines": 6,
+          "newStart": 40,
+          "newLines": 36,
+          "lines": [
+            "     return assigned",
+            " ",
+            " ",
+            "+def statement(release, lines, assign_credits):",
+            "+    \"\"\"Per-line statement under one release's assign_credits: each input line",
+            "+    in input order with its assigned credit and amount due, plus overall",
+            "+    credit and due that match the total response for the same input.\"\"\"",
+            "+    credits = assign_credits(lines)",
+            "+    statement_lines = [",
+            "+        {",
+            "+            \"line_id\": line[\"line_id\"],",
+            "+            \"credit_cents\": credits[line[\"line_id\"]],",
+            "+            \"amount_due_cents\": line[\"charge_cents\"] - credits[line[\"line_id\"]],",
+            "+        }",
+            "+        for line in lines",
+            "+    ]",
+            "+    credit = sum(line[\"credit_cents\"] for line in statement_lines)",
+            "+    return {",
+            "+        \"release\": release,",
+            "+        \"lines\": statement_lines,",
+            "+        \"credit_cents\": credit,",
+            "+        \"amount_due_cents\": sum(line[\"charge_cents\"] for line in lines) - credit,",
+            "+    }",
+            "+",
+            "+",
+            "+def statement_1_0(lines):",
+            "+    return statement(\"1.0\", lines, assign_credits_1_0)",
+            "+",
+            "+",
+            "+def statement_2_0(lines):",
+            "+    return statement(\"2.0\", lines, assign_credits_2_0)",
+            "+",
+            "+",
+            " def quote_1_0(line):",
+            "     credit = assign_credits_1_0([line])[line[\"line_id\"]]",
+            "     return {"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_6213be4a1f744958bff3de78",
+  "toolName": "Edit",
+  "version": 1
+}

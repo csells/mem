@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-08T00:12:10.047Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCURRENT_RELEASE = \"1.0\"\nSUPPORTED_RELEASES = (\"1.0\",)\n\nCAP_CENTS_PER_ACCOUNT = 2400\n\n\ndef assign_credits(lines):\n    \"\"\"Release 1.0 agreement: each line earns 10% of its charge floored to\n    integer cents; the 2400-cent cap is shared by all lines of one account_id,\n    assigned earliest service_on first, then increasing line_id. Returns\n    {line_id: assigned_credit_cents}.\"\"\"\n    remaining = {}\n    for line in lines:\n        remaining.setdefault(line[\"account_id\"], CAP_CENTS_PER_ACCOUNT)\n    assigned = {}\n    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):\n        uncapped = line[\"charge_cents\"] // 10\n        credit = min(uncapped, remaining[line[\"account_id\"]])\n        remaining[line[\"account_id\"]] -= credit\n        assigned[line[\"line_id\"]] = credit\n    return assigned\n\n\ndef quote_release_1_0(line):\n    credit = assign_credits([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\ndef quote(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    if release not in SUPPORTED_RELEASES:\n        return {\"error\": \"unsupported_release\"}\n    return quote_release_1_0(request[\"line\"])\n\n\ndef total_release_1_0(lines):\n    assigned = assign_credits(lines)\n    credit = sum(assigned.values())\n    charge = sum(line[\"charge_cents\"] for line in lines)\n    return {\n        \"release\": \"1.0\",\n        \"credit_cents\": credit,\n        \"amount_due_cents\": charge - credit,\n    }\n\n\ndef total(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    if release not in SUPPORTED_RELEASES:\n        return {\"error\": \"unsupported_release\"}\n    return total_release_1_0(request[\"lines\"])\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        return quote(request)\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-g7i603f_/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 66,
+          "oldLines": 6,
+          "newStart": 66,
+          "newLines": 8,
+          "lines": [
+            "         return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}",
+            "     if request.get(\"command\") == \"quote\":",
+            "         return quote(request)",
+            "+    if request.get(\"command\") == \"total\":",
+            "+        return total(request)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_8acca7b23575435183b2dbb3",
+  "toolName": "Edit",
+  "version": 1
+}

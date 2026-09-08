@@ -1,0 +1,153 @@
+{
+  "createdAt": "2026-09-07T19:46:47.416Z",
+  "files": [
+    {
+      "afterContent": "import json\nimport subprocess\nimport sys\nimport unittest\n\ndef ask(request):\n    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                       text=True, capture_output=True, check=True)\n    return json.loads(p.stdout)\n\ndef receipt(record_id, account_id, delivery_id, occurred_at):\n    return {\"record_id\": record_id, \"account_id\": account_id,\n            \"delivery_id\": delivery_id, \"occurred_at\": occurred_at,\n            \"payload\": \"payload:\" + record_id}\n\nclass Count(unittest.TestCase):\n    def test_empty(self):\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []}),\n                         {\"protocol\": \"2\", \"accepted_count\": 0, \"duplicate_count\": 0})\n\n    def test_single(self):\n        self.assertEqual(\n            ask({\"command\": \"count\", \"protocol\": \"1\",\n                 \"receipts\": [receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\")]}),\n            {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_single_protocol_2(self):\n        self.assertEqual(\n            ask({\"command\": \"count\", \"protocol\": \"2\",\n                 \"receipts\": [receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\")]}),\n            {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_omitted_protocol_selects_current(self):\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []})[\"protocol\"], \"2\")\n\n    def test_unsupported_protocol(self):\n        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"9\", \"receipts\": []}),\n                         {\"error\": \"unsupported_protocol\"})\n\n    def test_duplicates_same_identity(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-3\", \"A\", \"D-1\", \"2026-04-01T11:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 2})\n\n    def test_same_delivery_id_different_accounts_are_separate_protocol_1(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 0})\n\n    def test_same_delivery_id_different_accounts_share_identity(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_offsets_compared_as_utc_instants(self):\n        # 2026-04-01T00:30:00+02:00 is 2026-03-31T22:30:00Z, earlier than 23:00Z\n        # even though its local date is later.\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-03-31T23:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T00:30:00+02:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_equal_instants_tie_break_does_not_change_counts(self):\n        # Same instant spelled two ways: still one delivery, one duplicate.\n        receipts = [\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T12:00:00Z\"),\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T14:00:00+02:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_multiple_deliveries(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-2\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-3\", \"A\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-4\", \"A\", \"D-3\", \"2026-04-01T10:00:00-05:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 3, \"duplicate_count\": 1})\n\n    def test_cross_account_duplicates_merge_protocol_2(self):\n        # D-1 arrives in two accounts; protocol 2 sees one delivery, so the\n        # later 11:00Z receipt makes the 10:00Z one a duplicate.\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T11:00:00Z\"),\n            receipt(\"R-3\", \"A\", \"D-2\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-4\", \"B\", \"D-2\", \"2026-04-01T08:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": receipts}),\n                         {\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 2})\n\nclass Preserved(unittest.TestCase):\n    def test_ping(self):\n        self.assertEqual(ask({\"command\": \"ping\"}),\n                         {\"status\": \"ok\", \"product\": \"Courier Relay\"})\n\n    def test_unknown_command(self):\n        self.assertEqual(ask({\"command\": \"frobnicate\"}), {\"error\": \"unknown_command\"})\n",
+      "afterContentLength": 5267,
+      "beforeContent": "import json\nimport subprocess\nimport sys\nimport unittest\n\ndef ask(request):\n    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                       text=True, capture_output=True, check=True)\n    return json.loads(p.stdout)\n\ndef receipt(record_id, account_id, delivery_id, occurred_at):\n    return {\"record_id\": record_id, \"account_id\": account_id,\n            \"delivery_id\": delivery_id, \"occurred_at\": occurred_at,\n            \"payload\": \"payload:\" + record_id}\n\nclass Count(unittest.TestCase):\n    def test_empty(self):\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []}),\n                         {\"protocol\": \"1\", \"accepted_count\": 0, \"duplicate_count\": 0})\n\n    def test_single(self):\n        self.assertEqual(\n            ask({\"command\": \"count\", \"protocol\": \"1\",\n                 \"receipts\": [receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\")]}),\n            {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_omitted_protocol_selects_current(self):\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []})[\"protocol\"], \"1\")\n\n    def test_unsupported_protocol(self):\n        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"9\", \"receipts\": []}),\n                         {\"error\": \"unsupported_protocol\"})\n\n    def test_duplicates_same_identity(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-3\", \"A\", \"D-1\", \"2026-04-01T11:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 2})\n\n    def test_same_delivery_id_different_accounts_are_separate(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 0})\n\n    def test_offsets_compared_as_utc_instants(self):\n        # 2026-04-01T00:30:00+02:00 is 2026-03-31T22:30:00Z, earlier than 23:00Z\n        # even though its local date is later.\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-03-31T23:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T00:30:00+02:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_equal_instants_tie_break_does_not_change_counts(self):\n        # Same instant spelled two ways: still one delivery, one duplicate.\n        receipts = [\n            receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T12:00:00Z\"),\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T14:00:00+02:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_multiple_deliveries(self):\n        receipts = [\n            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"A\", \"D-2\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-3\", \"A\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-4\", \"A\", \"D-3\", \"2026-04-01T10:00:00-05:00\"),\n        ]\n        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 1})\n\nclass Preserved(unittest.TestCase):\n    def test_ping(self):\n        self.assertEqual(ask({\"command\": \"ping\"}),\n                         {\"status\": \"ok\", \"product\": \"Courier Relay\"})\n\n    def test_unknown_command(self):\n        self.assertEqual(ask({\"command\": \"frobnicate\"}), {\"error\": \"unknown_command\"})\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-1_4t2541/work/tests/test_count.py",
+      "structuredPatch": [
+        {
+          "oldStart": 16,
+          "oldLines": 7,
+          "newStart": 16,
+          "newLines": 7,
+          "lines": [
+            " class Count(unittest.TestCase):",
+            "     def test_empty(self):",
+            "         self.assertEqual(ask({\"command\": \"count\", \"receipts\": []}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 0, \"duplicate_count\": 0})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 0, \"duplicate_count\": 0})",
+            " ",
+            "     def test_single(self):",
+            "         self.assertEqual("
+          ]
+        },
+        {
+          "oldStart": 24,
+          "oldLines": 8,
+          "newStart": 24,
+          "newLines": 14,
+          "lines": [
+            "                  \"receipts\": [receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\")]}),",
+            "             {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            " ",
+            "+    def test_single_protocol_2(self):",
+            "+        self.assertEqual(",
+            "+            ask({\"command\": \"count\", \"protocol\": \"2\",",
+            "+                 \"receipts\": [receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\")]}),",
+            "+            {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            "+",
+            "     def test_omitted_protocol_selects_current(self):",
+            "-        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []})[\"protocol\"], \"1\")",
+            "+        self.assertEqual(ask({\"command\": \"count\", \"receipts\": []})[\"protocol\"], \"2\")",
+            " ",
+            "     def test_unsupported_protocol(self):",
+            "         self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"9\", \"receipts\": []}),"
+          ]
+        },
+        {
+          "oldStart": 38,
+          "oldLines": 16,
+          "newStart": 44,
+          "newLines": 24,
+          "lines": [
+            "             receipt(\"R-3\", \"A\", \"D-1\", \"2026-04-01T11:00:00Z\"),",
+            "         ]",
+            "         self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 2})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 2})",
+            " ",
+            "-    def test_same_delivery_id_different_accounts_are_separate(self):",
+            "+    def test_same_delivery_id_different_accounts_are_separate_protocol_1(self):",
+            "         receipts = [",
+            "             receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),",
+            "             receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T10:00:00Z\"),",
+            "         ]",
+            "-        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "+        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": receipts}),",
+            "                          {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 0})",
+            " ",
+            "+    def test_same_delivery_id_different_accounts_share_identity(self):",
+            "+        receipts = [",
+            "+            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),",
+            "+            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T10:00:00Z\"),",
+            "+        ]",
+            "+        self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            "+",
+            "     def test_offsets_compared_as_utc_instants(self):",
+            "         # 2026-04-01T00:30:00+02:00 is 2026-03-31T22:30:00Z, earlier than 23:00Z",
+            "         # even though its local date is later."
+          ]
+        },
+        {
+          "oldStart": 56,
+          "oldLines": 7,
+          "newStart": 70,
+          "newLines": 7,
+          "lines": [
+            "             receipt(\"R-2\", \"A\", \"D-1\", \"2026-04-01T00:30:00+02:00\"),",
+            "         ]",
+            "         self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            " ",
+            "     def test_equal_instants_tie_break_does_not_change_counts(self):",
+            "         # Same instant spelled two ways: still one delivery, one duplicate."
+          ]
+        },
+        {
+          "oldStart": 65,
+          "oldLines": 7,
+          "newStart": 79,
+          "newLines": 7,
+          "lines": [
+            "             receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T14:00:00+02:00\"),",
+            "         ]",
+            "         self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            " ",
+            "     def test_multiple_deliveries(self):",
+            "         receipts = ["
+          ]
+        },
+        {
+          "oldStart": 75,
+          "oldLines": 8,
+          "newStart": 89,
+          "newLines": 20,
+          "lines": [
+            "             receipt(\"R-4\", \"A\", \"D-3\", \"2026-04-01T10:00:00-05:00\"),",
+            "         ]",
+            "         self.assertEqual(ask({\"command\": \"count\", \"receipts\": receipts}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 1})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 3, \"duplicate_count\": 1})",
+            " ",
+            "+    def test_cross_account_duplicates_merge_protocol_2(self):",
+            "+        # D-1 arrives in two accounts; protocol 2 sees one delivery, so the",
+            "+        # later 11:00Z receipt makes the 10:00Z one a duplicate.",
+            "+        receipts = [",
+            "+            receipt(\"R-1\", \"A\", \"D-1\", \"2026-04-01T10:00:00Z\"),",
+            "+            receipt(\"R-2\", \"B\", \"D-1\", \"2026-04-01T11:00:00Z\"),",
+            "+            receipt(\"R-3\", \"A\", \"D-2\", \"2026-04-01T09:00:00Z\"),",
+            "+            receipt(\"R-4\", \"B\", \"D-2\", \"2026-04-01T08:00:00Z\"),",
+            "+        ]",
+            "+        self.assertEqual(ask({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": receipts}),",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 2})",
+            "+",
+            " class Preserved(unittest.TestCase):",
+            "     def test_ping(self):",
+            "         self.assertEqual(ask({\"command\": \"ping\"}),"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_0199acd03d054237a294238e",
+  "toolName": "Write",
+  "version": 1
+}

@@ -1,0 +1,218 @@
+{
+  "schema": "finance-phase1-semantic-review.v1",
+  "slot": "zcode-glm-finance-occasions-isolated-1",
+  "reviewer": "billing_tasks; corpus author unblinded",
+  "stage": 1,
+  "profile_id": "zcode-glm",
+  "arm": "occasions",
+  "world": "finance/account-first",
+  "catalog_mode": "search-only",
+  "assessment": "Manually reasoned from actual record and trace, not command-count inference.",
+  "capture": {
+    "opportunity": true,
+    "keyed_record_created": true,
+    "keys": [
+      "meridian-credits/release-1.0-agreement"
+    ],
+    "full_agreement_faithful": true,
+    "facts": {
+      "rate_and_per_line_floor_cents": "faithful: 10%, rounded down separately, charge_cents //10",
+      "cap_2400_cents": "faithful: 2400 cents",
+      "account_scope": "faithful: same account_id across subscriptions, distinct account caps",
+      "earliest_service_then_line_id": "faithful: earliest service_on, increasing line_id ties",
+      "remaining_cap_allocation": "faithful: each line up to remaining group cap, remainder or zero",
+      "release_1_applicability": "faithful: record title/source and release semantics explicitly1.0"
+    },
+    "source_provenance": "Actual approval issue trial-ujx description read before implementation; issue exists with full approved account-scoped rule. Date2026-09-07 matches actual issue date.",
+    "verification_claims": "tests/test_quote.py and public_tests/release_1_quote.json exist; eight tests and public case observed passing. These tests exercise the scalar quote; no multi-line verification was performed in this session.",
+    "full_readback_visible": false,
+    "readback_limit": "Actual bd recall output is complete in raw receipt, but model-facing command pipes to head -8. It exposes rate/cap/priority and header, omitting allocation/release/implementation tail. Stored body itself is faithful."
+  },
+  "retrieval": {
+    "eligible_stage": false,
+    "prior_record_exists": false,
+    "full_entry_record_read": false,
+    "route": "Three empty topic queries before capture; subsequent recall is save verification, not prior reuse.",
+    "timing": "Capture occurs after implementation and tests, before issue close."
+  },
+  "alternative_retention": {
+    "agent_authored": {
+      "main.py": "assign_credits_1_0 fully encodes account grouping, priority and remaining cap beyond stage1 required scalar behavior; docstring repeats scope/priority.",
+      "tests/test_quote.py": "Six quote regression tests plus existing two smoke tests.",
+      "issue_close_reason": "Includes actual memory key plus rate/cap/account/priority summary and supported test claims."
+    },
+    "original_approval_issue": "trial-ujx retained independently of agent capture."
+  },
+  "artifact": {
+    "correct": 17,
+    "total": 17,
+    "passed": true,
+    "independent_saved_stdout_check": "All17 expected values and saved-output verdicts match separate formula."
+  },
+  "unsupported_commentary": [],
+  "observed_syntax_recovery": "bd close --context failed, bd close --help then --reason succeeded; this is model syntax recovery, not interface failure.",
+  "uncertainties": [
+    "Stored facts pass full fidelity; full-readback procedure was not fulfilled in visible context because of head -8.",
+    "Future retrieval may reuse the already-general allocator; record read must be assessed separately at stage2."
+  ],
+  "primary_evidence": [
+    "memory-before.json",
+    "memory-after.json",
+    "tasks-after.json:trial-ujx",
+    "workspace-after/main.py",
+    "workspace-after/tests/test_quote.py",
+    "artifact-grade.json",
+    "raw-receipts.json",
+    "tool-calls.json"
+  ],
+  "tool_evidence": [
+    {
+      "tool_use_id": "call_5d5ee48e44494ebf89ea562b",
+      "tool_use_index": 193,
+      "tool_result_index": 197,
+      "name": "Skill",
+      "arguments": {
+        "skill": "beads",
+        "args": "trial-ujx"
+      }
+    },
+    {
+      "tool_use_id": "call_32eb385f0fbc45d68925610a",
+      "tool_use_index": 310,
+      "tool_result_index": 314,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd show trial-ujx 2>&1",
+        "description": "Show Beads issue trial-ujx details"
+      }
+    },
+    {
+      "tool_use_id": "call_9145d3515a064a21842a009f",
+      "tool_use_index": 393,
+      "tool_result_index": 417,
+      "name": "Read",
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-om9eo_hw/work/main.py"
+      }
+    },
+    {
+      "tool_use_id": "call_140afc512aac4a629c86d6fb",
+      "tool_use_index": 495,
+      "tool_result_index": 499,
+      "name": "Bash",
+      "arguments": {
+        "command": "python3 -m unittest discover -s tests 2>&1",
+        "description": "Run existing smoke tests"
+      }
+    },
+    {
+      "tool_use_id": "call_c20802da05bc4d619a40c0a9",
+      "tool_use_index": 2546,
+      "tool_result_index": 2550,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd update trial-ujx --status in_progress 2>&1",
+        "description": "Mark Beads issue trial-ujx as in progress"
+      }
+    },
+    {
+      "tool_use_id": "call_9a0e36bbb8aa49fe85fa0e7b",
+      "tool_use_index": 4198,
+      "tool_result_index": 4202,
+      "name": "Write",
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-om9eo_hw/work/main.py",
+        "content": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCAP_CENTS = 2400\nCURRENT_RELEASE = \"1.0\"\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Release 1.0 credits for one statement's complete charge set: 10% of\n    each charge rounded down to integer cents, with CAP_CENTS shared by all\n    lines of one account_id across its subscriptions. Within a cap group,\n    credit goes to lines by earliest service_on, then increasing line_id.\"\"\"\n    assigned = {}\n    remaining = {}\n    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):\n        left = remaining.setdefault(line[\"account_id\"], CAP_CENTS)\n        credit = min(line[\"charge_cents\"] // 10, left)\n        assigned[line[\"line_id\"]] = credit\n        remaining[line[\"account_id\"]] = left - credit\n    return assigned\n\n\ndef quote_1_0(line):\n    credit = assign_credits_1_0([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\nRELEASES = {\"1.0\": quote_1_0}\n\n\ndef handle(request):\n    command = request.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if command == \"quote\":\n        release = request.get(\"release\", CURRENT_RELEASE)\n        if release not in RELEASES:\n            return {\"error\": \"unsupported_release\"}\n        return RELEASES[release](request[\"line\"])\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n"
+      }
+    },
+    {
+      "tool_use_id": "call_46af14f71ba54ce3b8b09487",
+      "tool_use_index": 4308,
+      "tool_result_index": 4312,
+      "name": "Write",
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-om9eo_hw/work/tests/test_quote.py",
+        "content": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\nLINE = {\n    \"line_id\": \"L-1\",\n    \"account_id\": \"A\",\n    \"subscription_id\": \"S\",\n    \"service_on\": \"2026-04-15\",\n    \"charge_cents\": 19999,\n}\n\n\nclass QuoteTests(unittest.TestCase):\n    def run_cli(self, request):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps(request), text=True, capture_output=True, check=True)\n        return json.loads(got.stdout)\n\n    def check_quote(self, line, release=None):\n        request = {\"command\": \"quote\", \"line\": line}\n        if release is not None:\n            request[\"release\"] = release\n        return self.run_cli(request)\n\n    def test_explicit_release(self):\n        got = self.check_quote(LINE, release=\"1.0\")\n        self.assertEqual(got, {\"release\": \"1.0\", \"line_id\": \"L-1\",\n                               \"credit_cents\": 1999, \"amount_due_cents\": 18000})\n\n    def test_omitted_release_selects_current(self):\n        got = self.check_quote(LINE)\n        self.assertEqual(got, {\"release\": \"1.0\", \"line_id\": \"L-1\",\n                               \"credit_cents\": 1999, \"amount_due_cents\": 18000})\n\n    def test_credit_rounded_down(self):\n        got = self.check_quote({**LINE, \"line_id\": \"L-2\", \"charge_cents\": 19999})\n        self.assertEqual(got[\"credit_cents\"], 1999)\n\n    def test_cap_limits_single_line(self):\n        got = self.check_quote({**LINE, \"line_id\": \"L-3\", \"charge_cents\": 30000})\n        self.assertEqual(got, {\"release\": \"1.0\", \"line_id\": \"L-3\",\n                               \"credit_cents\": 2400, \"amount_due_cents\": 27600})\n\n    def test_credit_at_exact_cap(self):\n        got = self.check_quote({**LINE, \"line_id\": \"L-4\", \"charge_cents\": 24000})\n        self.assertEqual(got[\"credit_cents\"], 2400)\n        self.assertEqual(got[\"amount_due_cents\"], 21600)\n\n    def test_zero_charge(self):\n        got = self.check_quote({**LINE, \"line_id\": \"L-5\", \"charge_cents\": 0})\n        self.assertEqual(got, {\"release\": \"1.0\", \"line_id\": \"L-5\",\n                               \"credit_cents\": 0, \"amount_due_cents\": 0})\n"
+      }
+    },
+    {
+      "tool_use_id": "call_37c347861e1a4cc398089944",
+      "tool_use_index": 4342,
+      "tool_result_index": 4346,
+      "name": "Bash",
+      "arguments": {
+        "command": "python3 -m unittest discover -s tests 2>&1 && python3 test_public.py --cases public_tests/release_1_quote.json 2>&1",
+        "description": "Run unit tests and public release-1.0 quote suite"
+      }
+    },
+    {
+      "tool_use_id": "call_f177f2b0c7b04ab3b367fb5d",
+      "tool_use_index": 4862,
+      "tool_result_index": 4866,
+      "name": "Bash",
+      "arguments": {
+        "command": "echo '{\"command\": \"quote\", \"release\": \"1.0\", \"line\": {\"line_id\": \"L-1\", \"account_id\": \"A\", \"subscription_id\": \"S\", \"service_on\": \"2026-04-15\", \"charge_cents\": 19999}}' | python3 main.py; echo '{\"command\": \"ping\"}' | python3 main.py; echo '{\"command\": \"unknown\"}' | python3 main.py",
+        "description": "Verify quote example, ping, and unknown-command responses"
+      }
+    },
+    {
+      "tool_use_id": "call_beaa1d40ff234333b1371856",
+      "tool_use_index": 4954,
+      "tool_result_index": 4958,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd remember 'Meridian Credits release 1.0 credit agreement (finance-approved in issue trial-ujx, 2026-09-07; source: issue trial-ujx description).\n\nScope: each request is the complete charge set of one independently quoted monthly statement; caps apply within that set. A charge line has exactly line_id, account_id, subscription_id, service_on, charge_cents. line_id is unique within a request and IDs are nonempty strings compared in Unicode code-point order. A subscription is the pair (account_id, subscription_id); the same subscription_id can occur under different accounts. service_on is a valid Gregorian YYYY-MM-DD from 2020-01-01 through 2099-12-31. charge_cents is a nonnegative integer of US cents.\n\nApproved rules:\n- Uncapped credit per line: 10% of charge_cents, rounded down separately to integer cents (charge_cents // 10).\n- Credit cap: 2400 cents shared by all lines with the same account_id, across its subscriptions; distinct account_ids have independent caps.\n- Priority within a cap group: earliest service_on first; equal service dates by increasing line_id.\n- Each line receives its uncapped credit up to the group remaining cap; later lines receive only the remainder, or zero.\n- Line amount_due_cents = charge_cents - assigned credit; total credit = sum of assigned credits; total due = total charges - total credit.\n\nRelease semantics: release \"1.0\" is the initial agreement. An omitted release selects the current agreement; an explicit supported release selects that version. Versions introduced in an issue remain supported afterward; public suites name a specific release and send explicit release values, so their expectations survive changes to the current agreement.\n\nImplementation: main.py encodes the agreement generally in assign_credits_1_0 (reusable for future multi-line statements); quote_1_0 applies it to a single supplied line treated as the entire statement. Verified by tests/test_quote.py and public_tests/release_1_quote.json.' --key 'meridian-credits/release-1.0-agreement' 2>&1",
+        "description": "Save release 1.0 agreement to Beads project memory"
+      }
+    },
+    {
+      "tool_use_id": "call_9dcc3e272d8545f388baf8ca",
+      "tool_use_index": 4973,
+      "tool_result_index": 4977,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd recall 'meridian-credits/release-1.0-agreement' 2>&1 | head -8",
+        "description": "Verify saved memory reads back correctly"
+      }
+    },
+    {
+      "tool_use_id": "call_1a90880443fb4cbc95754636",
+      "tool_use_index": 5040,
+      "tool_result_index": 5044,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd close trial-ujx --context 'Implemented release 1.0 single-line quote in main.py: quote_1_0 applies the finance-approved agreement (10% floor per line, 2400-cent cap per account_id, earliest service_on then increasing line_id) to the supplied line as the entire statement; omitted release selects the current agreement, explicit \"1.0\" selects 1.0, ping and unknown-command responses preserved. Verified: 8 unittest cases in tests/ plus public_tests/release_1_quote.json all pass, and the issue example response matches exactly. Agreement preserved in memory meridian-credits/release-1.0-agreement for future multi-line work.' 2>&1",
+        "description": "Close Beads issue trial-ujx with completion context"
+      }
+    },
+    {
+      "tool_use_id": "call_ff5f862f7d9c4ac6b43ccd38",
+      "tool_use_index": 5059,
+      "tool_result_index": 5063,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd close --help 2>&1",
+        "description": "Show bd close command help"
+      }
+    },
+    {
+      "tool_use_id": "call_36d5de384d8b49bca769b2a8",
+      "tool_use_index": 5078,
+      "tool_result_index": 5082,
+      "name": "Bash",
+      "arguments": {
+        "command": "bd close trial-ujx --reason 'Implemented release 1.0 single-line quote in main.py: quote_1_0 applies the finance-approved agreement (10% floor per line, 2400-cent cap per account_id, earliest service_on then increasing line_id) to the supplied line as the entire statement; omitted release selects the current agreement, explicit \"1.0\" selects 1.0, ping and unknown-command responses preserved. Verified: 8 unittest cases in tests/ plus public_tests/release_1_quote.json all pass, and the issue example response matches exactly. Agreement preserved in memory meridian-credits/release-1.0-agreement for future multi-line work.' 2>&1",
+        "description": "Close Beads issue trial-ujx with reason"
+      }
+    }
+  ],
+  "input_sha256": {
+    "result.json": "c5cb74da6b0cf3a8b47e9dc60b3658e983fa6f5d8462da2086c68394bf2f4d83",
+    "memory-before.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "memory-after.json": "8a95f75f02501cddb72305a19adf1ceb4b120759050158b40157d3fec1e7687e",
+    "launch.json": "42e90d254897601bcee622731f9e977029200776b4a1ec3e3150397f8bfc01f7",
+    "tool-calls.json": "fba3505be8af3d90f07dbbd5735dc088f36761a3334808cb94de45990e403fd6",
+    "raw-receipts.json": "2ea51f15e8abd46d110957074249e7cbe562a68227e762afec69bb3e2c30a49e",
+    "tasks-after.json": "cc9679640eb9c8b9dfafd8068708b99d02988efa33cebe32becfd836e30ba339"
+  }
+}

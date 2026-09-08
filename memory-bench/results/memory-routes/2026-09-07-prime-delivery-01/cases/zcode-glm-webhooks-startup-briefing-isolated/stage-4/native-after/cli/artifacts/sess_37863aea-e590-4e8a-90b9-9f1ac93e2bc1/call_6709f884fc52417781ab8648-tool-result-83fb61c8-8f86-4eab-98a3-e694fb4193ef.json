@@ -1,0 +1,92 @@
+{
+  "createdAt": "2026-09-08T00:37:15.579Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"2\"\nSUPPORTED_PROTOCOLS = (\"1\", \"2\")\n\ndef parse_occurred_at(text):\n    if text[-1] in \"Zz\":\n        text = text[:-1] + \"+00:00\"\n    return datetime.fromisoformat(text)\n\ndef protocol_counts(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    accepted = {}\n    for r in receipts:\n        if protocol == \"1\":\n            # Protocol 1: (account_id, delivery_id) identifies a delivery; the\n            # earliest occurred_at UTC instant wins, ties by smallest record_id.\n            identity = (r[\"account_id\"], r[\"delivery_id\"])\n            rank = (parse_occurred_at(r[\"occurred_at\"]), r[\"record_id\"])\n        else:\n            # Protocol 2: delivery_id alone identifies a delivery across all\n            # accounts; the latest UTC instant wins, ties by smallest record_id.\n            # The instant is negated so the smallest rank still wins; epoch\n            # seconds at second precision are exact as floats.\n            identity = r[\"delivery_id\"]\n            rank = (-parse_occurred_at(r[\"occurred_at\"]).timestamp(), r[\"record_id\"])\n        if identity not in accepted or rank < accepted[identity]:\n            accepted[identity] = rank\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(receipts) - len(accepted),\n    }\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if q.get(\"command\") in (\"count\", \"summary\"):\n        return protocol_counts(q)\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-ncmacz04/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 11,
+          "oldLines": 13,
+          "newStart": 11,
+          "newLines": 12,
+          "lines": [
+            "         text = text[:-1] + \"+00:00\"",
+            "     return datetime.fromisoformat(text)",
+            " ",
+            "-def protocol_counts(q):",
+            "-    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "-    if protocol not in SUPPORTED_PROTOCOLS:",
+            "-        return {\"error\": \"unsupported_protocol\"}",
+            "+def select_representatives(q, protocol):",
+            "+    \"\"\"Return the accepted representative receipts per delivery identity,",
+            "+    unchanged and in original input order, plus the total receipt count.\"\"\"",
+            "     receipts = q.get(\"receipts\", [])",
+            "-    accepted = {}",
+            "-    for r in receipts:",
+            "+    best = {}",
+            "+    for index, r in enumerate(receipts):",
+            "         if protocol == \"1\":",
+            "             # Protocol 1: (account_id, delivery_id) identifies a delivery; the",
+            "             # earliest occurred_at UTC instant wins, ties by smallest record_id."
+          ]
+        },
+        {
+          "oldStart": 30,
+          "oldLines": 14,
+          "newStart": 29,
+          "newLines": 38,
+          "lines": [
+            "             # seconds at second precision are exact as floats.",
+            "             identity = r[\"delivery_id\"]",
+            "             rank = (-parse_occurred_at(r[\"occurred_at\"]).timestamp(), r[\"record_id\"])",
+            "-        if identity not in accepted or rank < accepted[identity]:",
+            "-            accepted[identity] = rank",
+            "+        if identity not in best or rank < best[identity][0]:",
+            "+            best[identity] = (rank, index, r)",
+            "+    # A later receipt can replace an earlier winner for an identity, so restore",
+            "+    # original input order by index rather than insertion order.",
+            "+    winners = sorted(best.values(), key=lambda entry: entry[1])",
+            "+    return [entry[2] for entry in winners], len(receipts)",
+            "+",
+            "+def protocol_counts(q):",
+            "+    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+    if protocol not in SUPPORTED_PROTOCOLS:",
+            "+        return {\"error\": \"unsupported_protocol\"}",
+            "+    representatives, total = select_representatives(q, protocol)",
+            "     return {",
+            "         \"protocol\": protocol,",
+            "-        \"accepted_count\": len(accepted),",
+            "-        \"duplicate_count\": len(receipts) - len(accepted),",
+            "+        \"accepted_count\": len(representatives),",
+            "+        \"duplicate_count\": total - len(representatives),",
+            "     }",
+            " ",
+            "+def accepted_receipts(q):",
+            "+    # The accepted command serves only the current provider protocol; older",
+            "+    # protocol versions remain available through count and summary.",
+            "+    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+    if protocol != CURRENT_PROTOCOL:",
+            "+        return {\"error\": \"unsupported_protocol\"}",
+            "+    representatives, total = select_representatives(q, protocol)",
+            "+    return {",
+            "+        \"protocol\": protocol,",
+            "+        \"accepted_count\": len(representatives),",
+            "+        \"duplicate_count\": total - len(representatives),",
+            "+        \"receipts\": representatives,",
+            "+    }",
+            "+",
+            " def run(q):",
+            "     if q.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_6709f884fc52417781ab8648",
+  "toolName": "Edit",
+  "version": 1
+}

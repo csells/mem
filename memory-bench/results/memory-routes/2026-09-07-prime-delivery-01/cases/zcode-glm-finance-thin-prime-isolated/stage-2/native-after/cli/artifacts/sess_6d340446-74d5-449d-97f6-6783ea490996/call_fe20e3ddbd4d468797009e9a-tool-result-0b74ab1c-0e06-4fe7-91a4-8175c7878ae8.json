@@ -1,0 +1,68 @@
+{
+  "createdAt": "2026-09-08T00:23:58.779Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCURRENT_RELEASE = \"1.0\"\nACCOUNT_CAP_CENTS = 2400\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Credit cents assigned to each line of a complete statement, in input order.\n\n    Uncapped credit is 10% of charge_cents rounded down per line. The cap is\n    shared per account_id across subscriptions; within a group, lines are\n    served by earliest service_on, then increasing line_id.\n    \"\"\"\n    credits = [0] * len(lines)\n    by_account = {}\n    for idx, line in enumerate(lines):\n        by_account.setdefault(line[\"account_id\"], []).append(idx)\n    for indexes in by_account.values():\n        remaining = ACCOUNT_CAP_CENTS\n        order = sorted(indexes, key=lambda i: (lines[i][\"service_on\"], lines[i][\"line_id\"]))\n        for i in order:\n            credit = min(lines[i][\"charge_cents\"] // 10, remaining)\n            credits[i] = credit\n            remaining -= credit\n    return credits\n\n\ndef quote_1_0(line):\n    credit = assign_credits_1_0([line])[0]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\nQUOTERS = {\n    \"1.0\": quote_1_0,\n}\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        release = request.get(\"release\", CURRENT_RELEASE)\n        if release not in QUOTERS:\n            return {\"error\": \"unsupported_release\"}\n        return QUOTERS[release](request[\"line\"])\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-i_h_syes/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 38,
+          "oldLines": 11,
+          "newStart": 38,
+          "newLines": 25,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+def total_1_0(lines):",
+            "+    credits = assign_credits_1_0(lines)",
+            "+    credit_cents = sum(credits)",
+            "+    return {",
+            "+        \"release\": \"1.0\",",
+            "+        \"credit_cents\": credit_cents,",
+            "+        \"amount_due_cents\": sum(line[\"charge_cents\"] for line in lines) - credit_cents,",
+            "+    }",
+            "+",
+            "+",
+            " QUOTERS = {",
+            "     \"1.0\": quote_1_0,",
+            " }",
+            " ",
+            "+TOTALERS = {",
+            "+    \"1.0\": total_1_0,",
+            "+}",
+            " ",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}"
+          ]
+        },
+        {
+          "oldStart": 51,
+          "oldLines": 6,
+          "newStart": 65,
+          "newLines": 11,
+          "lines": [
+            "         if release not in QUOTERS:",
+            "             return {\"error\": \"unsupported_release\"}",
+            "         return QUOTERS[release](request[\"line\"])",
+            "+    if request.get(\"command\") == \"total\":",
+            "+        release = request.get(\"release\", CURRENT_RELEASE)",
+            "+        if release not in TOTALERS:",
+            "+            return {\"error\": \"unsupported_release\"}",
+            "+        return TOTALERS[release](request[\"lines\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_fe20e3ddbd4d468797009e9a",
+  "toolName": "Edit",
+  "version": 1
+}

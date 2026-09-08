@@ -1,0 +1,39 @@
+{
+  "createdAt": "2026-09-08T01:02:26.203Z",
+  "files": [
+    {
+      "beforeContent": "import json\nimport subprocess\nimport sys\nimport unittest\n\nimport main\n\n\ndef receipt(record_id, occurred_at, delivery_id=\"D-1\", account_id=\"A\", payload=None):\n    return {\n        \"record_id\": record_id,\n        \"account_id\": account_id,\n        \"delivery_id\": delivery_id,\n        \"occurred_at\": occurred_at,\n        \"payload\": payload if payload is not None else \"payload:\" + record_id,\n    }\n\n\nclass CountEndToEnd(unittest.TestCase):\n    def cli(self, request):\n        proc = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                              text=True, capture_output=True, check=True)\n        return json.loads(proc.stdout)\n\n    def test_empty(self):\n        self.assertEqual(self.cli({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": []}),\n                         {\"protocol\": \"1\", \"accepted_count\": 0, \"duplicate_count\": 0})\n\n    def test_single(self):\n        self.assertEqual(self.cli({\"command\": \"count\", \"protocol\": \"1\",\n                                   \"receipts\": [receipt(\"R-1\", \"2026-04-01T10:00:00Z\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_omitted_protocol_selects_current(self):\n        self.assertEqual(self.cli({\"command\": \"count\",\n                                   \"receipts\": [receipt(\"R-1\", \"2026-04-01T10:00:00Z\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_duplicates_and_distinct_deliveries(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", \"D-1\"),\n            receipt(\"R-2\", \"2026-04-01T11:00:00Z\", \"D-1\"),\n            receipt(\"R-3\", \"2026-04-01T11:00:00Z\", \"D-1\"),\n            receipt(\"R-4\", \"2026-04-01T09:00:00Z\", \"D-2\"),\n        ]\n        self.assertEqual(self.cli({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": receipts}),\n                         {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 2})\n\n    def test_ping_preserved(self):\n        self.assertEqual(self.cli({\"command\": \"ping\"}),\n                         {\"status\": \"ok\", \"product\": \"Courier Relay\"})\n\n    def test_unknown_command_preserved(self):\n        self.assertEqual(self.cli({\"command\": \"frobnicate\"}), {\"error\": \"unknown_command\"})\n\n\nclass Protocol1Acceptance(unittest.TestCase):\n    def accepted_ids(self, receipts):\n        return [r[\"record_id\"] for r in main.protocol1_accepted(receipts)]\n\n    def test_earliest_instant_wins_regardless_of_offset_spelling(self):\n        # 00:30+02:00 is 2026-03-31T22:30:00Z, earlier than 23:00Z despite the later local date.\n        receipts = [\n            receipt(\"R-late\", \"2026-03-31T23:00:00Z\"),\n            receipt(\"R-early\", \"2026-04-01T00:30:00+02:00\"),\n        ]\n        self.assertEqual(self.accepted_ids(receipts), [\"R-early\"])\n\n    def test_equal_instants_break_tie_by_smallest_record_id(self):\n        receipts = [\n            receipt(\"R-b\", \"2026-04-01T14:00:00+02:00\"),\n            receipt(\"R-a\", \"2026-04-01T12:00:00Z\"),\n        ]\n        self.assertEqual(self.accepted_ids(receipts), [\"R-a\"])\n\n    def test_same_delivery_id_under_different_accounts_is_separate(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", \"D-1\", account_id=\"A\"),\n            receipt(\"R-2\", \"2026-04-01T11:00:00Z\", \"D-1\", account_id=\"B\"),\n        ]\n        self.assertEqual(self.accepted_ids(receipts), [\"R-1\", \"R-2\"])\n\n    def test_accepted_keeps_original_input_order(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", \"D-2\"),\n            receipt(\"R-2\", \"2026-04-01T09:00:00Z\", \"D-1\"),\n            receipt(\"R-3\", \"2026-04-01T08:00:00Z\", \"D-1\"),\n        ]\n        self.assertEqual(self.accepted_ids(receipts), [\"R-1\", \"R-3\"])\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-pybycfec/work/tests/test_count.py",
+      "structuredPatch": [
+        {
+          "oldStart": 34,
+          "oldLines": 8,
+          "newStart": 34,
+          "newLines": 14,
+          "lines": [
+            "     def test_omitted_protocol_selects_current(self):",
+            "         self.assertEqual(self.cli({\"command\": \"count\",",
+            "                                    \"receipts\": [receipt(\"R-1\", \"2026-04-01T10:00:00Z\")]}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            " ",
+            "+    def test_explicit_protocol_2_matches_omitted(self):",
+            "+        receipts = [receipt(\"R-1\", \"2026-04-01T10:00:00Z\", \"D-1\", account_id=\"A\"),",
+            "+                    receipt(\"R-2\", \"2026-04-01T11:00:00Z\", \"D-1\", account_id=\"B\")]",
+            "+        self.assertEqual(self.cli({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": receipts}),",
+            "+                         self.cli({\"command\": \"count\", \"receipts\": receipts}))",
+            "+",
+            "     def test_duplicates_and_distinct_deliveries(self):",
+            "         receipts = [",
+            "             receipt(\"R-1\", \"2026-04-01T10:00:00Z\", \"D-1\"),"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_a86e07693f834ebb8466d7f0",
+  "toolName": "Edit",
+  "version": 1
+}

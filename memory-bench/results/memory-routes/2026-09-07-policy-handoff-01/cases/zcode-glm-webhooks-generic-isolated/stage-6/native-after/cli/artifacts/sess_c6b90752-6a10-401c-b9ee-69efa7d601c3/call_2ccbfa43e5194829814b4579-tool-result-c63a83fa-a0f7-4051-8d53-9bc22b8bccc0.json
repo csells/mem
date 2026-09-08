@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-07T19:33:59.976Z",
+  "files": [
+    {
+      "afterContent": "import unittest\nimport main\n\ndef receipt(record_id, occurred_at, delivery_id=\"D-1\", account_id=\"A\"):\n    return {\"record_id\": record_id, \"account_id\": account_id,\n            \"delivery_id\": delivery_id, \"occurred_at\": occurred_at,\n            \"payload\": \"payload:\" + record_id}\n\nclass Protocol2Selection(unittest.TestCase):\n    def test_latest_instant_wins(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-2\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-3\", \"2026-04-01T08:00:00Z\"),\n        ]\n        self.assertEqual(main.select_accepted_v2(receipts), [receipts[1]])\n\n    def test_latest_compares_offsets_as_utc_instants(self):\n        # 00:30+02:00 is 22:30Z on the prior calendar date, earlier than 23:00Z.\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T00:30:00+02:00\"),\n            receipt(\"R-2\", \"2026-03-31T23:00:00Z\"),\n        ]\n        self.assertEqual(main.select_accepted_v2(receipts), [receipts[1]])\n\n    def test_equal_instants_prefer_smallest_record_id(self):\n        receipts = [\n            receipt(\"R-2\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-1\", \"2026-04-01T12:00:00+02:00\"),  # same instant\n        ]\n        self.assertEqual(main.select_accepted_v2(receipts), [receipts[1]])\n\n    def test_delivery_identity_spans_accounts(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", account_id=\"A\"),\n            receipt(\"R-2\", \"2026-04-01T11:00:00Z\", account_id=\"B\"),\n        ]\n        self.assertEqual(main.select_accepted_v2(receipts), [receipts[1]])\n\n    def test_accepted_receipts_keep_input_order_and_original_fields(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", delivery_id=\"D-2\"),\n            receipt(\"R-2\", \"2026-04-01T10:00:00+02:00\", delivery_id=\"D-1\"),\n            receipt(\"R-3\", \"2026-04-01T09:00:00Z\", delivery_id=\"D-1\"),\n        ]\n        accepted = main.select_accepted_v2(receipts)\n        self.assertEqual(accepted, [receipts[0], receipts[1]])\n        self.assertIs(accepted[1], receipts[1])  # original spelling and payload retained\n\nclass Protocol1Selection(unittest.TestCase):\n    def test_earliest_instant_wins(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"2026-04-01T09:00:00Z\"),\n        ]\n        self.assertEqual(main.select_accepted_v1(receipts), [receipts[1]])\n\n    def test_identity_is_scoped_to_account(self):\n        receipts = [\n            receipt(\"R-1\", \"2026-04-01T10:00:00Z\", account_id=\"A\"),\n            receipt(\"R-2\", \"2026-04-01T11:00:00Z\", account_id=\"B\"),\n        ]\n        self.assertEqual(main.select_accepted_v1(receipts), receipts)\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "afterContentLength": 2737,
+      "beforeContent": null,
+      "existedBefore": false,
+      "path": "/private/tmp/ordinary-work-rniua7d7/work/tests/test_selection.py",
+      "structuredPatch": []
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_2ccbfa43e5194829814b4579",
+  "toolName": "Write",
+  "version": 1
+}

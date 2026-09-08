@@ -1,0 +1,55 @@
+{
+  "createdAt": "2026-09-08T00:21:36.754Z",
+  "files": [
+    {
+      "beforeContent": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\n\nclass SmokeTests(unittest.TestCase):\n    def check_request(self, request, expected):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps(request), text=True, capture_output=True, check=True)\n        self.assertEqual(json.loads(got.stdout), expected)\n\n    def test_ping(self):\n        self.check_request({\"command\": \"ping\"}, {\"status\": \"ok\", \"product\": \"Meridian Credits\"})\n\n    def test_unknown(self):\n        self.check_request({\"command\": \"unknown\"}, {\"error\": \"unknown_command\"})\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-i_h_syes/work/tests/test_smoke.py",
+      "structuredPatch": [
+        {
+          "oldStart": 18,
+          "oldLines": 3,
+          "newStart": 18,
+          "newLines": 31,
+          "lines": [
+            " ",
+            "     def test_unknown(self):",
+            "         self.check_request({\"command\": \"unknown\"}, {\"error\": \"unknown_command\"})",
+            "+",
+            "+    def test_quote_release_1_0(self):",
+            "+        line = {\"line_id\": \"L-1\", \"account_id\": \"A\", \"subscription_id\": \"S\",",
+            "+                \"service_on\": \"2026-04-15\", \"charge_cents\": 19999}",
+            "+        expected = {\"release\": \"1.0\", \"line_id\": \"L-1\",",
+            "+                    \"credit_cents\": 1999, \"amount_due_cents\": 18000}",
+            "+        self.check_request({\"command\": \"quote\", \"release\": \"1.0\", \"line\": line}, expected)",
+            "+",
+            "+    def test_quote_omitted_release_selects_current(self):",
+            "+        line = {\"line_id\": \"L-2\", \"account_id\": \"A\", \"subscription_id\": \"S\",",
+            "+                \"service_on\": \"2026-04-15\", \"charge_cents\": 19999}",
+            "+        expected = {\"release\": \"1.0\", \"line_id\": \"L-2\",",
+            "+                    \"credit_cents\": 1999, \"amount_due_cents\": 18000}",
+            "+        self.check_request({\"command\": \"quote\", \"line\": line}, expected)",
+            "+",
+            "+    def test_quote_credit_capped_at_2400(self):",
+            "+        line = {\"line_id\": \"L-3\", \"account_id\": \"A\", \"subscription_id\": \"S\",",
+            "+                \"service_on\": \"2026-04-15\", \"charge_cents\": 25000}",
+            "+        expected = {\"release\": \"1.0\", \"line_id\": \"L-3\",",
+            "+                    \"credit_cents\": 2400, \"amount_due_cents\": 22600}",
+            "+        self.check_request({\"command\": \"quote\", \"release\": \"1.0\", \"line\": line}, expected)",
+            "+",
+            "+    def test_quote_zero_charge(self):",
+            "+        line = {\"line_id\": \"L-4\", \"account_id\": \"A\", \"subscription_id\": \"S\",",
+            "+                \"service_on\": \"2026-04-15\", \"charge_cents\": 0}",
+            "+        expected = {\"release\": \"1.0\", \"line_id\": \"L-4\",",
+            "+                    \"credit_cents\": 0, \"amount_due_cents\": 0}",
+            "+        self.check_request({\"command\": \"quote\", \"release\": \"1.0\", \"line\": line}, expected)"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_05039a6d088745a783cde9a1",
+  "toolName": "Edit",
+  "version": 1
+}

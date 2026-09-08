@@ -1,0 +1,58 @@
+{
+  "createdAt": "2026-09-07T23:48:28.180Z",
+  "files": [
+    {
+      "afterContent": "#!/usr/bin/env python3\nimport json\nimport sys\n\nCURRENT_PROTOCOL = \"1\"\nSUPPORTED_PROTOCOLS = (\"1\",)\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        return count(q)\n    return {\"error\": \"unknown_command\"}\n\ndef count(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    # Protocol 1: (account_id, delivery_id) identifies a delivery; exactly one\n    # receipt per identity is accepted, the rest are duplicates.\n    identities = {(r[\"account_id\"], r[\"delivery_id\"]) for r in receipts}\n    accepted = len(identities)\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": accepted,\n        \"duplicate_count\": len(receipts) - accepted,\n    }\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "afterContentLength": 979,
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 2,
+          "oldLines": 10,
+          "newStart": 2,
+          "newLines": 31,
+          "lines": [
+            " import json",
+            " import sys",
+            " ",
+            "+CURRENT_PROTOCOL = \"1\"",
+            "+SUPPORTED_PROTOCOLS = (\"1\",)",
+            "+",
+            " def run(q):",
+            "-    if q.get(\"command\") == \"ping\":",
+            "+    command = q.get(\"command\")",
+            "+    if command == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}",
+            "+    if command == \"count\":",
+            "+        return count(q)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            "+def count(q):",
+            "+    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+    if protocol not in SUPPORTED_PROTOCOLS:",
+            "+        return {\"error\": \"unsupported_protocol\"}",
+            "+    receipts = q.get(\"receipts\", [])",
+            "+    # Protocol 1: (account_id, delivery_id) identifies a delivery; exactly one",
+            "+    # receipt per identity is accepted, the rest are duplicates.",
+            "+    identities = {(r[\"account_id\"], r[\"delivery_id\"]) for r in receipts}",
+            "+    accepted = len(identities)",
+            "+    return {",
+            "+        \"protocol\": protocol,",
+            "+        \"accepted_count\": accepted,",
+            "+        \"duplicate_count\": len(receipts) - accepted,",
+            "+    }",
+            "+",
+            " if __name__ == \"__main__\":",
+            "     print(json.dumps(run(json.load(sys.stdin))))"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_49cfe2844b9e4fb8a1fce1ff",
+  "toolName": "Write",
+  "version": 1
+}

@@ -1,0 +1,79 @@
+{
+  "createdAt": "2026-09-07T21:44:31.813Z",
+  "files": [
+    {
+      "beforeContent": "import json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\nLINE = {\n    \"line_id\": \"L-1\",\n    \"account_id\": \"A\",\n    \"subscription_id\": \"S\",\n    \"service_on\": \"2026-04-15\",\n    \"charge_cents\": 19999,\n}\n\n\nclass QuoteTests(unittest.TestCase):\n    def check_request(self, request, expected):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps(request), text=True, capture_output=True, check=True)\n        self.assertEqual(json.loads(got.stdout), expected)\n\n    def test_quote_explicit_release(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": dict(LINE)},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1999, \"amount_due_cents\": 18000},\n        )\n\n    def test_quote_omitted_release_selects_current_agreement(self):\n        self.check_request(\n            {\"command\": \"quote\", \"line\": dict(LINE)},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1999, \"amount_due_cents\": 18000},\n        )\n\n    def test_quote_caps_credit_at_2400(self):\n        line = dict(LINE, charge_cents=30000)\n        self.check_request(\n            {\"command\": \"quote\", \"line\": line},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 2400, \"amount_due_cents\": 27600},\n        )\n\n    def test_quote_rounds_credit_down(self):\n        line = dict(LINE, charge_cents=15)\n        self.check_request(\n            {\"command\": \"quote\", \"line\": line},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1, \"amount_due_cents\": 14},\n        )\n\n    def test_quote_zero_charge(self):\n        line = dict(LINE, charge_cents=0)\n        self.check_request(\n            {\"command\": \"quote\", \"line\": line},\n            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 0},\n        )\n\n    def test_quote_unsupported_release(self):\n        self.check_request(\n            {\"command\": \"quote\", \"release\": \"9.9\", \"line\": dict(LINE)},\n            {\"error\": \"unsupported_release\"},\n        )\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-nqrp9me3/work/tests/test_quote.py",
+      "structuredPatch": [
+        {
+          "oldStart": 30,
+          "oldLines": 20,
+          "newStart": 30,
+          "newLines": 20,
+          "lines": [
+            "     def test_quote_omitted_release_selects_current_agreement(self):",
+            "         self.check_request(",
+            "             {\"command\": \"quote\", \"line\": dict(LINE)},",
+            "-            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1999, \"amount_due_cents\": 18000},",
+            "+            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 2999, \"amount_due_cents\": 17000},",
+            "         )",
+            " ",
+            "     def test_quote_caps_credit_at_2400(self):",
+            "         line = dict(LINE, charge_cents=30000)",
+            "         self.check_request(",
+            "-            {\"command\": \"quote\", \"line\": line},",
+            "+            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": line},",
+            "             {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 2400, \"amount_due_cents\": 27600},",
+            "         )",
+            " ",
+            "     def test_quote_rounds_credit_down(self):",
+            "         line = dict(LINE, charge_cents=15)",
+            "         self.check_request(",
+            "-            {\"command\": \"quote\", \"line\": line},",
+            "+            {\"command\": \"quote\", \"release\": \"1.0\", \"line\": line},",
+            "             {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1, \"amount_due_cents\": 14},",
+            "         )",
+            " "
+          ]
+        },
+        {
+          "oldStart": 51,
+          "oldLines": 9,
+          "newStart": 51,
+          "newLines": 23,
+          "lines": [
+            "         line = dict(LINE, charge_cents=0)",
+            "         self.check_request(",
+            "             {\"command\": \"quote\", \"line\": line},",
+            "-            {\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 0},",
+            "+            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 0, \"amount_due_cents\": 0},",
+            "         )",
+            " ",
+            "+    def test_quote_release_2_caps_credit_at_3000(self):",
+            "+        line = dict(LINE, charge_cents=30000)",
+            "+        self.check_request(",
+            "+            {\"command\": \"quote\", \"release\": \"2.0\", \"line\": line},",
+            "+            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 3000, \"amount_due_cents\": 27000},",
+            "+        )",
+            "+",
+            "+    def test_quote_release_2_rounds_credit_down(self):",
+            "+        line = dict(LINE, charge_cents=15)",
+            "+        self.check_request(",
+            "+            {\"command\": \"quote\", \"release\": \"2.0\", \"line\": line},",
+            "+            {\"release\": \"2.0\", \"line_id\": \"L-1\", \"credit_cents\": 2, \"amount_due_cents\": 13},",
+            "+        )",
+            "+",
+            "     def test_quote_unsupported_release(self):",
+            "         self.check_request(",
+            "             {\"command\": \"quote\", \"release\": \"9.9\", \"line\": dict(LINE)},"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_8fc8ef2bb5914f69a7e9d17b",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-07T19:58:13.193Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\n\nRELEASE_1_0 = \"1.0\"\nRELEASE_2_0 = \"2.0\"\nCURRENT_RELEASE = RELEASE_2_0\nCAP_CENTS_1_0 = 2400\nCAP_CENTS_2_0 = 3000\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Yield (line_id, credit_cents) for a statement's complete charge set.\n\n    Release 1.0: each line's uncapped credit is 10% of its charge rounded\n    down; the 2400-cent cap is shared by all lines of one account_id, assigned\n    in order of earliest service_on, then increasing line_id.\n    \"\"\"\n    remaining = {}\n    for line in sorted(lines, key=lambda line: (line[\"service_on\"], line[\"line_id\"])):\n        left = remaining.setdefault(line[\"account_id\"], CAP_CENTS_1_0)\n        credit = min(line[\"charge_cents\"] // 10, left)\n        remaining[line[\"account_id\"]] = left - credit\n        yield line[\"line_id\"], credit\n\n\ndef assign_credits_2_0(lines):\n    \"\"\"Yield (line_id, credit_cents) for a statement's complete charge set.\n\n    Release 2.0: each line's uncapped credit is 15% of its charge rounded\n    down; the 3000-cent cap is shared by all lines of one (account_id,\n    subscription_id) pair, assigned largest charge_cents first, ties by\n    increasing line_id.\n    \"\"\"\n    remaining = {}\n    for line in sorted(lines, key=lambda line: (-line[\"charge_cents\"], line[\"line_id\"])):\n        group = (line[\"account_id\"], line[\"subscription_id\"])\n        left = remaining.setdefault(group, CAP_CENTS_2_0)\n        credit = min(line[\"charge_cents\"] * 15 // 100, left)\n        remaining[group] = left - credit\n        yield line[\"line_id\"], credit\n\n\ndef assign_credits(release, lines):\n    if release == RELEASE_1_0:\n        return assign_credits_1_0(lines)\n    return assign_credits_2_0(lines)\n\n\ndef quote(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    credits = dict(assign_credits(release, [request[\"line\"]]))\n    line_id = request[\"line\"][\"line_id\"]\n    credit = credits[line_id]\n    charge = request[\"line\"][\"charge_cents\"]\n    return {\n        \"release\": release,\n        \"line_id\": line_id,\n        \"credit_cents\": credit,\n        \"amount_due_cents\": charge - credit,\n    }\n\n\ndef total(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    credit_cents = sum(credit for _, credit in assign_credits(release, request[\"lines\"]))\n    charge_cents = sum(line[\"charge_cents\"] for line in request[\"lines\"])\n    return {\n        \"release\": release,\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": charge_cents - credit_cents,\n    }\n\n\ndef statement(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    credits = dict(assign_credits(release, request[\"lines\"]))\n    response_lines = [\n        {\n            \"line_id\": line[\"line_id\"],\n            \"credit_cents\": credits[line[\"line_id\"]],\n            \"amount_due_cents\": line[\"charge_cents\"] - credits[line[\"line_id\"]],\n        }\n        for line in request[\"lines\"]\n    ]\n    credit_cents = sum(line[\"credit_cents\"] for line in response_lines)\n    charge_cents = sum(line[\"charge_cents\"] for line in request[\"lines\"])\n    return {\n        \"release\": release,\n        \"lines\": response_lines,\n        \"credit_cents\": credit_cents,\n        \"amount_due_cents\": charge_cents - credit_cents,\n    }\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        return quote(request)\n    if request.get(\"command\") == \"total\":\n        return total(request)\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-j4xpwx0o/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 102,
+          "oldLines": 6,
+          "newStart": 102,
+          "newLines": 8,
+          "lines": [
+            "         return quote(request)",
+            "     if request.get(\"command\") == \"total\":",
+            "         return total(request)",
+            "+    if request.get(\"command\") == \"statement\":",
+            "+        return statement(request)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_d6fd6660a2ef415ab02361d8",
+  "toolName": "Edit",
+  "version": 1
+}

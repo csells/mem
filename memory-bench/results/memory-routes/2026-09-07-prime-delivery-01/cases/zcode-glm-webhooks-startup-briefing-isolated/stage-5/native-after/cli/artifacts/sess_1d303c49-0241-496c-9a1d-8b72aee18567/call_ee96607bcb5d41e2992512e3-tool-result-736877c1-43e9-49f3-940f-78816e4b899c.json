@@ -1,0 +1,37 @@
+{
+  "createdAt": "2026-09-08T00:41:37.064Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"2\"\nSUPPORTED_PROTOCOLS = (\"1\", \"2\")\n\ndef parse_occurred_at(text):\n    if text[-1] in \"Zz\":\n        text = text[:-1] + \"+00:00\"\n    return datetime.fromisoformat(text)\n\ndef select_representatives(q, protocol):\n    \"\"\"Return the accepted representative receipts per delivery identity,\n    unchanged and in original input order, plus the total receipt count.\"\"\"\n    receipts = q.get(\"receipts\", [])\n    best = {}\n    for index, r in enumerate(receipts):\n        if protocol == \"1\":\n            # Protocol 1: (account_id, delivery_id) identifies a delivery; the\n            # earliest occurred_at UTC instant wins, ties by smallest record_id.\n            identity = (r[\"account_id\"], r[\"delivery_id\"])\n            rank = (parse_occurred_at(r[\"occurred_at\"]), r[\"record_id\"])\n        else:\n            # Protocol 2: delivery_id alone identifies a delivery across all\n            # accounts; the latest UTC instant wins, ties by smallest record_id.\n            # The instant is negated so the smallest rank still wins; epoch\n            # seconds at second precision are exact as floats.\n            identity = r[\"delivery_id\"]\n            rank = (-parse_occurred_at(r[\"occurred_at\"]).timestamp(), r[\"record_id\"])\n        if identity not in best or rank < best[identity][0]:\n            best[identity] = (rank, index, r)\n    # A later receipt can replace an earlier winner for an identity, so restore\n    # original input order by index rather than insertion order.\n    winners = sorted(best.values(), key=lambda entry: entry[1])\n    return [entry[2] for entry in winners], len(receipts)\n\ndef protocol_counts(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    representatives, total = select_representatives(q, protocol)\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(representatives),\n        \"duplicate_count\": total - len(representatives),\n    }\n\ndef accepted_receipts(q):\n    # The accepted command serves only the current provider protocol; older\n    # protocol versions remain available through count and summary.\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol != CURRENT_PROTOCOL:\n        return {\"error\": \"unsupported_protocol\"}\n    representatives, total = select_representatives(q, protocol)\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(representatives),\n        \"duplicate_count\": total - len(representatives),\n        \"receipts\": representatives,\n    }\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if q.get(\"command\") in (\"count\", \"summary\"):\n        return protocol_counts(q)\n    if q.get(\"command\") == \"accepted\":\n        return accepted_receipts(q)\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-ncmacz04/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 48,
+          "oldLines": 10,
+          "newStart": 48,
+          "newLines": 10,
+          "lines": [
+            "     }",
+            " ",
+            " def accepted_receipts(q):",
+            "-    # The accepted command serves only the current provider protocol; older",
+            "-    # protocol versions remain available through count and summary.",
+            "+    # An integration partner exports protocol 1 batches, so accepted serves",
+            "+    # every supported protocol; omitted protocol still selects the current one.",
+            "     protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "-    if protocol != CURRENT_PROTOCOL:",
+            "+    if protocol not in SUPPORTED_PROTOCOLS:",
+            "         return {\"error\": \"unsupported_protocol\"}",
+            "     representatives, total = select_representatives(q, protocol)",
+            "     return {"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_ee96607bcb5d41e2992512e3",
+  "toolName": "Edit",
+  "version": 1
+}

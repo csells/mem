@@ -1,0 +1,83 @@
+{
+  "schema": "finance-phase1-final-prose-supplement.v1",
+  "scope": "Additional review of final type=result.response fields from four GLM sessions; append-only supplement, no rescoring frozen required facts or artifacts.",
+  "reviewer": "billing_tasks; corpus author unblinded",
+  "transport_note": "GLM final prose resides in result.response, not Claude assistant-message shape. Prior primary audit reviewed memory and tool evidence; this supplement makes final prose coverage explicit.",
+  "assessments": [
+    {
+      "slot": "zcode-glm-finance-generic-isolated-1",
+      "evidence": "results/memory-routes/2026-09-07-policy-handoff-01/cases/zcode-glm-finance-generic-isolated/stage-1",
+      "final_result_fields": [
+        {
+          "line": 3578,
+          "response": "trial-w49 is complete and closed. The `quote` command is implemented in `main.py` and verified against the public suite and the repo's smoke tests, with the existing `ping` and unknown-command responses unchanged.\n\nWhat I did:\n\n- **`main.py`** \u2014 added a `quote` handler that treats the supplied line as the entire statement under release 1.0: credit is 10% of `charge_cents` rounded down to integer cents, capped at 2400 cents for the line's account group, and `amount_due_cents` is the charge minus that credit. The response contains exactly `release`, `line_id`, `credit_cents`, and `amount_due_cents`, with an omitted release defaulting to (and reported as) `\"1.0\"`. The cap/priority logic lives in an `assign_credits` function that already implements the documented multi-line agreement (per-account cap, earliest `service_on` first, then increasing `line_id`), so later multi-line issues can reuse it.\n- **`tests/test_smoke.py`** \u2014 kept the existing ping/unknown tests and added three quote cases: the issue's example (19999 \u2192 1999 credit, 18000 due), a cap case (50000 \u2192 2400 credit, 47600 due), and a zero-charge case.\n\nVerification: `python3 -m unittest discover -s tests` passes all 5 tests, and `python3 test_public.py --cases public_tests/release_1_quote.json` passes its single case. One caveat worth knowing: running `python3 tests/test_smoke.py` directly is a silent no-op (the file has no `unittest.main()` block), so the unittest invocation above is the correct one \u2014 I saved that as a Beads memory (`meridian-credits/test-invocation`) for later issues."
+        }
+      ],
+      "sha256": {
+        "stream.jsonl": "0f93182033c05ab26ec79dba2b1b863525dcfb9e285a932fc8ee7416ba5f3707",
+        "tool-calls.json": "9697dbc4584f7f851edd2f213782a2288fc2c4d2f7a61331170d6fcac3b4b556",
+        "memory-after.json": "cf9bed3a49f1fdf5cafb1ec0d77abe114ad8e631f59ce0140f2c666d7061bd3b",
+        "workspace-after/tests/test_smoke.py": "64f6f2aef580ca70e880e348ccc4d4c330db038fcb4a832fc2d752b411d2432f"
+      },
+      "frozen_core_policy_fact_scores_changed": false,
+      "adjudication": "Final prose accurately reports the five observed tests and distinct useful test-invocation capture. General allocator in code is real; no claim of policy note creation."
+    },
+    {
+      "slot": "zcode-glm-finance-generic-isolated-2",
+      "evidence": "results/memory-routes/2026-09-07-policy-handoff-01/cases/zcode-glm-finance-generic-isolated/stage-2",
+      "final_result_fields": [
+        {
+          "line": 3993,
+          "response": "Done \u2014 issue trial-3ss is implemented, verified, and closed.\n\n**What was added:** a `total` command in `main.py:38` that takes `{\"command\":\"total\",\"lines\":[...]}` (with optional `release`) and returns exactly `release`, `credit_cents`, and `amount_due_cents`. It reuses the existing `assign_credits` helper, so the whole statement is quoted under the release 1.0 agreement: 10% of each charge rounded down, with the 2400-cent cap shared across all lines of the same account (assigned earliest `service_on`, then `line_id`) \u2014 not a sum of independent single-line quotes. `quote`, `ping`, and the unknown-command response are unchanged.\n\n**Verification:** all 11 smoke tests pass (`python3 -m unittest discover -s tests`), including new tests for the empty statement, the issue's two worked examples, the cap spanning subscriptions of one account, the cap being per-account, and line_id tie-breaking. Both public suites pass: `release_1_quote.json` and `release_1_total.json`.\n\nThe changes are uncommitted alongside the prior issue's `quote` work, matching the repo's current state \u2014 say the word if you'd like them committed. No new project memory was saved, since the agreement is already fully captured in the issue text and code."
+        }
+      ],
+      "sha256": {
+        "stream.jsonl": "a7b33dbb82dfff224eaf6ba3e676a27a37d901f1d150a0a13fa96604075cef0d",
+        "tool-calls.json": "e1920f1f8654a04a8bcd7010e3d8b95ffaee650a49d8ee43e0b01dcd345b1791",
+        "memory-after.json": "cf9bed3a49f1fdf5cafb1ec0d77abe114ad8e631f59ce0140f2c666d7061bd3b",
+        "workspace-after/tests/test_smoke.py": "7244f60a4474a4ac66912be0e44fd0e14a9d020371664c53ad02af8b78ec18fa"
+      },
+      "frozen_core_policy_fact_scores_changed": false,
+      "adjudication": "Final says tests include line_id tie-breaking. workspace-after/tests/test_smoke.py:142 test only asserts credit2400 and due22100. Reverse/absent tie sorting would give identical aggregate. Fair reading: exercises code path, not establishes ordering. No policy note exists; final accurately cites issue/code as alternate preservation."
+    },
+    {
+      "slot": "zcode-glm-finance-occasions-isolated-1",
+      "evidence": "results/memory-routes/2026-09-07-policy-handoff-01/cases/zcode-glm-finance-occasions-isolated/stage-1",
+      "final_result_fields": [
+        {
+          "line": 5574,
+          "response": "Issue **trial-ujx** is implemented, verified, and closed.\n\n**What was built** \u2014 `main.py` now handles `{\"command\":\"quote\",\"line\":LINE}` with or without `\"release\":\"1.0\"`, returning exactly `release`, `line_id`, `credit_cents`, and `amount_due_cents`. The release-1.0 agreement is encoded in a general function `assign_credits_1_0` (main.py:12): each line's uncapped credit is `charge_cents // 10`, a 2400-cent cap is shared per `account_id` across its subscriptions, and within a cap group credit is assigned earliest `service_on` first with ties broken by increasing `line_id`. The single-line quote runs the supplied line through that logic as the entire statement, so the cap correctly applies (e.g. a 30000-cent charge gets 2400, not 3000). An omitted release selects the current agreement (1.0 for now); an explicit unsupported release returns `{\"error\":\"unsupported_release\"}`. The existing `ping` and unknown-command responses are unchanged.\n\n**Verification** \u2014 all 8 unit tests pass (`python3 -m unittest discover -s tests`, including 6 new cases in `tests/test_quote.py` covering rounding, the cap at and above 2400 cents, zero charge, and both release forms), the supplied public suite passes (`python3 test_public.py --cases public_tests/release_1_quote.json`), and the issue's example request produces exactly the specified response: `{\"release\": \"1.0\", \"line_id\": \"L-1\", \"credit_cents\": 1999, \"amount_due_cents\": 18000}`.\n\n**Knowledge preserved** \u2014 since this issue records the finance-approved release 1.0 agreement that future multi-line issues will build on, I saved it to Beads memory under `meridian-credits/release-1.0-agreement` (verified by readback) and cited it in the issue's close reason."
+        }
+      ],
+      "sha256": {
+        "stream.jsonl": "d13e583d693550a509f6d3ffba7b476e911818346581884c65db4b725067a80c",
+        "tool-calls.json": "fba3505be8af3d90f07dbbd5735dc088f36761a3334808cb94de45990e403fd6",
+        "memory-after.json": "8a95f75f02501cddb72305a19adf1ceb4b120759050158b40157d3fec1e7687e",
+        "workspace-after/tests/test_quote.py": "a844c73e421489c751095c43750d022ee8365013a54726753b0177f4c9ce4ead",
+        "workspace-after/tests/test_smoke.py": "62463a928d7329cb0489c6a57830b607956c31e461f684b80d04e57eff09b994"
+      },
+      "frozen_core_policy_fact_scores_changed": false,
+      "adjudication": "Final eight-test/public claims match observed output and named scalar cases. The general-implementation paragraph in the memory followed by Verified by quote tests is broad; these tests do not establish multi-line scope/priority. No fabricated test/file/source. Final readback-verified statement means only partial confirmation: recall was piped to head-8, not a full body delivered to model."
+    },
+    {
+      "slot": "zcode-glm-finance-occasions-isolated-2",
+      "evidence": "results/memory-routes/2026-09-07-policy-handoff-01/cases/zcode-glm-finance-occasions-isolated/stage-2",
+      "final_result_fields": [
+        {
+          "line": 5027,
+          "response": "Done \u2014 `trial-9m0` is implemented, verified, and closed.\n\n**What changed**\n- `main.py:35` adds `total_1_0`, which runs the existing `assign_credits_1_0` over the request's complete `lines` list and returns exactly `release`, `credit_cents` (sum of assigned credits), and `amount_due_cents` (total charges minus total credit). A `total` dispatch branch was added to `handle`, with the same optional-`release` and `unsupported_release` handling as `quote`; ping, quote, and unknown-command responses are untouched.\n- The key design point from the issue \u2014 a total is *not* a collection of independent single-line quotes \u2014 falls out of reusing `assign_credits_1_0`: the 2400-cent cap is shared per `account_id` across all its subscriptions in the statement, with priority by earliest `service_on` then `line_id`.\n- `tests/test_total.py` covers the empty statement (explicit and omitted release), the quote-example line (1999 / 18000), the cap shared across subscriptions of one account, priority ordering, independent caps per account, per-line floor rounding before summing, and unsupported release.\n\n**Verification**: `python3 -m unittest discover -s tests` \u2014 16 tests OK; `python3 test_public.py --cases public_tests/release_1_total.json` \u2014 both cases PASS; the pre-existing `release_1_quote.json` suite still passes.\n\n**Workflow**: the existing memory `meridian-credits/release-1.0-agreement` already documented the total formula, so no new record was needed \u2014 I carried the new `total_1_0` consumer and its verification into that record's implementation note (readback verified), and closed the issue with that context."
+        }
+      ],
+      "sha256": {
+        "stream.jsonl": "48fb767d2e7517a8d4cdb3b59712012cefb98a6fa5aa26a7a54c719f1e84ab5b",
+        "tool-calls.json": "0acbeb978a7778d4e35d407f93278da923acd8a5277d50f7e5291c894989e196",
+        "memory-after.json": "e6cfd85a3d0d4e28a9fadf4890520fc76e53033d51a14522d9b5e3c75ebd8d4e",
+        "workspace-after/tests/test_quote.py": "a844c73e421489c751095c43750d022ee8365013a54726753b0177f4c9ce4ead",
+        "workspace-after/tests/test_smoke.py": "62463a928d7329cb0489c6a57830b607956c31e461f684b80d04e57eff09b994",
+        "workspace-after/tests/test_total.py": "8f8b2bcbb34e0ce498dae88e2d53f76527799f8ddd7bea087c81f3260f8eed95"
+      },
+      "frozen_core_policy_fact_scores_changed": false,
+      "adjudication": "Final says tests/test_total.py covers priority ordering; test at line52 computes aggregate total2400 and due58600. The internal credit split in comments is not asserted. Treat as qualified coverage overstatement, not invented execution. Same-key record names actual passing suites but cannot establish line priority. Updated readback tail-4 delivered only release/implementation paragraphs; initial prior-body recall was complete and pre-edit, so retrieval success remains supported."
+    }
+  ]
+}

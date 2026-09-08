@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-08T00:16:36.938Z",
+  "files": [
+    {
+      "afterContent": "Meridian Credits release 1.0 credit agreement (approved by Finance; source: issue trial-2eq, 2026-09-08). Scope: all quote commands of the Meridian Credits CLI at release \"1.0\"; release 1.0 remains supported after later releases are introduced. An omitted release selects the current agreement; an explicit supported release selects that version.\n\nRules: each charge line's uncapped credit is 10% of charge_cents, rounded down separately to integer cents. A 2400-cent credit cap is shared by all lines with the same account_id, across its subscriptions; distinct account_id groups have independent caps. Within each cap group, credit is assigned by priority: earliest service_on first; equal service dates use increasing line_id (Unicode code-point order). Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit or zero. Total credit = sum of assigned line credits. A line's amount due = charge_cents minus its assigned credit; total due = total charges minus total credit.\n\nData model: a charge line has exactly line_id, account_id, subscription_id, service_on (valid Gregorian YYYY-MM-DD, 2020-01-01 through 2099-12-31), charge_cents (nonnegative integer US cents). line_id is unique within a request; a subscription is the pair (account_id, subscription_id); a subscription may have several lines. Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set; line collections may be empty. Malformed input is out of scope across these issues.\n\nImplementation: main.py assigned_credit_cents_1_0 implements the full per-account cap assignment (sorted by (service_on, line_id)); quote_1_0 applies it to a single line, responding with exactly release, line_id, credit_cents, amount_due_cents (release always reported \"1.0\"). Verified: public_tests/release_1_quote.json via test_public.py PASS, plus tests/test_quote.py (example, omitted release, round-down, 2400 cap, zero charge, exact response keys). Multi-line assignment follows the same agreed algorithm but only single-line quoting is exercised by tests so far.\n\nInference, not part of the Finance agreement: an explicit release value other than a supported one returns {\"error\":\"unsupported_release\"} (only \"1.0\" supported today); this choice may be revised by a later issue.\n",
+      "afterContentLength": 2349,
+      "beforeContent": null,
+      "existedBefore": false,
+      "path": "/private/tmp/ordinary-work-swvkyhed/work/.beads/memory_record_tmp.txt",
+      "structuredPatch": []
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_43f70a07910841a7bb446c20",
+  "toolName": "Write",
+  "version": 1
+}

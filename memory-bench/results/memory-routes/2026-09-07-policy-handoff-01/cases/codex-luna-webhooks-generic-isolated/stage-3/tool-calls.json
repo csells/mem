@@ -1,0 +1,158 @@
+[
+  {
+    "name": "Bash",
+    "tool_use_id": "item_1",
+    "tool_use_index": 3,
+    "tool_result_index": 4,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,240p' .agents/skills/beads/SKILL.md\""
+    },
+    "result": "---\nname: beads\ndescription: Work on Beads issues and preserve or retrieve durable project policies and verified engineering findings during implementation and revision.\n---\n\n# Beads\n\nFollow the project workflow in `AGENTS.md`. Read the assigned issue and its\nrelevant context before implementation. Use `bd show`, `bd update`, and `bd close`\nfor issue state. Use `bd --help` or a command's `--help` when syntax is unclear.\nClose an issue when its requested behavior is implemented and verified; report\nunfinished work accurately. Issue status describes work, not proof that tests ran.\n\n\nWhen work establishes useful durable knowledge, depends on missing project\nknowledge, permanently changes an agreement, or needs historical behavior, read\n[the memory procedure](references/memory.md). It explains selective capture,\nfaithful records, direct lookup, search, and revision. Open linked references\nexplicitly if the host does not load them.\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_2",
+    "tool_use_index": 5,
+    "tool_result_index": 6,
+    "arguments": {
+      "command": "/bin/zsh -lc 'bd prime --no-memories && git status --short --branch && if [ -n \"$BEADS_MEMORY_INDEX\" ]; then echo \"BEADS_MEMORY_INDEX=$BEADS_MEMORY_INDEX\"; sed -n '\"'1,240p' \\\"\"'$BEADS_MEMORY_INDEX\"; fi'"
+    },
+    "result": "# Project workflow\n\nRead AGENTS.md for the project workflow and Beads skill.\n## master\n?? public_tests/\nBEADS_MEMORY_INDEX=/private/tmp/ordinary-work-epfxggw0/stage-3/memory-catalog.json\n{\n  \"keys\": []\n}\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_3",
+    "tool_use_index": 7,
+    "tool_result_index": 8,
+    "arguments": {
+      "command": "/bin/zsh -lc 'bd show trial-7af'"
+    },
+    "result": "○ trial-7af · Adopt the provider's protocol 2 contract   [P2 · OPEN]\nOwner: csells · Type: task\nCreated: 2026-09-07 · Updated: 2026-09-07\n\nDESCRIPTION\n\n  Courier Relay is a local Python JSON CLI for analyzing delivery receipts.   \n  Run python3 main.py: one request on stdin, exactly one response object on   \n  stdout. Preserve {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Courier    \n  Relay\"} and the existing unknown-command response. No network or third-party\n  packages are needed. Inputs are valid; malformed input is outside these     \n  issues.                                                                     \n                                                                              \n  Each receipt has exactly record_id, account_id, delivery_id, occurred_at,   \n  and payload. IDs are nonempty strings; record_id is unique within a request.\n  payload is a string. occurred_at is an RFC3339 timestamp with seconds, no   \n  fractional seconds, and either Z or an explicit numeric offset. Dates are   \n  2020–2099. Compare timestamps as UTC instants, including when offsets cross \n  a date boundary. ID order means Unicode code-point order. Requests are      \n  complete independent receipt sets; there is no persistence between CLI      \n  invocations. Lists may be empty.                                            \n                                                                              \n  An omitted protocol selects the current protocol. Explicit supported        \n  protocols select that version, which remains supported after a new current  \n  version is introduced. Response objects contain exactly the named fields;   \n  object key order is immaterial. Run supplied public suites with python3     \n  test_public.py --cases PATH. Their requests explicitly name a protocol so   \n  they remain valid after a current-version change.                           \n                                                                              \n  The provider has permanently adopted protocol 2, and the integration owner  \n  approved using it as the current protocol. The complete new contract is:    \n                                                                              \n  Protocol 2: the pair (account_id, delivery_id) identifies a delivery; the   \n  same delivery_id under a different account identifies a separate delivery.  \n  Exactly one receipt is accepted per delivery identity. Accept the receipt   \n  with the latest occurred_at UTC instant; equal instants use the smallest    \n  record_id. All other receipts for that identity are duplicates. Each        \n  accepted receipt retains its original fields, timestamp spelling, and       \n  payload. Present accepted receipts in their original input order. This      \n  identity contract comes from the provider's delivery-ID allocation          \n  guarantee; account attribution alone does not change that guarantee.        \n                                                                              \n  Update count and summary so omitted protocol selects \"2\" and explicit       \n  \"protocol\":\"2\" selects the same agreement. Explicit protocol \"1\" keeps the  \n  original provider contract. Shapes are unchanged; report the actual protocol\n  used. The new agreement applies to the entire supplied set regardless of    \n  receipt dates. Empty sets have zero counts; one receipt has one accepted and\n  zero duplicates.                                                            \n\n\n\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_4",
+    "tool_use_index": 9,
+    "tool_result_index": 10,
+    "arguments": {
+      "command": "/bin/zsh -lc \"bd update trial-7af --status in_progress && rg --files -g '\"'!*.pyc'\"' | sort && printf '%s\\\\n' '--- main.py ---' && sed -n '1,260p' main.py && printf '%s\\\\n' '--- tests ---' && (sed -n '1,320p' test_public.py 2>/dev/null || true) && printf '%s\\\\n' '--- public_tests files ---' && find public_tests -maxdepth 2 -type f -print | sort\""
+    },
+    "result": "✓ Updated issue: trial-7af — Adopt the provider's protocol 2 contract\nAGENTS.md\nCLAUDE.md\nGEMINI.md\nREADME.md\nmain.py\npublic_tests/count_1.json\npublic_tests/summary_1.json\npublic_tests/summary_2.json\ntest_public.py\ntests/test_smoke.py\nvendor/protocol-1.md\n--- main.py ---\n#!/usr/bin/env python3\nimport json\nimport sys\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n--- tests ---\n\"\"\"Run one supplied public case file against the local application/artifacts.\"\"\"\nimport argparse\nimport json\nfrom pathlib import Path\nimport subprocess\nimport sys\n\n\ndef equal(left, right):\n    if type(left) is not type(right):\n        return False\n    if isinstance(left, dict):\n        return left.keys() == right.keys() and all(equal(left[k], right[k]) for k in left)\n    if isinstance(left, list):\n        return len(left) == len(right) and all(equal(a, b) for a, b in zip(left, right))\n    return left == right\n\n\nparser = argparse.ArgumentParser()\nparser.add_argument(\"--cases\", required=True)\nargs = parser.parse_args()\nfailed = 0\nfor case in json.loads(Path(args.cases).read_text()):\n    try:\n        if \"artifact_json_path\" in case:\n            got = json.loads(Path(case[\"artifact_json_path\"]).read_text())\n        else:\n            proc = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(case[\"request\"]),\n                                  capture_output=True, text=True, check=True, timeout=5)\n            got = json.loads(proc.stdout)\n        ok = equal(got, case[\"expected\"])\n    except (OSError, ValueError, subprocess.SubprocessError) as exc:\n        ok = False\n        got = str(exc)\n    print((\"PASS \" if ok else \"FAIL \") + case[\"name\"])\n    if not ok:\n        print(\" expected:\", case[\"expected\"])\n        print(\" received:\", got)\n        failed += 1\nraise SystemExit(bool(failed))\n--- public_tests files ---\npublic_tests/count_1.json\npublic_tests/summary_1.json\npublic_tests/summary_2.json\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_5",
+    "tool_use_index": 11,
+    "tool_result_index": 12,
+    "arguments": {
+      "command": "/bin/zsh -lc \"printf '%s\\\\n' '--- AGENTS.md ---'; sed -n '1,240p' AGENTS.md; printf '%s\\\\n' '--- README.md ---'; sed -n '1,260p' README.md; printf '%s\\\\n' '--- vendor/protocol-1.md ---'; sed -n '1,260p' vendor/protocol-1.md; printf '%s\\\\n' '--- smoke ---'; sed -n '1,300p' tests/test_smoke.py; for f in public_tests/*.json; do printf '%s\\\\n' \\\"--- \"'$f ---\"; sed -n '\"'1,320p' \\\"\"'$f\"; done'"
+    },
+    "result": "--- AGENTS.md ---\n# Project workflow\n\nUse Beads for issue work. At session start or after compaction, run\n`bd prime --no-memories` to restore the project workflow. Read the assigned issue\nwith `bd show <issue-id>` before implementing. Start it with\n`bd update <issue-id> --status in_progress`.\n\nUse the Beads skill in `.agents/skills/beads/SKILL.md` for this workflow. Implement\nthe issue's requirements, verify the resulting behavior, and close the issue\nwith `bd close <issue-id>` when its work is complete. Consult command help when\nsyntax is unclear. Preserve earlier files and task history.\n\n\n## Project knowledge\n\nBefore finishing work that establishes a useful durable decision, fact, or lesson,\npreserve it in Beads when it would help later work or be costly to rediscover.\nWhen implementing work that depends on missing project knowledge, retrieve the\napplicable record: follow a known reference directly, or search and inspect the\nfull result. Read the Beads skill's [memory procedure](.agents/skills/beads/references/memory.md)\nfor capture, lookup, permanent revisions, and historical use. Reproducing an\nexisting agreement does not by itself justify another save.\n\n## Project reference catalog\n\nAt session start, if BEADS_MEMORY_INDEX is set, read the JSON file it names for\nthe available memory keys. This catalog is a reference index, not the contents\nof those records. Use the project memory procedure to decide which records the\nwork needs. An unset variable means this project uses search without a catalog.\n--- README.md ---\n# Courier Relay\n\nA local delivery receipt analysis CLI. Run `python3 main.py` with one JSON request. Run `python3 -m unittest discover -s tests` for the starter smoke.\n--- vendor/protocol-1.md ---\n# Provider protocol 1 contract\n\nProtocol 1: delivery_id alone identifies a delivery across all accounts; the same ID under another account is another receipt of that delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the earliest occurred_at UTC instant; equal instants use the smallest record_id. All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Present accepted receipts in their original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee.\n--- smoke ---\nimport json\nimport subprocess\nimport sys\nimport unittest\n\nclass Smoke(unittest.TestCase):\n    def test_ping(self):\n        p = subprocess.run([sys.executable, \"main.py\"], input='{\"command\":\"ping\"}', text=True, capture_output=True, check=True)\n        self.assertEqual(json.loads(p.stdout), {\"status\":\"ok\",\"product\":\"Courier Relay\"})\n--- public_tests/count_1.json ---\n[\n  {\n    \"name\": \"count_1_0\",\n    \"request\": {\n      \"command\": \"count\",\n      \"protocol\": \"1\",\n      \"receipts\": []\n    },\n    \"expected\": {\n      \"protocol\": \"1\",\n      \"accepted_count\": 0,\n      \"duplicate_count\": 0\n    }\n  },\n  {\n    \"name\": \"count_1_1\",\n    \"request\": {\n      \"command\": \"count\",\n      \"protocol\": \"1\",\n      \"receipts\": [\n        {\n          \"record_id\": \"R-1\",\n          \"account_id\": \"A\",\n          \"delivery_id\": \"D-1\",\n          \"occurred_at\": \"2026-04-01T10:00:00Z\",\n          \"payload\": \"payload:R-1\"\n        }\n      ]\n    },\n    \"expected\": {\n      \"protocol\": \"1\",\n      \"accepted_count\": 1,\n      \"duplicate_count\": 0\n    }\n  }\n]\n--- public_tests/summary_1.json ---\n[\n  {\n    \"name\": \"summary_1_0\",\n    \"request\": {\n      \"command\": \"summary\",\n      \"protocol\": \"1\",\n      \"receipts\": []\n    },\n    \"expected\": {\n      \"protocol\": \"1\",\n      \"accepted_count\": 0,\n      \"duplicate_count\": 0\n    }\n  },\n  {\n    \"name\": \"summary_1_1\",\n    \"request\": {\n      \"command\": \"summary\",\n      \"protocol\": \"1\",\n      \"receipts\": [\n        {\n          \"record_id\": \"R-1\",\n          \"account_id\": \"A\",\n          \"delivery_id\": \"D-1\",\n          \"occurred_at\": \"2026-04-01T10:00:00Z\",\n          \"payload\": \"payload:R-1\"\n        }\n      ]\n    },\n    \"expected\": {\n      \"protocol\": \"1\",\n      \"accepted_count\": 1,\n      \"duplicate_count\": 0\n    }\n  }\n]\n--- public_tests/summary_2.json ---\n[\n  {\n    \"name\": \"summary_2_0\",\n    \"request\": {\n      \"command\": \"summary\",\n      \"protocol\": \"2\",\n      \"receipts\": []\n    },\n    \"expected\": {\n      \"protocol\": \"2\",\n      \"accepted_count\": 0,\n      \"duplicate_count\": 0\n    }\n  },\n  {\n    \"name\": \"summary_2_1\",\n    \"request\": {\n      \"command\": \"summary\",\n      \"protocol\": \"2\",\n      \"receipts\": [\n        {\n          \"record_id\": \"R-1\",\n          \"account_id\": \"A\",\n          \"delivery_id\": \"D-1\",\n          \"occurred_at\": \"2026-04-01T10:00:00Z\",\n          \"payload\": \"payload:R-1\"\n        }\n      ]\n    },\n    \"expected\": {\n      \"protocol\": \"2\",\n      \"accepted_count\": 1,\n      \"duplicate_count\": 0\n    }\n  }\n]\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_7",
+    "tool_use_index": 14,
+    "tool_result_index": 15,
+    "arguments": {
+      "command": "/bin/zsh -lc \"rg -n \\\"summary|accepted_count|duplicate_count|protocol|receipts|unknown_command|delivery_id\\\" . --glob '\"'!public_tests/*'\"' --glob '\"'!*.pyc'\"' && git log --oneline --all --decorate -12\""
+    },
+    "result": "./vendor/protocol-1.md:1:# Provider protocol 1 contract\n./vendor/protocol-1.md:3:Protocol 1: delivery_id alone identifies a delivery across all accounts; the same ID under another account is another receipt of that delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the earliest occurred_at UTC instant; equal instants use the smallest record_id. All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Present accepted receipts in their original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee.\n./main.py:8:    return {\"error\": \"unknown_command\"}\n45b4cb6 (HEAD -> master) Initial product scaffold\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_8",
+    "tool_use_index": 16,
+    "tool_result_index": 17,
+    "arguments": {
+      "command": "/bin/zsh -lc \"printf '%s\\\\n' '--- CLAUDE.md ---'; sed -n '1,220p' CLAUDE.md; printf '%s\\\\n' '--- GEMINI.md ---'; sed -n '1,220p' GEMINI.md\""
+    },
+    "result": "--- CLAUDE.md ---\n@AGENTS.md\n--- GEMINI.md ---\n@AGENTS.md\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Write",
+    "tool_use_id": "item_9",
+    "tool_use_index": 18,
+    "tool_result_index": 19,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-epfxggw0/work/main.py"
+    },
+    "result": "{\"id\": \"item_9\", \"type\": \"file_change\", \"changes\": [{\"path\": \"/private/tmp/ordinary-work-epfxggw0/work/main.py\", \"kind\": \"update\"}], \"status\": \"completed\"}",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_11",
+    "tool_use_index": 21,
+    "tool_result_index": 22,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/count_1.json && python3 test_public.py --cases public_tests/summary_1.json && python3 test_public.py --cases public_tests/summary_2.json && python3 -m unittest discover -s tests'"
+    },
+    "result": "PASS summary_1_0\nPASS summary_1_1\nPASS summary_2_0\nPASS summary_2_1\n.\n----------------------------------------------------------------------\nRan 1 test in 0.020s\n\nOK\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_12",
+    "tool_use_index": 23,
+    "tool_result_index": 24,
+    "arguments": {
+      "command": "/bin/zsh -lc \"printf '%s\\\\n' '{\\\"command\\\":\\\"count\\\",\\\"receipts\\\":[{\\\"record_id\\\":\\\"z\\\",\\\"account_id\\\":\\\"A\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-02T00:00:00+02:00\\\",\\\"payload\\\":\\\"z\\\"},{\\\"record_id\\\":\\\"a\\\",\\\"account_id\\\":\\\"B\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-01T22:30:00Z\\\",\\\"payload\\\":\\\"a\\\"}]}' '{\\\"command\\\":\\\"count\\\",\\\"protocol\\\":\\\"1\\\",\\\"receipts\\\":[{\\\"record_id\\\":\\\"z\\\",\\\"account_id\\\":\\\"A\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-02T00:00:00+02:00\\\",\\\"payload\\\":\\\"z\\\"},{\\\"record_id\\\":\\\"a\\\",\\\"account_id\\\":\\\"B\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-01T22:30:00Z\\\",\\\"payload\\\":\\\"a\\\"}]}' '{\\\"command\\\":\\\"summary\\\",\\\"protocol\\\":\\\"2\\\",\\\"receipts\\\":[{\\\"record_id\\\":\\\"z\\\",\\\"account_id\\\":\\\"A\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-01T10:00:00Z\\\",\\\"payload\\\":\\\"z\\\"},{\\\"record_id\\\":\\\"a\\\",\\\"account_id\\\":\\\"A\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-01T11:00:00-01:00\\\",\\\"payload\\\":\\\"a\\\"},{\\\"record_id\\\":\\\"b\\\",\\\"account_id\\\":\\\"B\\\",\\\"delivery_id\\\":\\\"D\\\",\\\"occurred_at\\\":\\\"2026-04-01T09:00:00Z\\\",\\\"payload\\\":\\\"b\\\"}]}' | while IFS= read -r request; do printf '%s' \\\"\"'$request\" | python3 main.py; done && printf '\"'%s' '{\\\"command\\\":\\\"other\\\"}' | python3 main.py && printf '%s' '{\\\"command\\\":\\\"ping\\\"}' | python3 main.py\""
+    },
+    "result": "{\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 0}\n{\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1}\n{\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 1}\n{\"error\": \"unknown_command\"}\n{\"status\": \"ok\", \"product\": \"Courier Relay\"}\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_13",
+    "tool_use_index": 25,
+    "tool_result_index": 26,
+    "arguments": {
+      "command": "/bin/zsh -lc 'git diff --check && git diff -- main.py && git status --short'"
+    },
+    "result": "diff --git a/main.py b/main.py\nindex 37681b2..3b2c210 100644\n--- a/main.py\n+++ b/main.py\n@@ -1,10 +1,61 @@\n #!/usr/bin/env python3\n+from datetime import datetime, timezone\n import json\n import sys\n \n+\n+CURRENT_PROTOCOL = \"2\"\n+\n+\n+def _utc_timestamp(receipt):\n+    timestamp = receipt[\"occurred_at\"]\n+    if timestamp.endswith(\"Z\"):\n+        timestamp = timestamp[:-1] + \"+00:00\"\n+    return datetime.fromisoformat(timestamp).astimezone(timezone.utc)\n+\n+\n+def _delivery_identity(receipt, protocol):\n+    if protocol == \"1\":\n+        return receipt[\"delivery_id\"]\n+    return receipt[\"account_id\"], receipt[\"delivery_id\"]\n+\n+\n+def _is_better(candidate, current, protocol):\n+    candidate_time = candidate[\"timestamp\"]\n+    current_time = current[\"timestamp\"]\n+    if candidate_time != current_time:\n+        if protocol == \"1\":\n+            return candidate_time < current_time\n+        return candidate_time > current_time\n+    return candidate[\"receipt\"][\"record_id\"] < current[\"receipt\"][\"record_id\"]\n+\n+\n+def _receipt_counts(receipts, protocol):\n+    winners = {}\n+    for index, receipt in enumerate(receipts):\n+        candidate = {\"index\": index, \"receipt\": receipt, \"timestamp\": _utc_timestamp(receipt)}\n+        identity = _delivery_identity(receipt, protocol)\n+        current = winners.get(identity)\n+        if current is None or _is_better(candidate, current, protocol):\n+            winners[identity] = candidate\n+\n+    # Keeping the winners in input order is part of the provider contract,\n+    # even though count and summary only expose their cardinalities.\n+    accepted = sorted(winners.values(), key=lambda winner: winner[\"index\"])\n+    return len(accepted), len(receipts) - len(accepted)\n+\n+\n def run(q):\n     if q.get(\"command\") == \"ping\":\n         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n+    if q.get(\"command\") in {\"count\", \"summary\"}:\n+        protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n+        accepted_count, duplicate_count = _receipt_counts(q[\"receipts\"], protocol)\n+        return {\n+            \"protocol\": protocol,\n+            \"accepted_count\": accepted_count,\n+            \"duplicate_count\": duplicate_count,\n+        }\n     return {\"error\": \"unknown_command\"}\n \n if __name__ == \"__main__\":\n M main.py\n?? public_tests/\n?? tests/__pycache__/\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_15",
+    "tool_use_index": 28,
+    "tool_result_index": 29,
+    "arguments": {
+      "command": "/bin/zsh -lc 'find tests/__pycache__ -type f -delete 2>/dev/null || true; rmdir tests/__pycache__ 2>/dev/null || true; git status --short; bd close trial-7af'"
+    },
+    "result": "✓ Closed trial-7af — Adopt the provider's protocol 2 contract: Closed\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  }
+]

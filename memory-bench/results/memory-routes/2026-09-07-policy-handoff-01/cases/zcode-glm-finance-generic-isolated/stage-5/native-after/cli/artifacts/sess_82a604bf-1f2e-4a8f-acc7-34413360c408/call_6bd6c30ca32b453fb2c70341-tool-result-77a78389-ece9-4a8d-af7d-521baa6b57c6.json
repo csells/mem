@@ -1,0 +1,47 @@
+{
+  "createdAt": "2026-09-07T19:02:56.052Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\n\nRELEASE_1_0 = \"1.0\"\nCURRENT_RELEASE = RELEASE_1_0\nCAP_CENTS = 2400\n\n\ndef assign_credits(lines):\n    \"\"\"Yield (line_id, credit_cents) for a statement's complete charge set.\n\n    Release 1.0: each line's uncapped credit is 10% of its charge rounded\n    down; the 2400-cent cap is shared by all lines of one account_id, assigned\n    in order of earliest service_on, then increasing line_id.\n    \"\"\"\n    remaining = {}\n    for line in sorted(lines, key=lambda line: (line[\"service_on\"], line[\"line_id\"])):\n        left = remaining.setdefault(line[\"account_id\"], CAP_CENTS)\n        credit = min(line[\"charge_cents\"] // 10, left)\n        remaining[line[\"account_id\"]] = left - credit\n        yield line[\"line_id\"], credit\n\n\ndef quote(request):\n    release = request.get(\"release\", CURRENT_RELEASE)\n    credits = dict(assign_credits([request[\"line\"]]))\n    line_id = request[\"line\"][\"line_id\"]\n    credit = credits[line_id]\n    charge = request[\"line\"][\"charge_cents\"]\n    return {\n        \"release\": RELEASE_1_0,\n        \"line_id\": line_id,\n        \"credit_cents\": credit,\n        \"amount_due_cents\": charge - credit,\n    }\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        return quote(request)\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-j4xpwx0o/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 38,
+          "oldLines": 11,
+          "newStart": 38,
+          "newLines": 23,
+          "lines": [
+            "     }",
+            " ",
+            " ",
+            "+def total(request):",
+            "+    credit_cents = sum(credit for _, credit in assign_credits(request[\"lines\"]))",
+            "+    charge_cents = sum(line[\"charge_cents\"] for line in request[\"lines\"])",
+            "+    return {",
+            "+        \"release\": RELEASE_1_0,",
+            "+        \"credit_cents\": credit_cents,",
+            "+        \"amount_due_cents\": charge_cents - credit_cents,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "     if request.get(\"command\") == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}",
+            "     if request.get(\"command\") == \"quote\":",
+            "         return quote(request)",
+            "+    if request.get(\"command\") == \"total\":",
+            "+        return total(request)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_6bd6c30ca32b453fb2c70341",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,68 @@
+{
+  "createdAt": "2026-09-08T00:04:27.437Z",
+  "files": [
+    {
+      "afterContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"1\"\n\ndef parse_instant(text):\n    # RFC3339 with Z or an explicit offset; aware datetimes compare as UTC instants.\n    return datetime.fromisoformat(text)\n\ndef protocol1_accepted(receipts):\n    # (account_id, delivery_id) identifies a delivery; the accepted receipt is\n    # the earliest occurred_at instant, ties broken by smallest record_id.\n    winners = {}\n    for receipt in receipts:\n        key = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n        if key not in winners or rank < winners[key][0]:\n            winners[key] = (rank, receipt)\n    won = {receipt[\"record_id\"] for _, receipt in winners.values()}\n    return [receipt for receipt in receipts if receipt[\"record_id\"] in won]\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n        if protocol != \"1\":\n            return {\"error\": \"unsupported_protocol\"}\n        receipts = q.get(\"receipts\", [])\n        accepted_count = len(protocol1_accepted(receipts))\n        return {\n            \"protocol\": protocol,\n            \"accepted_count\": accepted_count,\n            \"duplicate_count\": len(receipts) - accepted_count,\n        }\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "afterContentLength": 1549,
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-pybycfec/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 1,
+          "oldLines": 10,
+          "newStart": 1,
+          "newLines": 41,
+          "lines": [
+            " #!/usr/bin/env python3",
+            " import json",
+            " import sys",
+            "+from datetime import datetime",
+            " ",
+            "+CURRENT_PROTOCOL = \"1\"",
+            "+",
+            "+def parse_instant(text):",
+            "+    # RFC3339 with Z or an explicit offset; aware datetimes compare as UTC instants.",
+            "+    return datetime.fromisoformat(text)",
+            "+",
+            "+def protocol1_accepted(receipts):",
+            "+    # (account_id, delivery_id) identifies a delivery; the accepted receipt is",
+            "+    # the earliest occurred_at instant, ties broken by smallest record_id.",
+            "+    winners = {}",
+            "+    for receipt in receipts:",
+            "+        key = (receipt[\"account_id\"], receipt[\"delivery_id\"])",
+            "+        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])",
+            "+        if key not in winners or rank < winners[key][0]:",
+            "+            winners[key] = (rank, receipt)",
+            "+    won = {receipt[\"record_id\"] for _, receipt in winners.values()}",
+            "+    return [receipt for receipt in receipts if receipt[\"record_id\"] in won]",
+            "+",
+            " def run(q):",
+            "-    if q.get(\"command\") == \"ping\":",
+            "+    command = q.get(\"command\")",
+            "+    if command == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}",
+            "+    if command == \"count\":",
+            "+        protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+        if protocol != \"1\":",
+            "+            return {\"error\": \"unsupported_protocol\"}",
+            "+        receipts = q.get(\"receipts\", [])",
+            "+        accepted_count = len(protocol1_accepted(receipts))",
+            "+        return {",
+            "+            \"protocol\": protocol,",
+            "+            \"accepted_count\": accepted_count,",
+            "+            \"duplicate_count\": len(receipts) - accepted_count,",
+            "+        }",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " if __name__ == \"__main__\":"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_250daaa4ae1e4fd8a0fa07a2",
+  "toolName": "Write",
+  "version": 1
+}

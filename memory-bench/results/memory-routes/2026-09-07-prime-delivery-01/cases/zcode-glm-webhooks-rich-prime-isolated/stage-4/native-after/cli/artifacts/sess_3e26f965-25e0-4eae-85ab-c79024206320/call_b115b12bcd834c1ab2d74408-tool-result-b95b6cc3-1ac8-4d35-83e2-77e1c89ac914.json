@@ -1,0 +1,52 @@
+{
+  "createdAt": "2026-09-08T00:48:43.252Z",
+  "files": [
+    {
+      "beforeContent": "import json\nimport subprocess\nimport sys\nimport unittest\n\ndef relay(request):\n    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                       text=True, capture_output=True, check=True)\n    return json.loads(p.stdout)\n\ndef receipt(record_id, delivery_id, occurred_at=\"2026-04-01T10:00:00Z\", account_id=\"A\"):\n    return {\n        \"record_id\": record_id,\n        \"account_id\": account_id,\n        \"delivery_id\": delivery_id,\n        \"occurred_at\": occurred_at,\n        \"payload\": \"payload:\" + record_id,\n    }\n\nclass Count(unittest.TestCase):\n    def test_empty(self):\n        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": []}),\n                         {\"protocol\": \"1\", \"accepted_count\": 0, \"duplicate_count\": 0})\n\n    def test_single(self):\n        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\",\n                                \"receipts\": [receipt(\"R-1\", \"D-1\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_omitted_protocol_selects_current(self):\n        self.assertEqual(relay({\"command\": \"count\", \"receipts\": [receipt(\"R-1\", \"D-1\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_duplicates_share_delivery_identity(self):\n        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-3\", \"D-2\", \"2026-04-01T10:00:00Z\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 1})\n\n    def test_offsets_crossing_date_boundary_are_same_instant(self):\n        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T23:30:00-05:00\"),\n            receipt(\"R-2\", \"D-1\", \"2026-04-02T04:30:00Z\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 1})\n\n    def test_same_delivery_id_different_accounts(self):\n        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", account_id=\"A\"),\n            receipt(\"R-2\", \"D-1\", account_id=\"B\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 2, \"duplicate_count\": 0})\n\n    def test_unknown_command_preserved(self):\n        self.assertEqual(relay({\"command\": \"bogus\"}), {\"error\": \"unknown_command\"})\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/tests/test_count.py",
+      "structuredPatch": [
+        {
+          "oldStart": 29,
+          "oldLines": 8,
+          "newStart": 29,
+          "newLines": 27,
+          "lines": [
+            " ",
+            "     def test_omitted_protocol_selects_current(self):",
+            "         self.assertEqual(relay({\"command\": \"count\", \"receipts\": [receipt(\"R-1\", \"D-1\")]}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            " ",
+            "+    def test_protocol_2_same_delivery_id_different_accounts_one_delivery(self):",
+            "+        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": [",
+            "+            receipt(\"R-1\", \"D-1\", account_id=\"A\"),",
+            "+            receipt(\"R-2\", \"D-1\", account_id=\"B\"),",
+            "+        ]}), {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            "+",
+            "+    def test_protocol_2_duplicates_within_account(self):",
+            "+        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": [",
+            "+            receipt(\"R-1\", \"D-1\"),",
+            "+            receipt(\"R-2\", \"D-1\", \"2026-04-01T09:00:00Z\"),",
+            "+            receipt(\"R-3\", \"D-2\"),",
+            "+        ]}), {\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 1})",
+            "+",
+            "+    def test_protocol_2_applies_to_entire_set_regardless_of_dates(self):",
+            "+        self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"2\", \"receipts\": [",
+            "+            receipt(\"R-1\", \"D-1\", \"2020-01-01T00:00:00Z\"),",
+            "+            receipt(\"R-2\", \"D-1\", \"2099-12-31T23:59:59Z\"),",
+            "+        ]}), {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 1})",
+            "+",
+            "     def test_duplicates_share_delivery_identity(self):",
+            "         self.assertEqual(relay({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": [",
+            "             receipt(\"R-1\", \"D-1\", \"2026-04-01T10:00:00Z\"),"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_b115b12bcd834c1ab2d74408",
+  "toolName": "Edit",
+  "version": 1
+}

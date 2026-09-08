@@ -1,0 +1,78 @@
+{
+  "slot": "claude-fable-webhooks-generic-isolated-2",
+  "review": "Manual semantic audit of actual bodies, source, tools, and issue history",
+  "metadata": {
+    "profile_id": "claude-fable",
+    "host": "claude",
+    "arm": "generic",
+    "stage": 2,
+    "corpus_family": "webhooks/account-first",
+    "catalog_mode": "indexed",
+    "model_requested": "claude-fable-5-1",
+    "models_observed": [
+      "claude-fable-5-1"
+    ],
+    "session_id": "89f19440-f01d-4265-a75c-a8c7e3464003",
+    "host_success": true,
+    "infrastructure_fault": false,
+    "errors": [],
+    "artifact_passed": true,
+    "artifact_correct": 51,
+    "artifact_total": 51,
+    "task_closed": true
+  },
+  "record_bodies_before": {
+    "courier-relay/protocol-versioning": "Courier Relay protocol versioning (main.py): CURRENT_PROTOCOL=\"1\" and SUPPORTED_PROTOCOLS=(\"1\",). An omitted \"protocol\" in a request selects CURRENT_PROTOCOL; an explicit supported version selects that version and stays supported after a newer current version is introduced. When adding protocol N: add a per-version rule function (protocol 1 is accepted_receipts_v1, contract in vendor/protocol-1.md: identity=(account_id, delivery_id), accept earliest occurred_at UTC instant, ties -> smallest record_id by code point, accepted keep original fields/order), dispatch on version in count(), update CURRENT_PROTOCOL only when N becomes current. Timestamps parsed via parse_instant() (RFC3339, Z or numeric offset, compared as UTC). Public suites name protocols explicitly; run python3 test_public.py --cases public_tests/<file>.json. Source: issue trial-vbm and vendor/protocol-1.md."
+  },
+  "record_bodies_after": {
+    "courier-relay/protocol-versioning": "Courier Relay protocol versioning (main.py): CURRENT_PROTOCOL=\"1\" and SUPPORTED_PROTOCOLS=(\"1\",). An omitted \"protocol\" in a request selects CURRENT_PROTOCOL; an explicit supported version selects that version and stays supported after a newer current version is introduced. Commands count (original single-account use) and summary (cross-account batch, issue trial-dvi) share one body, receipt_counts(), which returns exactly {protocol, accepted_count, duplicate_count} and dispatches on version via accepted_receipts(protocol, receipts); unsupported versions return {\"error\":\"unsupported_protocol\"}. When adding protocol N: add a per-version rule function (protocol 1 is accepted_receipts_v1, contract in vendor/protocol-1.md: identity=(account_id, delivery_id) so the same delivery_id under different accounts is a separate delivery and a batch may mix any number of accounts; accept earliest occurred_at UTC instant, ties -> smallest record_id by code point, accepted keep original fields/order), add its branch in accepted_receipts() so both count and summary pick it up, update CURRENT_PROTOCOL only when N becomes current. Timestamps parsed via parse_instant() (RFC3339, Z or numeric offset, compared as UTC). Public suites name protocols explicitly; run python3 test_public.py --cases public_tests/<file>.json. Source: issues trial-vbm and trial-dvi, vendor/protocol-1.md."
+  },
+  "findings": {
+    "capture": "same_key_engineering_reference_update_preserves_agreement",
+    "required_facts": {
+      "delivery_identity_scope": "faithful",
+      "one_accepted_per_identity": "faithful",
+      "earliest_utc_instant": "faithful",
+      "smallest_record_id_tie": "faithful",
+      "retained_original_fields_timestamp_payload": "faithful",
+      "accepted_input_order": "faithful",
+      "protocol_1_applicability": "faithful"
+    },
+    "prior_record_available": true,
+    "prior_full_body_reads": 1,
+    "capture_verification_full_body_reads": 1,
+    "retrieval_route": "known_catalog_key_direct_full_prior_read_then_updated_readback",
+    "pre_edit_retrieval": true,
+    "timing": {
+      "catalog_key_first_exposure_and_procedure_tool": 2,
+      "full_prior_body_plus_vendor_tool": 3,
+      "first_product_edit_tool": 4,
+      "tests_tool": 5,
+      "update_and_full_readback_tool": 6
+    },
+    "actual_body_delivery": "Entire memory-before body in tool3 result; entire memory-after in tool6 after acknowledgment. Two recalls have distinct functions. Catalog delivered actual key before first recall.",
+    "demonstrated_use": "Memory and vendor both read before edit; future per-version dispatch follows retained convention. Correct scope applied; exclusive memory causality not identifiable because source/vendor also available.",
+    "alternative_sources": "Source diff already encodes pair identity and full contract, vendor delivered with recall.",
+    "record_change": "Updates stale count() dispatch pointer to new shared receipt_counts()/accepted_receipts() helpers and adds summary interface; retains all prior provider facts and explicit historical version support. No new key/duplicate, no policy revision or historical loss.",
+    "provenance": "Actual issues/vendor path accurate, source helper descriptions accurate; unknown_protocol behavior is reported as current implementation, not new approved requirement. Provider allocation rationale not retained.",
+    "verification_claims": "Public4/4, smoke1 and manual crossaccount4/3 plus error outputs supported. Scalar case includes tie/offset but cannot independently verify chosen representatives.",
+    "unsupported_claims": [],
+    "issue_history": "Only current status/close; no description/older-task changes and no memory key in close context.",
+    "artifact": "51/51 frozen pass."
+  },
+  "evidence_sha256": {
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/result.json": "b1b0c786b5779aba45cde08c563281ea7757c8bfc907030cd27e91c9bd252539",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/task.json": "2a44f6e9d48b4f16975d0b5af278d9b85c3e39fe517a7f265e31674ab2a65324",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/tasks-before.json": "8c330bd33092c4b054d841a4b0cc24ed0495305d52304c9fec23a731c083f5d8",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/tasks-after.json": "3b7108524f33d9a75f384028edff7e07753daaec9e7af4f1e7e6f0d7ae437277",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/memory-before.json": "48f8fd39a7a6c87c6021afd85d9272c828ee019232959ab2bcc64c34163abe45",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/memory-after.json": "c3c4ccec5f7eaafc5577b37dadb5de489734d9518fc4987001810f14ab2245fc",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/tool-calls.json": "4967117eb1d6414f9f0b65d515c55b90858bd5ed6db463c6e6ea56c3cff64534",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/stream.jsonl": "934d9bfc5595bbfc38a70b25d26ec8e77d898e4b5cacfe471795ba2de21314ef",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/raw-receipts.json": "5c43d3a60105dae64012f9b251da7bc179fb2956e9fe378ac8a33df3c881e626",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/workspace-before/main.py": "dde6498fdbd021433efffb67b6fd74e66e9f46c1e3b4a8a4fca1ee9a15a84ffd",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/workspace-after/main.py": "227efbbafba36d87edf6d7c150da3b3dc77f2f3784303a607b65a6e28b679555",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/workspace-before/vendor/protocol-1.md": "3f5f59ac3b1d442118fd13ba6926fb7c8b8b097c6ef05e3bb185b6a542c9ba2a",
+    "cases/claude-fable-webhooks-generic-isolated/stage-2/workspace-after/vendor/protocol-1.md": "3f5f59ac3b1d442118fd13ba6926fb7c8b8b097c6ef05e3bb185b6a542c9ba2a"
+  }
+}

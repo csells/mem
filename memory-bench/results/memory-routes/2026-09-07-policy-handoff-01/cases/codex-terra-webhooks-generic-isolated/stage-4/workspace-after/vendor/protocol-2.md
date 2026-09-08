@@ -1,0 +1,8 @@
+# Provider protocol 2 contract
+
+Protocol 2: the pair `(account_id, delivery_id)` identifies a delivery. Exactly
+one receipt is accepted per delivery identity. Accept the receipt with the
+latest `occurred_at` UTC instant; equal instants use the smallest `record_id`.
+All other receipts for that identity are duplicates. Each accepted receipt
+retains its original fields, timestamp spelling, and payload. Present accepted
+receipts in their original input order.

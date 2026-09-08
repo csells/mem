@@ -1,0 +1,72 @@
+{
+  "createdAt": "2026-09-07T21:39:23.457Z",
+  "files": [
+    {
+      "afterContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCAP_CENTS_1_0 = 2400\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Assign each line its release 1.0 credit.\n\n    Uncapped credit is 10% of charge_cents rounded down per line. The\n    2400-cent cap is shared by all lines with the same account_id, assigned\n    earliest service_on first, then increasing line_id.\n    \"\"\"\n    credits = {}\n    remaining = {}\n    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):\n        cap_left = remaining.setdefault(line[\"account_id\"], CAP_CENTS_1_0)\n        credit = min(line[\"charge_cents\"] // 10, cap_left)\n        remaining[line[\"account_id\"]] = cap_left - credit\n        credits[line[\"line_id\"]] = credit\n    return credits\n\n\ndef quote_line_1_0(line):\n    credit = assign_credits_1_0([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\ndef handle(request):\n    command = request.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if command == \"quote\":\n        release = request.get(\"release\", \"1.0\")\n        if release != \"1.0\":\n            return {\"error\": \"unsupported_release\"}\n        return quote_line_1_0(request[\"line\"])\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "afterContentLength": 1527,
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-nqrp9me3/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 3,
+          "oldLines": 10,
+          "newStart": 3,
+          "newLines": 45,
+          "lines": [
+            " import json",
+            " import sys",
+            " ",
+            "+CAP_CENTS_1_0 = 2400",
+            " ",
+            "+",
+            "+def assign_credits_1_0(lines):",
+            "+    \"\"\"Assign each line its release 1.0 credit.",
+            "+",
+            "+    Uncapped credit is 10% of charge_cents rounded down per line. The",
+            "+    2400-cent cap is shared by all lines with the same account_id, assigned",
+            "+    earliest service_on first, then increasing line_id.",
+            "+    \"\"\"",
+            "+    credits = {}",
+            "+    remaining = {}",
+            "+    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):",
+            "+        cap_left = remaining.setdefault(line[\"account_id\"], CAP_CENTS_1_0)",
+            "+        credit = min(line[\"charge_cents\"] // 10, cap_left)",
+            "+        remaining[line[\"account_id\"]] = cap_left - credit",
+            "+        credits[line[\"line_id\"]] = credit",
+            "+    return credits",
+            "+",
+            "+",
+            "+def quote_line_1_0(line):",
+            "+    credit = assign_credits_1_0([line])[line[\"line_id\"]]",
+            "+    return {",
+            "+        \"release\": \"1.0\",",
+            "+        \"line_id\": line[\"line_id\"],",
+            "+        \"credit_cents\": credit,",
+            "+        \"amount_due_cents\": line[\"charge_cents\"] - credit,",
+            "+    }",
+            "+",
+            "+",
+            " def handle(request):",
+            "-    if request.get(\"command\") == \"ping\":",
+            "+    command = request.get(\"command\")",
+            "+    if command == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}",
+            "+    if command == \"quote\":",
+            "+        release = request.get(\"release\", \"1.0\")",
+            "+        if release != \"1.0\":",
+            "+            return {\"error\": \"unsupported_release\"}",
+            "+        return quote_line_1_0(request[\"line\"])",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " "
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_7996a0ae22764a0780a61677",
+  "toolName": "Write",
+  "version": 1
+}

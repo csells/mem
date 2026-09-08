@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-07T23:45:46.334Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"1\"\nSUPPORTED_PROTOCOLS = (\"1\",)\n\ndef parse_occurred_at(text):\n    if text[-1] in \"Zz\":\n        text = text[:-1] + \"+00:00\"\n    return datetime.fromisoformat(text)\n\ndef count(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    # Protocol 1: (account_id, delivery_id) identifies a delivery; accept the\n    # earliest occurred_at UTC instant, ties broken by smallest record_id.\n    accepted = {}\n    for r in receipts:\n        identity = (r[\"account_id\"], r[\"delivery_id\"])\n        rank = (parse_occurred_at(r[\"occurred_at\"]), r[\"record_id\"])\n        if identity not in accepted or rank < accepted[identity]:\n            accepted[identity] = rank\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(receipts) - len(accepted),\n    }\n\ndef run(q):\n    if q.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if q.get(\"command\") == \"count\":\n        return count(q)\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-ncmacz04/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 11,
+          "oldLines": 7,
+          "newStart": 11,
+          "newLines": 7,
+          "lines": [
+            "         text = text[:-1] + \"+00:00\"",
+            "     return datetime.fromisoformat(text)",
+            " ",
+            "-def count(q):",
+            "+def protocol_counts(q):",
+            "     protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "     if protocol not in SUPPORTED_PROTOCOLS:",
+            "         return {\"error\": \"unsupported_protocol\"}"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_4d1981aeffdd449caa315f44",
+  "toolName": "Edit",
+  "version": 1
+}

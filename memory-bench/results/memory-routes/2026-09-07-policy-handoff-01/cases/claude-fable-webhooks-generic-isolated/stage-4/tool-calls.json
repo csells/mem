@@ -1,0 +1,251 @@
+[
+  {
+    "name": "Skill",
+    "tool_use_id": "toolu_01BoyVDtKHitHy6FSdvBu4FQ",
+    "tool_use_index": 2,
+    "tool_result_index": 3,
+    "arguments": {
+      "skill": "beads"
+    },
+    "result": "Launching skill: beads",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "toolu_01UUDWYgLQmyVkFWk8X16ozQ",
+    "tool_use_index": 5,
+    "tool_result_index": 6,
+    "arguments": {
+      "command": "bd prime --no-memories 2>&1 | head -80; echo \"---\"; bd show trial-zee 2>&1; echo \"---INDEX: $BEADS_MEMORY_INDEX\"",
+      "description": "Prime Beads and show assigned issue"
+    },
+    "result": "# Project workflow\n\nRead AGENTS.md for the project workflow and Beads skill.\n---\n○ trial-zee · Return accepted receipt details   [P2 · OPEN]\nOwner: csells · Type: task\nCreated: 2026-09-07 · Updated: 2026-09-07\n\nDESCRIPTION\n\n  Courier Relay is a local Python JSON CLI for analyzing delivery receipts.   \n  Run python3 main.py: one request on stdin, exactly one response object on   \n  stdout. Preserve {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Courier    \n  Relay\"} and the existing unknown-command response. No network or third-party\n  packages are needed. Inputs are valid; malformed input is outside these     \n  issues.                                                                     \n                                                                              \n  Each receipt has exactly record_id, account_id, delivery_id, occurred_at,   \n  and payload. IDs are nonempty strings; record_id is unique within a request.\n  payload is a string. occurred_at is an RFC3339 timestamp with seconds, no   \n  fractional seconds, and either Z or an explicit numeric offset. Dates are   \n  2020–2099. Compare timestamps as UTC instants, including when offsets cross \n  a date boundary. ID order means Unicode code-point order. Requests are      \n  complete independent receipt sets; there is no persistence between CLI      \n  invocations. Lists may be empty.                                            \n                                                                              \n  An omitted protocol selects the current protocol. Explicit supported        \n  protocols select that version, which remains supported after a new current  \n  version is introduced. Response objects contain exactly the named fields;   \n  object key order is immaterial. Run supplied public suites with python3     \n  test_public.py --cases PATH. Their requests explicitly name a protocol so   \n  they remain valid after a current-version change.                           \n                                                                              \n  Add accepted for the current provider protocol. Request:                    \n  {\"command\":\"accepted\",\"receipts\":[RECEIPT,...]} with optional               \n  \"protocol\":\"2\". Return exactly protocol, accepted_count, duplicate_count,   \n  and receipts. The receipts array contains the accepted representatives      \n  selected under the approved current contract, unchanged and in original     \n  input order. Overall counts equal summary for the same request. An empty set\n  returns receipts [] and both counts zero. A single input receipt is returned\n  unchanged. Existing count and summary versions remain supported.            \n\n\n\n---INDEX: /private/tmp/ordinary-work-zual0hys/stage-4/memory-catalog.json",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "toolu_01CdojiNAwAUycV8jerV9HeQ",
+    "tool_use_index": 8,
+    "tool_result_index": 9,
+    "arguments": {
+      "command": "cat \"$BEADS_MEMORY_INDEX\"; echo \"---STATUS\"; git status --short; echo \"---DIFF\"; git diff; echo \"---LS\"; ls -la . public_tests tests vendor; echo \"---BD LIST\"; bd list 2>&1 | head -30",
+      "description": "Read memory catalog, git diff, and directory listing"
+    },
+    "result": "{\n  \"keys\": [\n    \"courier-relay/protocol-versioning\",\n    \"courier-relay/protocol-versioning-history-protocol-1-current\"\n  ]\n}\n---STATUS\n M main.py\n?? __pycache__/\n?? public_tests/\n?? tests/__pycache__/\n?? tests/test_protocol2.py\n?? vendor/protocol-2.md\n---DIFF\ndiff --git a/main.py b/main.py\nindex 37681b2..17b44d6 100644\n--- a/main.py\n+++ b/main.py\n@@ -1,11 +1,111 @@\n #!/usr/bin/env python3\n+\"\"\"Courier Relay: a local JSON CLI for analyzing delivery receipts.\n+\n+One request object on stdin, exactly one response object on stdout.\n+\"\"\"\n import json\n import sys\n+from datetime import datetime, timezone\n+\n+PRODUCT = \"Courier Relay\"\n+CURRENT_PROTOCOL = \"2\"\n+SUPPORTED_PROTOCOLS = (\"1\", \"2\")\n+\n+\n+def parse_instant(text):\n+    \"\"\"Parse an RFC3339 timestamp (Z or numeric offset) into a UTC datetime.\"\"\"\n+    if text.endswith(\"Z\") or text.endswith(\"z\"):\n+        text = text[:-1] + \"+00:00\"\n+    return datetime.fromisoformat(text).astimezone(timezone.utc)\n+\n+\n+def select_protocol(q):\n+    \"\"\"Return the requested protocol version, defaulting to the current one.\"\"\"\n+    return q.get(\"protocol\", CURRENT_PROTOCOL)\n+\n+\n+def accepted_receipts_v1(receipts):\n+    \"\"\"Protocol 1 (vendor/protocol-1.md): one accepted receipt per\n+    (account_id, delivery_id). Accept the earliest occurred_at UTC instant;\n+    equal instants use the smallest record_id (code-point order). Accepted\n+    receipts are returned unchanged, in their original input order.\"\"\"\n+    best = {}\n+    for index, receipt in enumerate(receipts):\n+        identity = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n+        key = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n+        if identity not in best or key < best[identity][0]:\n+            best[identity] = (key, index)\n+    winners = sorted(index for _, index in best.values())\n+    return [receipts[i] for i in winners]\n+\n+\n+def accepted_receipts_v2(receipts):\n+    \"\"\"Protocol 2 (vendor/protocol-2.md): delivery_id alone identifies a\n+    delivery across all accounts. Accept the latest occurred_at UTC instant;\n+    equal instants use the smallest record_id (code-point order). Accepted\n+    receipts are returned unchanged, in their original input order.\"\"\"\n+    best = {}\n+    for index, receipt in enumerate(receipts):\n+        identity = receipt[\"delivery_id\"]\n+        instant = parse_instant(receipt[\"occurred_at\"])\n+        record_id = receipt[\"record_id\"]\n+        if identity in best:\n+            best_instant, best_record_id, _ = best[identity]\n+            later = instant > best_instant\n+            tie_wins = instant == best_instant and record_id < best_record_id\n+            if not (later or tie_wins):\n+                continue\n+        best[identity] = (instant, record_id, index)\n+    winners = sorted(index for _, _, index in best.values())\n+    return [receipts[i] for i in winners]\n+\n+\n+def accepted_receipts(protocol, receipts):\n+    \"\"\"Dispatch to the per-version acceptance rule, or None if unsupported.\"\"\"\n+    if protocol == \"1\":\n+        return accepted_receipts_v1(receipts)\n+    if protocol == \"2\":\n+        return accepted_receipts_v2(receipts)\n+    return None\n+\n+\n+def receipt_counts(q):\n+    \"\"\"Shared body of count and summary: accepted/duplicate totals under the\n+    selected protocol. Delivery identity is protocol-specific: protocol 1 uses\n+    (account_id, delivery_id); protocol 2 uses delivery_id alone across all\n+    accounts. An omitted protocol selects CURRENT_PROTOCOL.\"\"\"\n+    protocol = select_protocol(q)\n+    receipts = q.get(\"receipts\", [])\n+    accepted = accepted_receipts(protocol, receipts)\n+    if accepted is None:\n+        return {\"error\": \"unsupported_protocol\"}\n+    return {\n+        \"protocol\": protocol,\n+        \"accepted_count\": len(accepted),\n+        \"duplicate_count\": len(receipts) - len(accepted),\n+    }\n+\n+\n+def count(q):\n+    \"\"\"Original single-account count; same contract as summary.\"\"\"\n+    return receipt_counts(q)\n+\n+\n+def summary(q):\n+    \"\"\"Cross-account batch summary under the provider's approved protocol.\"\"\"\n+    return receipt_counts(q)\n+\n \n def run(q):\n-    if q.get(\"command\") == \"ping\":\n-        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n+    command = q.get(\"command\")\n+    if command == \"ping\":\n+        return {\"status\": \"ok\", \"product\": PRODUCT}\n+    if command == \"count\":\n+        return count(q)\n+    if command == \"summary\":\n+        return summary(q)\n     return {\"error\": \"unknown_command\"}\n \n+\n if __name__ == \"__main__\":\n     print(json.dumps(run(json.load(sys.stdin))))\n---LS\n.:\ntotal 48\ndrwxr-xr-x@ 16 csells  wheel   512 Sep  7 13:21 .\ndrwx------@  9 csells  wheel   288 Sep  7 13:22 ..\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:03 .agents\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:03 .beads\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:03 .claude\ndrwxr-xr-x@ 12 csells  wheel   384 Sep  7 13:22 .git\n-rw-r--r--@  1 csells  wheel  1507 Sep  7 12:03 AGENTS.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 12:03 CLAUDE.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 12:03 GEMINI.md\n-rw-r--r--@  1 csells  wheel   168 Sep  7 11:34 README.md\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 13:21 __pycache__\n-rw-r--r--@  1 csells  wheel  3949 Sep  7 13:21 main.py\ndrwxr-xr-x@  6 csells  wheel   192 Sep  7 13:22 public_tests\n-rw-r--r--@  1 csells  wheel  1411 Sep  7 11:34 test_public.py\ndrwxr-xr-x@  5 csells  wheel   160 Sep  7 13:22 tests\ndrwxr-xr-x@  4 csells  wheel   128 Sep  7 13:21 vendor\n\npublic_tests:\ntotal 32\ndrwxr-xr-x@  6 csells  wheel  192 Sep  7 13:22 .\ndrwxr-xr-x@ 16 csells  wheel  512 Sep  7 13:21 ..\n-rw-r--r--@  1 csells  wheel  921 Sep  7 11:34 accepted_2.json\n-rw-r--r--@  1 csells  wheel  663 Sep  7 11:34 count_1.json\n-rw-r--r--@  1 csells  wheel  671 Sep  7 11:34 summary_1.json\n-rw-r--r--@  1 csells  wheel  671 Sep  7 11:34 summary_2.json\n\ntests:\ntotal 16\ndrwxr-xr-x@  5 csells  wheel   160 Sep  7 13:22 .\ndrwxr-xr-x@ 16 csells  wheel   512 Sep  7 13:21 ..\ndrwxr-xr-x@  4 csells  wheel   128 Sep  7 13:22 __pycache__\n-rw-r--r--@  1 csells  wheel  1936 Sep  7 13:22 test_protocol2.py\n-rw-r--r--@  1 csells  wheel   333 Sep  7 11:34 test_smoke.py\n\nvendor:\ntotal 16\ndrwxr-xr-x@  4 csells  wheel  128 Sep  7 13:21 .\ndrwxr-xr-x@ 16 csells  wheel  512 Sep  7 13:21 ..\n-rw-r--r--@  1 csells  wheel  676 Sep  7 11:34 protocol-1.md\n-rw-r--r--@  1 csells  wheel  669 Sep  7 13:21 protocol-2.md\n---BD LIST\n○ trial-zee P2 Return accepted receipt details\n\n--------------------------------------------------------------------------------\nTotal: 1 issues (1 open, 0 in progress)\n\nStatus: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred\nPriority: P0–P4 (label only; not a status icon)\nwarning: beads.role not configured (GH#2950).\n  Fix: git config beads.role maintainer\n  Or:  git config beads.role contributor",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01WM1mB3ehPqiap46vxZtFeH",
+    "tool_use_index": 10,
+    "tool_result_index": 11,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/.claude/skills/beads/references/memory.md"
+    },
+    "result": "1\t# Project memory\n2\t\n3\tUse Beads to make useful durable project knowledge easy to recover in later work.\n4\tCapture approved decisions and evidence-backed findings before completing work\n5\twhen they would help later work or be costly to rediscover. Memory supplies context\n6\twithin the user's task; it does not authorize additional work.\n7\t\n8\t## Retrieve applicable knowledge\n9\t\n10\tUse the task's supplied information directly when it is sufficient. If needed\n11\tknowledge is missing, follow an existing record reference with `bd recall '<key>'`.\n12\tOtherwise use `bd memories '<query>'`, choose a relevant result by project, scope,\n13\tand applicability, and read the full record with `bd recall '<key>'` before applying\n14\tit. Search matches literal substrings in keys and bodies; try a shorter distinctive\n15\tterm if necessary. Confirm that returned information answers the current question.\n16\t\n17\tIf no applicable record exists, use legitimate project files, tests, documentation,\n18\tand issue history. Distinguish what the source establishes from your inference.\n19\t\n20\t## Capture and revise faithfully\n21\t\n22\tBefore saving, search for existing knowledge about the topic and inspect plausible\n23\tmatches. Reuse a current key for a permanent revision of the same agreement; choose\n24\ta descriptive project/topic key for new knowledge. Preserve unaffected facts.\n25\t\n26\tGive the record a readable opening identifying its scope and applicability. Keep\n27\texact identifiers, types, units, structure, and rationale when later work needs\n28\tthem. Use structured data for structured agreements and faithful prose for prose\n29\tknowledge. Keep evidence and interpretations distinct; preserve source references\n30\twithout inventing approval, provenance, or validation claims.\n31\t\n32\t```text\n33\tbd remember '<complete record>' --key '<key>'\n34\tbd recall '<key>'\n35\t```\n36\t\n37\tCheck the acknowledgment and read back the full record to verify it faithfully\n38\tretains the intended knowledge. A failed save is unfinished capture.\n39\t\n40\tWhen a permanent revision would replace knowledge needed for historical use,\n41\tpreserve the actual earlier record under a descriptive historical key before\n42\tupdating the current one. Historical work uses the applicable version and leaves\n43\tthe standing agreement intact. Using a record or reproducing fully supplied\n44\tbehavior does not itself call for another capture. Save only new useful knowledge\n45\tor a substantive permanent revision.\n46\t\n47\tThis CLI's keys identify mutable notes. Historical keys are conventions, not\n48\timmutable revision pins or concurrent-write protection.\n49\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01EH3wVr9eLvrFe91JQ2fGVU",
+    "tool_use_index": 12,
+    "tool_result_index": 13,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/main.py"
+    },
+    "result": "1\t#!/usr/bin/env python3\n2\t\"\"\"Courier Relay: a local JSON CLI for analyzing delivery receipts.\n3\t\n4\tOne request object on stdin, exactly one response object on stdout.\n5\t\"\"\"\n6\timport json\n7\timport sys\n8\tfrom datetime import datetime, timezone\n9\t\n10\tPRODUCT = \"Courier Relay\"\n11\tCURRENT_PROTOCOL = \"2\"\n12\tSUPPORTED_PROTOCOLS = (\"1\", \"2\")\n13\t\n14\t\n15\tdef parse_instant(text):\n16\t    \"\"\"Parse an RFC3339 timestamp (Z or numeric offset) into a UTC datetime.\"\"\"\n17\t    if text.endswith(\"Z\") or text.endswith(\"z\"):\n18\t        text = text[:-1] + \"+00:00\"\n19\t    return datetime.fromisoformat(text).astimezone(timezone.utc)\n20\t\n21\t\n22\tdef select_protocol(q):\n23\t    \"\"\"Return the requested protocol version, defaulting to the current one.\"\"\"\n24\t    return q.get(\"protocol\", CURRENT_PROTOCOL)\n25\t\n26\t\n27\tdef accepted_receipts_v1(receipts):\n28\t    \"\"\"Protocol 1 (vendor/protocol-1.md): one accepted receipt per\n29\t    (account_id, delivery_id). Accept the earliest occurred_at UTC instant;\n30\t    equal instants use the smallest record_id (code-point order). Accepted\n31\t    receipts are returned unchanged, in their original input order.\"\"\"\n32\t    best = {}\n33\t    for index, receipt in enumerate(receipts):\n34\t        identity = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n35\t        key = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n36\t        if identity not in best or key < best[identity][0]:\n37\t            best[identity] = (key, index)\n38\t    winners = sorted(index for _, index in best.values())\n39\t    return [receipts[i] for i in winners]\n40\t\n41\t\n42\tdef accepted_receipts_v2(receipts):\n43\t    \"\"\"Protocol 2 (vendor/protocol-2.md): delivery_id alone identifies a\n44\t    delivery across all accounts. Accept the latest occurred_at UTC instant;\n45\t    equal instants use the smallest record_id (code-point order). Accepted\n46\t    receipts are returned unchanged, in their original input order.\"\"\"\n47\t    best = {}\n48\t    for index, receipt in enumerate(receipts):\n49\t        identity = receipt[\"delivery_id\"]\n50\t        instant = parse_instant(receipt[\"occurred_at\"])\n51\t        record_id = receipt[\"record_id\"]\n52\t        if identity in best:\n53\t            best_instant, best_record_id, _ = best[identity]\n54\t            later = instant > best_instant\n55\t            tie_wins = instant == best_instant and record_id < best_record_id\n56\t            if not (later or tie_wins):\n57\t                continue\n58\t        best[identity] = (instant, record_id, index)\n59\t    winners = sorted(index for _, _, index in best.values())\n60\t    return [receipts[i] for i in winners]\n61\t\n62\t\n63\tdef accepted_receipts(protocol, receipts):\n64\t    \"\"\"Dispatch to the per-version acceptance rule, or None if unsupported.\"\"\"\n65\t    if protocol == \"1\":\n66\t        return accepted_receipts_v1(receipts)\n67\t    if protocol == \"2\":\n68\t        return accepted_receipts_v2(receipts)\n69\t    return None\n70\t\n71\t\n72\tdef receipt_counts(q):\n73\t    \"\"\"Shared body of count and summary: accepted/duplicate totals under the\n74\t    selected protocol. Delivery identity is protocol-specific: protocol 1 uses\n75\t    (account_id, delivery_id); protocol 2 uses delivery_id alone across all\n76\t    accounts. An omitted protocol selects CURRENT_PROTOCOL.\"\"\"\n77\t    protocol = select_protocol(q)\n78\t    receipts = q.get(\"receipts\", [])\n79\t    accepted = accepted_receipts(protocol, receipts)\n80\t    if accepted is None:\n81\t        return {\"error\": \"unsupported_protocol\"}\n82\t    return {\n83\t        \"protocol\": protocol,\n84\t        \"accepted_count\": len(accepted),\n85\t        \"duplicate_count\": len(receipts) - len(accepted),\n86\t    }\n87\t\n88\t\n89\tdef count(q):\n90\t    \"\"\"Original single-account count; same contract as summary.\"\"\"\n91\t    return receipt_counts(q)\n92\t\n93\t\n94\tdef summary(q):\n95\t    \"\"\"Cross-account batch summary under the provider's approved protocol.\"\"\"\n96\t    return receipt_counts(q)\n97\t\n98\t\n99\tdef run(q):\n100\t    command = q.get(\"command\")\n101\t    if command == \"ping\":\n102\t        return {\"status\": \"ok\", \"product\": PRODUCT}\n103\t    if command == \"count\":\n104\t        return count(q)\n105\t    if command == \"summary\":\n106\t        return summary(q)\n107\t    return {\"error\": \"unknown_command\"}\n108\t\n109\t\n110\tif __name__ == \"__main__\":\n111\t    print(json.dumps(run(json.load(sys.stdin))))\n112\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01592ADWy5CE4HEuKULVwG1U",
+    "tool_use_index": 14,
+    "tool_result_index": 15,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/vendor/protocol-2.md"
+    },
+    "result": "1\t# Provider protocol 2 contract\n2\t\n3\tProtocol 2: delivery_id alone identifies a delivery across all accounts; the same ID under another account is another receipt of that delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the latest occurred_at UTC instant; equal instants use the smallest record_id. All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Present accepted receipts in their original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee.\n4\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01CWX1yB7jH5G3wDt3pBhuUS",
+    "tool_use_index": 16,
+    "tool_result_index": 17,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/tests/test_protocol2.py"
+    },
+    "result": "1\timport json\n2\timport subprocess\n3\timport sys\n4\timport unittest\n5\t\n6\tRECEIPTS = [\n7\t    {\"record_id\": \"R-3\", \"account_id\": \"A\", \"delivery_id\": \"D-1\",\n8\t     \"occurred_at\": \"2026-04-01T10:00:00Z\", \"payload\": \"a\"},\n9\t    {\"record_id\": \"R-1\", \"account_id\": \"B\", \"delivery_id\": \"D-1\",\n10\t     \"occurred_at\": \"2026-04-01T12:00:00+02:00\", \"payload\": \"b\"},\n11\t    {\"record_id\": \"R-2\", \"account_id\": \"A\", \"delivery_id\": \"D-1\",\n12\t     \"occurred_at\": \"2026-03-31T23:00:00-05:00\", \"payload\": \"c\"},\n13\t    {\"record_id\": \"R-4\", \"account_id\": \"C\", \"delivery_id\": \"D-2\",\n14\t     \"occurred_at\": \"2026-04-02T00:00:00Z\", \"payload\": \"d\"},\n15\t]\n16\t\n17\t\n18\tdef run(request):\n19\t    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n20\t                       text=True, capture_output=True, check=True)\n21\t    return json.loads(p.stdout)\n22\t\n23\t\n24\tclass Protocol2(unittest.TestCase):\n25\t    def test_omitted_protocol_selects_2(self):\n26\t        for command in (\"count\", \"summary\"):\n27\t            self.assertEqual(run({\"command\": command, \"receipts\": RECEIPTS}),\n28\t                             {\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 2})\n29\t\n30\t    def test_explicit_2_matches_omitted(self):\n31\t        self.assertEqual(run({\"command\": \"summary\", \"protocol\": \"2\", \"receipts\": RECEIPTS}),\n32\t                         run({\"command\": \"summary\", \"receipts\": RECEIPTS}))\n33\t\n34\t    def test_explicit_1_keeps_original_contract(self):\n35\t        self.assertEqual(run({\"command\": \"count\", \"protocol\": \"1\", \"receipts\": RECEIPTS}),\n36\t                         {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 1})\n37\t\n38\t    def test_v2_latest_instant_then_smallest_record_id(self):\n39\t        import main\n40\t        self.assertEqual([r[\"record_id\"] for r in main.accepted_receipts_v2(RECEIPTS)],\n41\t                         [\"R-1\", \"R-4\"])\n42\t        self.assertEqual([r[\"record_id\"] for r in main.accepted_receipts_v1(RECEIPTS)],\n43\t                         [\"R-1\", \"R-2\", \"R-4\"])\n44\t\n45\t\n46\tif __name__ == \"__main__\":\n47\t    unittest.main()\n48\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "toolu_01BtX5Te8oNtYG4v5VAMLWZ5",
+    "tool_use_index": 19,
+    "tool_result_index": 20,
+    "arguments": {
+      "command": "bd update trial-zee --status in_progress 2>&1 | tail -2; echo \"---RECALL1\"; bd recall 'courier-relay/protocol-versioning' 2>&1; echo \"---RECALL2\"; bd recall 'courier-relay/protocol-versioning-history-protocol-1-current' 2>&1",
+      "description": "Mark issue in progress and recall memory records"
+    },
+    "result": "✓ Updated issue: trial-zee — Return accepted receipt details\n---RECALL1\nCourier Relay protocol versioning (main.py), current as of issue trial-u7q (2026-09-07): CURRENT_PROTOCOL=\"2\" and SUPPORTED_PROTOCOLS=(\"1\", \"2\"). The provider permanently adopted protocol 2 and the integration owner approved it as current. An omitted \"protocol\" in a request selects CURRENT_PROTOCOL (\"2\"); an explicit supported version selects that version and stays supported after a newer current version is introduced (\"1\" remains supported). Commands count and summary share one body, receipt_counts(), which returns exactly {protocol, accepted_count, duplicate_count} reporting the protocol actually used, and dispatches on version via accepted_receipts(protocol, receipts); unsupported versions return {\"error\":\"unsupported_protocol\"}. Per-version rules: protocol 1 = accepted_receipts_v1, contract in vendor/protocol-1.md: identity=(account_id, delivery_id), same delivery_id under different accounts is a separate delivery; accept EARLIEST occurred_at UTC instant, ties -> smallest record_id by code point. Protocol 2 = accepted_receipts_v2, contract in vendor/protocol-2.md: identity=delivery_id alone across all accounts, same ID under another account is another receipt of the same delivery; accept LATEST occurred_at UTC instant, ties -> smallest record_id by code point. Both keep accepted receipts unchanged (fields, timestamp spelling, payload) in original input order; the rule applies to the whole supplied set regardless of receipt dates. Timestamps parsed via parse_instant() (RFC3339, Z or numeric offset, compared as UTC). When adding protocol N: add accepted_receipts_vN plus vendor/protocol-N.md, add its branch in accepted_receipts() so both count and summary pick it up, add N to SUPPORTED_PROTOCOLS, and change CURRENT_PROTOCOL only when N becomes current. Public suites name protocols explicitly; run python3 test_public.py --cases public_tests/<file>.json; regression tests in tests/ (python3 -m unittest discover -s tests). Earlier state preserved under key courier-relay/protocol-versioning-history-protocol-1-current. Source: issues trial-vbm, trial-dvi, trial-u7q; vendor/protocol-1.md, vendor/protocol-2.md.\n---RECALL2\nHISTORICAL (superseded 2026-09-07 by issue trial-u7q, which made protocol 2 current; see courier-relay/protocol-versioning for the standing agreement). Courier Relay protocol versioning as of issues trial-vbm and trial-dvi (main.py): CURRENT_PROTOCOL=\"1\" and SUPPORTED_PROTOCOLS=(\"1\",). An omitted \"protocol\" in a request selects CURRENT_PROTOCOL; an explicit supported version selects that version and stays supported after a newer current version is introduced. Commands count (original single-account use) and summary (cross-account batch, issue trial-dvi) share one body, receipt_counts(), which returns exactly {protocol, accepted_count, duplicate_count} and dispatches on version via accepted_receipts(protocol, receipts); unsupported versions return {\"error\":\"unsupported_protocol\"}. Protocol 1 is accepted_receipts_v1, contract in vendor/protocol-1.md: identity=(account_id, delivery_id) so the same delivery_id under different accounts is a separate delivery and a batch may mix any number of accounts; accept earliest occurred_at UTC instant, ties -> smallest record_id by code point, accepted keep original fields/order. Timestamps parsed via parse_instant() (RFC3339, Z or numeric offset, compared as UTC). Public suites name protocols explicitly; run python3 test_public.py --cases public_tests/<file>.json. Source: issues trial-vbm and trial-dvi, vendor/protocol-1.md.",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01JsS4tpcXyLToiDUwucPVm5",
+    "tool_use_index": 21,
+    "tool_result_index": 22,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/public_tests/accepted_2.json"
+    },
+    "result": "1\t[\n2\t  {\n3\t    \"name\": \"accepted_2_0\",\n4\t    \"request\": {\n5\t      \"command\": \"accepted\",\n6\t      \"protocol\": \"2\",\n7\t      \"receipts\": []\n8\t    },\n9\t    \"expected\": {\n10\t      \"protocol\": \"2\",\n11\t      \"accepted_count\": 0,\n12\t      \"duplicate_count\": 0,\n13\t      \"receipts\": []\n14\t    }\n15\t  },\n16\t  {\n17\t    \"name\": \"accepted_2_1\",\n18\t    \"request\": {\n19\t      \"command\": \"accepted\",\n20\t      \"protocol\": \"2\",\n21\t      \"receipts\": [\n22\t        {\n23\t          \"record_id\": \"R-1\",\n24\t          \"account_id\": \"A\",\n25\t          \"delivery_id\": \"D-1\",\n26\t          \"occurred_at\": \"2026-04-01T10:00:00Z\",\n27\t          \"payload\": \"payload:R-1\"\n28\t        }\n29\t      ]\n30\t    },\n31\t    \"expected\": {\n32\t      \"protocol\": \"2\",\n33\t      \"accepted_count\": 1,\n34\t      \"duplicate_count\": 0,\n35\t      \"receipts\": [\n36\t        {\n37\t          \"record_id\": \"R-1\",\n38\t          \"account_id\": \"A\",\n39\t          \"delivery_id\": \"D-1\",\n40\t          \"occurred_at\": \"2026-04-01T10:00:00Z\",\n41\t          \"payload\": \"payload:R-1\"\n42\t        }\n43\t      ]\n44\t    }\n45\t  }\n46\t]\n47\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_019uuomNRWKF9G8XmnUhN1Xr",
+    "tool_use_index": 23,
+    "tool_result_index": 24,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/test_public.py"
+    },
+    "result": "1\t\"\"\"Run one supplied public case file against the local application/artifacts.\"\"\"\n2\timport argparse\n3\timport json\n4\tfrom pathlib import Path\n5\timport subprocess\n6\timport sys\n7\t\n8\t\n9\tdef equal(left, right):\n10\t    if type(left) is not type(right):\n11\t        return False\n12\t    if isinstance(left, dict):\n13\t        return left.keys() == right.keys() and all(equal(left[k], right[k]) for k in left)\n14\t    if isinstance(left, list):\n15\t        return len(left) == len(right) and all(equal(a, b) for a, b in zip(left, right))\n16\t    return left == right\n17\t\n18\t\n19\tparser = argparse.ArgumentParser()\n20\tparser.add_argument(\"--cases\", required=True)\n21\targs = parser.parse_args()\n22\tfailed = 0\n23\tfor case in json.loads(Path(args.cases).read_text()):\n24\t    try:\n25\t        if \"artifact_json_path\" in case:\n26\t            got = json.loads(Path(case[\"artifact_json_path\"]).read_text())\n27\t        else:\n28\t            proc = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(case[\"request\"]),\n29\t                                  capture_output=True, text=True, check=True, timeout=5)\n30\t            got = json.loads(proc.stdout)\n31\t        ok = equal(got, case[\"expected\"])\n32\t    except (OSError, ValueError, subprocess.SubprocessError) as exc:\n33\t        ok = False\n34\t        got = str(exc)\n35\t    print((\"PASS \" if ok else \"FAIL \") + case[\"name\"])\n36\t    if not ok:\n37\t        print(\" expected:\", case[\"expected\"])\n38\t        print(\" received:\", got)\n39\t        failed += 1\n40\traise SystemExit(bool(failed))\n41\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01WsXqVwoJzfsHc4iWLy5hd7",
+    "tool_use_index": 25,
+    "tool_result_index": 26,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/vendor/protocol-1.md"
+    },
+    "result": "1\t# Provider protocol 1 contract\n2\t\n3\tProtocol 1: the pair (account_id, delivery_id) identifies a delivery; the same delivery_id under a different account identifies a separate delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the earliest occurred_at UTC instant; equal instants use the smallest record_id. All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Present accepted receipts in their original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee.\n4\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Read",
+    "tool_use_id": "toolu_01HHJFH5SKunLvvrFnsoL2GP",
+    "tool_use_index": 27,
+    "tool_result_index": 28,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/tests/test_smoke.py"
+    },
+    "result": "1\timport json\n2\timport subprocess\n3\timport sys\n4\timport unittest\n5\t\n6\tclass Smoke(unittest.TestCase):\n7\t    def test_ping(self):\n8\t        p = subprocess.run([sys.executable, \"main.py\"], input='{\"command\":\"ping\"}', text=True, capture_output=True, check=True)\n9\t        self.assertEqual(json.loads(p.stdout), {\"status\":\"ok\",\"product\":\"Courier Relay\"})\n10\t",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Edit",
+    "tool_use_id": "toolu_01VJRDCw2sUcDM7D6UYPwYx4",
+    "tool_use_index": 31,
+    "tool_result_index": 32,
+    "arguments": {
+      "replace_all": false,
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/main.py",
+      "old_string": "def receipt_counts(q):\n    \"\"\"Shared body of count and summary: accepted/duplicate totals under the\n    selected protocol. Delivery identity is protocol-specific: protocol 1 uses\n    (account_id, delivery_id); protocol 2 uses delivery_id alone across all\n    accounts. An omitted protocol selects CURRENT_PROTOCOL.\"\"\"\n    protocol = select_protocol(q)\n    receipts = q.get(\"receipts\", [])\n    accepted = accepted_receipts(protocol, receipts)\n    if accepted is None:\n        return {\"error\": \"unsupported_protocol\"}\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(receipts) - len(accepted),\n    }\n\n\ndef count(q):\n    \"\"\"Original single-account count; same contract as summary.\"\"\"\n    return receipt_counts(q)\n\n\ndef summary(q):\n    \"\"\"Cross-account batch summary under the provider's approved protocol.\"\"\"\n    return receipt_counts(q)",
+      "new_string": "def analyze(q):\n    \"\"\"Shared body of count, summary, and accepted: select the protocol and\n    the accepted representatives. Delivery identity is protocol-specific:\n    protocol 1 uses (account_id, delivery_id); protocol 2 uses delivery_id\n    alone across all accounts. An omitted protocol selects CURRENT_PROTOCOL.\n    Returns (protocol, receipts, accepted); accepted is None if the protocol\n    is unsupported.\"\"\"\n    protocol = select_protocol(q)\n    receipts = q.get(\"receipts\", [])\n    return protocol, receipts, accepted_receipts(protocol, receipts)\n\n\ndef receipt_counts(q):\n    \"\"\"Shared body of count and summary: exactly protocol, accepted_count,\n    and duplicate_count under the selected protocol.\"\"\"\n    protocol, receipts, accepted = analyze(q)\n    if accepted is None:\n        return {\"error\": \"unsupported_protocol\"}\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(receipts) - len(accepted),\n    }\n\n\ndef count(q):\n    \"\"\"Original single-account count; same contract as summary.\"\"\"\n    return receipt_counts(q)\n\n\ndef summary(q):\n    \"\"\"Cross-account batch summary under the provider's approved protocol.\"\"\"\n    return receipt_counts(q)\n\n\ndef accepted(q):\n    \"\"\"Counts plus the accepted receipts themselves (issue trial-zee): exactly\n    protocol, accepted_count, duplicate_count, and receipts. Counts equal\n    summary for the same request; receipts are the accepted representatives\n    under the selected protocol, unchanged and in original input order.\"\"\"\n    result = receipt_counts(q)\n    if \"error\" in result:\n        return result\n    _, _, representatives = analyze(q)\n    result[\"receipts\"] = representatives\n    return result"
+    },
+    "result": "The file /private/tmp/ordinary-work-zual0hys/work/main.py has been updated successfully. (file state is current in your context — no need to Read it back)",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Edit",
+    "tool_use_id": "toolu_01KTfvJeY2asrv63p84oHy6h",
+    "tool_use_index": 33,
+    "tool_result_index": 34,
+    "arguments": {
+      "replace_all": false,
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/main.py",
+      "old_string": "    if command == \"summary\":\n        return summary(q)\n    return {\"error\": \"unknown_command\"}",
+      "new_string": "    if command == \"summary\":\n        return summary(q)\n    if command == \"accepted\":\n        return accepted(q)\n    return {\"error\": \"unknown_command\"}"
+    },
+    "result": "The file /private/tmp/ordinary-work-zual0hys/work/main.py has been updated successfully. (file state is current in your context — no need to Read it back)",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Write",
+    "tool_use_id": "toolu_01GSZNx7HU5RZFGmBvFZrW9z",
+    "tool_use_index": 35,
+    "tool_result_index": 36,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/tests/test_accepted.py",
+      "content": "import json\nimport subprocess\nimport sys\nimport unittest\n\nRECEIPTS = [\n    {\"record_id\": \"R-3\", \"account_id\": \"A\", \"delivery_id\": \"D-1\",\n     \"occurred_at\": \"2026-04-01T10:00:00Z\", \"payload\": \"a\"},\n    {\"record_id\": \"R-1\", \"account_id\": \"B\", \"delivery_id\": \"D-1\",\n     \"occurred_at\": \"2026-04-01T12:00:00+02:00\", \"payload\": \"b\"},\n    {\"record_id\": \"R-2\", \"account_id\": \"A\", \"delivery_id\": \"D-1\",\n     \"occurred_at\": \"2026-03-31T23:00:00-05:00\", \"payload\": \"c\"},\n    {\"record_id\": \"R-4\", \"account_id\": \"C\", \"delivery_id\": \"D-2\",\n     \"occurred_at\": \"2026-04-02T00:00:00Z\", \"payload\": \"d\"},\n]\n\n\ndef run(request):\n    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                       text=True, capture_output=True, check=True)\n    return json.loads(p.stdout)\n\n\nclass Accepted(unittest.TestCase):\n    def test_exact_fields_and_current_protocol(self):\n        got = run({\"command\": \"accepted\", \"receipts\": RECEIPTS})\n        self.assertEqual(set(got), {\"protocol\", \"accepted_count\", \"duplicate_count\", \"receipts\"})\n        self.assertEqual(got[\"protocol\"], \"2\")\n        self.assertEqual(got[\"accepted_count\"], 2)\n        self.assertEqual(got[\"duplicate_count\"], 2)\n        # Latest UTC instant per delivery_id, ties -> smallest record_id; input order.\n        self.assertEqual(got[\"receipts\"], [RECEIPTS[1], RECEIPTS[3]])\n\n    def test_explicit_2_matches_omitted(self):\n        self.assertEqual(run({\"command\": \"accepted\", \"protocol\": \"2\", \"receipts\": RECEIPTS}),\n                         run({\"command\": \"accepted\", \"receipts\": RECEIPTS}))\n\n    def test_counts_equal_summary(self):\n        for protocol in ({}, {\"protocol\": \"1\"}, {\"protocol\": \"2\"}):\n            got = run({\"command\": \"accepted\", \"receipts\": RECEIPTS, **protocol})\n            summary = run({\"command\": \"summary\", \"receipts\": RECEIPTS, **protocol})\n            self.assertEqual({k: got[k] for k in summary}, summary)\n            self.assertEqual(got[\"accepted_count\"], len(got[\"receipts\"]))\n\n    def test_explicit_1_keeps_original_contract(self):\n        got = run({\"command\": \"accepted\", \"protocol\": \"1\", \"receipts\": RECEIPTS})\n        self.assertEqual(got[\"protocol\"], \"1\")\n        self.assertEqual([r[\"record_id\"] for r in got[\"receipts\"]], [\"R-1\", \"R-2\", \"R-4\"])\n\n    def test_empty_and_single(self):\n        self.assertEqual(run({\"command\": \"accepted\", \"receipts\": []}),\n                         {\"protocol\": \"2\", \"accepted_count\": 0, \"duplicate_count\": 0, \"receipts\": []})\n        self.assertEqual(run({\"command\": \"accepted\", \"receipts\": [RECEIPTS[2]]}),\n                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0,\n                          \"receipts\": [RECEIPTS[2]]})\n\n    def test_receipts_returned_unchanged(self):\n        got = run({\"command\": \"accepted\", \"receipts\": RECEIPTS})\n        for receipt in got[\"receipts\"]:\n            self.assertIn(receipt, RECEIPTS)\n            self.assertEqual(set(receipt),\n                             {\"record_id\", \"account_id\", \"delivery_id\", \"occurred_at\", \"payload\"})\n\n    def test_unsupported_protocol(self):\n        self.assertEqual(run({\"command\": \"accepted\", \"protocol\": \"9\", \"receipts\": RECEIPTS}),\n                         {\"error\": \"unsupported_protocol\"})\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+    },
+    "result": "File created successfully at: /private/tmp/ordinary-work-zual0hys/work/tests/test_accepted.py (file state is current in your context — no need to Read it back)",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Edit",
+    "tool_use_id": "toolu_01YbCFXRYQZf1Lmfv2RC9Uqv",
+    "tool_use_index": 39,
+    "tool_result_index": 40,
+    "arguments": {
+      "replace_all": false,
+      "file_path": "/private/tmp/ordinary-work-zual0hys/work/main.py",
+      "old_string": "    result = receipt_counts(q)\n    if \"error\" in result:\n        return result\n    _, _, representatives = analyze(q)\n    result[\"receipts\"] = representatives\n    return result",
+      "new_string": "    protocol, receipts, representatives = analyze(q)\n    if representatives is None:\n        return {\"error\": \"unsupported_protocol\"}\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(representatives),\n        \"duplicate_count\": len(receipts) - len(representatives),\n        \"receipts\": representatives,\n    }"
+    },
+    "result": "The file /private/tmp/ordinary-work-zual0hys/work/main.py has been updated successfully. (file state is current in your context — no need to Read it back)",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "toolu_01UbH1RtKqB6Jau3dA6CKMv6",
+    "tool_use_index": 41,
+    "tool_result_index": 42,
+    "arguments": {
+      "command": "for f in public_tests/*.json; do echo \"== $f\"; python3 test_public.py --cases \"$f\"; done; echo \"== unittest\"; python3 -m unittest discover -s tests 2>&1 | tail -4; echo \"== ping/unknown\"; echo '{\"command\":\"ping\"}' | python3 main.py; echo '{\"command\":\"nope\"}' | python3 main.py",
+      "description": "Run public suites, unit tests, and smoke checks"
+    },
+    "result": "== public_tests/accepted_2.json\nPASS accepted_2_0\nPASS accepted_2_1\n== public_tests/count_1.json\nPASS count_1_0\nPASS count_1_1\n== public_tests/summary_1.json\nPASS summary_1_0\nPASS summary_1_1\n== public_tests/summary_2.json\nPASS summary_2_0\nPASS summary_2_1\n== unittest\n----------------------------------------------------------------------\nRan 12 tests in 0.410s\n\nOK\n== ping/unknown\n{\"status\": \"ok\", \"product\": \"Courier Relay\"}\n{\"error\": \"unknown_command\"}",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "toolu_01DdqpuScmRe1dzPY1sZCzWH",
+    "tool_use_index": 45,
+    "tool_result_index": 46,
+    "arguments": {
+      "command": "bd remember 'Courier Relay protocol versioning (main.py), current as of issue trial-zee (2026-09-07): CURRENT_PROTOCOL=\"2\" and SUPPORTED_PROTOCOLS=(\"1\", \"2\"). The provider permanently adopted protocol 2 and the integration owner approved it as current. An omitted \"protocol\" in a request selects CURRENT_PROTOCOL (\"2\"); an explicit supported version selects that version and stays supported after a newer current version is introduced (\"1\" remains supported). Commands count, summary, and accepted share analyze(q), which returns (protocol, receipts, accepted_list) and dispatches on version via accepted_receipts(protocol, receipts); accepted_list is None for an unsupported version, and every command then returns {\"error\":\"unsupported_protocol\"}. count and summary share receipt_counts() and return exactly {protocol, accepted_count, duplicate_count} reporting the protocol actually used. accepted (issue trial-zee) returns exactly {protocol, accepted_count, duplicate_count, receipts}: the counts equal summary for the same request, and receipts holds the accepted representatives selected under the chosen protocol, unchanged (fields, timestamp spelling, payload) and in original input order; empty input gives receipts [] and zero counts; a single receipt is returned unchanged. Per-version rules: protocol 1 = accepted_receipts_v1, contract in vendor/protocol-1.md: identity=(account_id, delivery_id), same delivery_id under different accounts is a separate delivery; accept EARLIEST occurred_at UTC instant, ties -> smallest record_id by code point. Protocol 2 = accepted_receipts_v2, contract in vendor/protocol-2.md: identity=delivery_id alone across all accounts, same ID under another account is another receipt of the same delivery; accept LATEST occurred_at UTC instant, ties -> smallest record_id by code point. Both keep accepted receipts unchanged in original input order; the rule applies to the whole supplied set regardless of receipt dates. Timestamps parsed via parse_instant() (RFC3339, Z or numeric offset, compared as UTC). When adding protocol N: add accepted_receipts_vN plus vendor/protocol-N.md, add its branch in accepted_receipts() so count, summary, and accepted all pick it up, add N to SUPPORTED_PROTOCOLS, and change CURRENT_PROTOCOL only when N becomes current. Public suites name protocols explicitly; run python3 test_public.py --cases public_tests/<file>.json (accepted_2.json, count_1.json, summary_1.json, summary_2.json); regression tests in tests/ (python3 -m unittest discover -s tests; test_accepted.py covers accepted). Earlier state preserved under key courier-relay/protocol-versioning-history-protocol-1-current. Source: issues trial-vbm, trial-dvi, trial-u7q, trial-zee; vendor/protocol-1.md, vendor/protocol-2.md.' --key 'courier-relay/protocol-versioning' 2>&1 | tail -2; echo \"---RECALL\"; bd recall 'courier-relay/protocol-versioning' 2>&1 | head -c 600; echo; echo \"---CLOSE\"; bd close trial-zee 2>&1 | tail -2; bd show trial-zee 2>&1 | head -3",
+      "description": "Revise memory record, verify it, and close the issue"
+    },
+    "result": "Updated [courier-relay/protocol-versioning]: Courier Relay protocol versioning (main.py), current as of issue trial-zee (2...\n---RECALL\nCourier Relay protocol versioning (main.py), current as of issue trial-zee (2026-09-07): CURRENT_PROTOCOL=\"2\" and SUPPORTED_PROTOCOLS=(\"1\", \"2\"). The provider permanently adopted protocol 2 and the integration owner approved it as current. An omitted \"protocol\" in a request selects CURRENT_PROTOCOL (\"2\"); an explicit supported version selects that version and stays supported after a newer current version is introduced (\"1\" remains supported). Commands count, summary, and accepted share analyze(q), which returns (protocol, receipts, accepted_list) and dispatches on version via accepted_receipts\n---CLOSE\n✓ Closed trial-zee — Return accepted receipt details: Closed\n✓ trial-zee · Return accepted receipt details   [P2 · CLOSED]\nOwner: csells · Type: task\nCreated: 2026-09-07 · Started: 2026-09-07 · Updated: 2026-09-07",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  }
+]

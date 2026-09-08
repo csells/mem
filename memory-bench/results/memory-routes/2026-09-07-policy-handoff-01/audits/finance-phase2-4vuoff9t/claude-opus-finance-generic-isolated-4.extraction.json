@@ -1,0 +1,829 @@
+{
+  "slot": "claude-opus-finance-generic-isolated-4",
+  "profile_id": "claude-opus",
+  "host": "claude",
+  "family": "finance",
+  "corpus_family": "finance/subscription-first",
+  "arm": "generic",
+  "mode": "isolated",
+  "stage": 4,
+  "phase": "phase2",
+  "catalog_mode": "indexed",
+  "task_id": "trial-n0k",
+  "model_requested": "claude-opus-5",
+  "models_observed": [
+    "claude-opus-5"
+  ],
+  "session_id": "e310ca75-1f2d-4da4-93c5-9a62b2e4b4a2",
+  "artifact_passed": true,
+  "artifact_correct": 70,
+  "artifact_total": 70,
+  "infrastructure_fault": false,
+  "cost_usd": 0.7898054999999998,
+  "usage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 900,
+      "outputTokens": 13,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009649999999999999,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 46,
+      "outputTokens": 10774,
+      "cacheReadInputTokens": 516541,
+      "cacheCreationInputTokens": 26099,
+      "webSearchRequests": 0,
+      "costUSD": 0.7888404999999998,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 2366,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "duration_s": 137.2611298339907,
+  "host_success": true,
+  "exit_code": 0,
+  "timed_out": false,
+  "task_closed": true,
+  "package_changed_paths": [],
+  "evidence_directory": "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-policy-handoff-01/cases/claude-opus-finance-generic-isolated/stage-4",
+  "input_sha256": {
+    "result.json": "77965dfbfc21b1911afe9cf7dafd7389d61af9525e6624c9f8c6911bf71695ae",
+    "memory-before.json": "68bc35a8e3b679fbfbdd12133b903325f184ed4129e6d9c4783fc1c9a6b94b3d",
+    "memory-after.json": "7e6966f6b7a9c70831d66cdd08f0b98a58314af5eea0a8d6a81ca0d76180d6c0",
+    "launch.json": "7ea0b5bfbb7c1fc351896f9561441caaccf8dfe07e65bb90ece34a87f4a038ee",
+    "tool-calls.json": "8a031c047c3bebb8dfac85be8d6f736cd9525245dd697808ddfae02b49dc9ba5",
+    "raw-receipts.json": "a0b331fda3d8f2864cf1cec4a9e696d8ddcf04f1304581cea5318e38be256cd6",
+    "tasks-after.json": "9118e15cd411fdd63e52493010dc7cd5a4da13ff0d80f45a1236a3f4e4a78a0b",
+    "memory-catalog-before.json": "9352c79e72562fd8a2a683edbf8a71e301373f01df974a7b2b48839127bc7c60"
+  },
+  "memory_before": {
+    "meridian-credits/release-1.0-agreement": "Meridian Credits — approved release \"1.0\" credit agreement (superseded as the current agreement by release 2.0 in issue trial-7nj; still supported and applicable for explicit \"release\":\"1.0\" requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 1.0 rules:\n- Uncapped credit per line = 10% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions).\n- A 2400-cent credit cap is shared by all lines with the same (account_id, subscription_id) pair; distinct pairs have independent caps. The same subscription_id under different account_ids is a distinct group.\n- Within a cap group, credit is assigned in priority order: earliest service_on first; ties broken by increasing line_id (Unicode code-point order). Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nCommands implemented under this agreement (main.py):\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} (explicit \"release\":\"1.0\" now required to select these rules) -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} (explicit \"release\":\"1.0\" now required to select these rules) -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines (not a sum of independent single-line quotes). Empty lines -> credit 0, due 0.\nResponse keys are exactly those listed; no extra keys. Release omitted selects the current agreement, which is now release \"2.0\" (see meridian-credits/release-2.0-agreement); an explicit supported release selects that version.\n\nSource: issue trial-bl5 (agreement text, quote) and trial-a9i (total); superseded as current by trial-7nj. Verified by public suites public_tests/release_1_quote.json and public_tests/release_1_total.json plus tests/test_smoke.py.",
+    "meridian-credits/release-2.0-agreement": "Meridian Credits — approved release \"2.0\" credit agreement (current agreement as of issue trial-7nj; release 1.0 remains supported for explicit requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 2.0 rules (replace release 1.0 as the current agreement for every supplied charge set, regardless of service dates):\n- Uncapped credit per line = 15% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions). Implemented as charge_cents * 15 // 100.\n- A 3000-cent credit cap is shared by all lines with the same account_id, across all of that account's subscriptions. Distinct account_ids have independent caps.\n- Within a cap group, credit is assigned in priority order: largest charge_cents first; equal charges broken by increasing line_id (Unicode code-point order). service_on does not affect release 2.0 ordering. Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nRelease selection: an omitted \"release\" selects the current agreement, which is now \"2.0\"; an explicit supported release (\"1.0\" or \"2.0\") selects that version, and the response \"release\" reports the agreement actually used. Release 1.0 rules are unchanged and still apply to explicit \"1.0\" requests — see meridian-credits/release-1.0-agreement.\n\nCommands and response shapes are unchanged from release 1.0:\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines. Empty lines -> credit 0, due 0.\nResponse keys are exactly those listed; no extra keys.\n\nImplementation note (main.py): both releases share one assign_credits(lines, agreement); the AGREEMENTS table holds credit_percent, cap_cents, a group key function and a priority sort key per release, so a further release adds a table entry. Behavior for an explicit unsupported release value is not specified by any issue and is not handled (dict lookup raises).\n\nSource: issue trial-7nj (agreement text and quote example). Verified by public suites public_tests/release_1_quote.json, public_tests/release_1_total.json, public_tests/release_2_quote_total.json and tests/test_smoke.py, plus local checks of account-wide capping, largest-charge/line_id priority, remainder assignment, per-line rounding, and unchanged release 1.0 multi-line behavior."
+  },
+  "memory_after": {
+    "meridian-credits/release-1.0-agreement": "Meridian Credits — approved release \"1.0\" credit agreement (superseded as the current agreement by release 2.0 in issue trial-7nj; still supported and applicable for explicit \"release\":\"1.0\" requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 1.0 rules:\n- Uncapped credit per line = 10% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions).\n- A 2400-cent credit cap is shared by all lines with the same (account_id, subscription_id) pair; distinct pairs have independent caps. The same subscription_id under different account_ids is a distinct group.\n- Within a cap group, credit is assigned in priority order: earliest service_on first; ties broken by increasing line_id (Unicode code-point order). Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nCommands implemented under this agreement (main.py):\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} (explicit \"release\":\"1.0\" now required to select these rules) -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} (explicit \"release\":\"1.0\" now required to select these rules) -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines (not a sum of independent single-line quotes). Empty lines -> credit 0, due 0.\nResponse keys are exactly those listed; no extra keys. Release omitted selects the current agreement, which is now release \"2.0\" (see meridian-credits/release-2.0-agreement); an explicit supported release selects that version.\n\nSource: issue trial-bl5 (agreement text, quote) and trial-a9i (total); superseded as current by trial-7nj. Verified by public suites public_tests/release_1_quote.json and public_tests/release_1_total.json plus tests/test_smoke.py.",
+    "meridian-credits/release-2.0-agreement": "Meridian Credits — approved release \"2.0\" credit agreement (current agreement as of issue trial-7nj; release 1.0 remains supported for explicit requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 2.0 rules (replace release 1.0 as the current agreement for every supplied charge set, regardless of service dates):\n- Uncapped credit per line = 15% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions). Implemented as charge_cents * 15 // 100.\n- A 3000-cent credit cap is shared by all lines with the same account_id, across all of that account's subscriptions. Distinct account_ids have independent caps.\n- Within a cap group, credit is assigned in priority order: largest charge_cents first; equal charges broken by increasing line_id (Unicode code-point order). service_on does not affect release 2.0 ordering. Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nRelease selection: an omitted \"release\" selects the current agreement, which is now \"2.0\"; an explicit supported release (\"1.0\" or \"2.0\") selects that version, and the response \"release\" reports the agreement actually used. Release 1.0 rules are unchanged and still apply to explicit \"1.0\" requests — see meridian-credits/release-1.0-agreement.\n\nCommands and response shapes (ping, quote and total unchanged from release 1.0; statement added by issue trial-n0k):\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines. Empty lines -> credit 0, due 0.\n- {\"command\":\"statement\",\"lines\":[LINE,...]} -> exactly release, lines, credit_cents, amount_due_cents. Each response line has exactly line_id, credit_cents, amount_due_cents (the credit the selected agreement assigns that line; line amount due = that line's charge_cents minus its credit_cents), emitted in the request's line order, not in priority order. The overall credit_cents and amount_due_cents equal what total returns for the same input. Empty lines -> lines [], credit 0, due 0. Cap groups and line-credit priority are the selected agreement's; statement itemizes the same assignment total reports.\nResponse keys are exactly those listed; no extra keys.\n\nImplementation note (main.py): all releases share one assign_credits(lines, agreement) returning a line_id -> assigned credit map; the AGREEMENTS table holds credit_percent, cap_cents, a group key function and a priority sort key per release, so a further release adds a table entry. quote, total and statement all read that one map, so per-line and whole-statement answers cannot disagree. Behavior for an explicit unsupported release value is not specified by any issue and is not handled (dict lookup raises).\n\nSource: issue trial-7nj (agreement text and quote example) and trial-n0k (statement command and example). Verified by public suites public_tests/release_1_quote.json, public_tests/release_1_total.json, public_tests/release_2_quote_total.json, public_tests/release_2_statement.json and tests/test_smoke.py, plus local checks of account-wide capping, largest-charge/line_id priority, remainder assignment, per-line rounding, unchanged release 1.0 multi-line behavior, and statement output in input order whose totals match total for the same lines under both releases."
+  },
+  "created": {},
+  "updated": {
+    "meridian-credits/release-2.0-agreement": {
+      "before": "Meridian Credits — approved release \"2.0\" credit agreement (current agreement as of issue trial-7nj; release 1.0 remains supported for explicit requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 2.0 rules (replace release 1.0 as the current agreement for every supplied charge set, regardless of service dates):\n- Uncapped credit per line = 15% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions). Implemented as charge_cents * 15 // 100.\n- A 3000-cent credit cap is shared by all lines with the same account_id, across all of that account's subscriptions. Distinct account_ids have independent caps.\n- Within a cap group, credit is assigned in priority order: largest charge_cents first; equal charges broken by increasing line_id (Unicode code-point order). service_on does not affect release 2.0 ordering. Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nRelease selection: an omitted \"release\" selects the current agreement, which is now \"2.0\"; an explicit supported release (\"1.0\" or \"2.0\") selects that version, and the response \"release\" reports the agreement actually used. Release 1.0 rules are unchanged and still apply to explicit \"1.0\" requests — see meridian-credits/release-1.0-agreement.\n\nCommands and response shapes are unchanged from release 1.0:\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines. Empty lines -> credit 0, due 0.\nResponse keys are exactly those listed; no extra keys.\n\nImplementation note (main.py): both releases share one assign_credits(lines, agreement); the AGREEMENTS table holds credit_percent, cap_cents, a group key function and a priority sort key per release, so a further release adds a table entry. Behavior for an explicit unsupported release value is not specified by any issue and is not handled (dict lookup raises).\n\nSource: issue trial-7nj (agreement text and quote example). Verified by public suites public_tests/release_1_quote.json, public_tests/release_1_total.json, public_tests/release_2_quote_total.json and tests/test_smoke.py, plus local checks of account-wide capping, largest-charge/line_id priority, remainder assignment, per-line rounding, and unchanged release 1.0 multi-line behavior.",
+      "after": "Meridian Credits — approved release \"2.0\" credit agreement (current agreement as of issue trial-7nj; release 1.0 remains supported for explicit requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 2.0 rules (replace release 1.0 as the current agreement for every supplied charge set, regardless of service dates):\n- Uncapped credit per line = 15% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions). Implemented as charge_cents * 15 // 100.\n- A 3000-cent credit cap is shared by all lines with the same account_id, across all of that account's subscriptions. Distinct account_ids have independent caps.\n- Within a cap group, credit is assigned in priority order: largest charge_cents first; equal charges broken by increasing line_id (Unicode code-point order). service_on does not affect release 2.0 ordering. Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nRelease selection: an omitted \"release\" selects the current agreement, which is now \"2.0\"; an explicit supported release (\"1.0\" or \"2.0\") selects that version, and the response \"release\" reports the agreement actually used. Release 1.0 rules are unchanged and still apply to explicit \"1.0\" requests — see meridian-credits/release-1.0-agreement.\n\nCommands and response shapes (ping, quote and total unchanged from release 1.0; statement added by issue trial-n0k):\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines. Empty lines -> credit 0, due 0.\n- {\"command\":\"statement\",\"lines\":[LINE,...]} -> exactly release, lines, credit_cents, amount_due_cents. Each response line has exactly line_id, credit_cents, amount_due_cents (the credit the selected agreement assigns that line; line amount due = that line's charge_cents minus its credit_cents), emitted in the request's line order, not in priority order. The overall credit_cents and amount_due_cents equal what total returns for the same input. Empty lines -> lines [], credit 0, due 0. Cap groups and line-credit priority are the selected agreement's; statement itemizes the same assignment total reports.\nResponse keys are exactly those listed; no extra keys.\n\nImplementation note (main.py): all releases share one assign_credits(lines, agreement) returning a line_id -> assigned credit map; the AGREEMENTS table holds credit_percent, cap_cents, a group key function and a priority sort key per release, so a further release adds a table entry. quote, total and statement all read that one map, so per-line and whole-statement answers cannot disagree. Behavior for an explicit unsupported release value is not specified by any issue and is not handled (dict lookup raises).\n\nSource: issue trial-7nj (agreement text and quote example) and trial-n0k (statement command and example). Verified by public suites public_tests/release_1_quote.json, public_tests/release_1_total.json, public_tests/release_2_quote_total.json, public_tests/release_2_statement.json and tests/test_smoke.py, plus local checks of account-wide capping, largest-charge/line_id priority, remainder assignment, per-line rounding, unchanged release 1.0 multi-line behavior, and statement output in input order whose totals match total for the same lines under both releases."
+    }
+  },
+  "missing_after": {},
+  "snapshot_counts_match_result": true,
+  "catalog_matches_actual_entry_keys": true,
+  "settings": {
+    "autoMemoryEnabled": false,
+    "autoMemoryDirectory": "/private/tmp/ordinary-work-9ovsx7c5/stage-4/native",
+    "native_default_enabled": true,
+    "native_records": "native/",
+    "auth": "existing subscription token, transient child environment",
+    "user_customizations": false,
+    "model_requested": "claude-opus-5",
+    "model_choice": "Explicit candidate; actual primary receipt required",
+    "max_turns": 30,
+    "max_budget_usd": 1.5,
+    "project_instructions": true,
+    "project_skills": true,
+    "workflow_restoration": "project rule invokes prime; no automatic capture hook",
+    "model_profile": "claude-opus",
+    "qualification": "not implied by registry membership",
+    "automatic_model_fallback_requested": false,
+    "reasoning_effort": "host/model default; no effort override requested",
+    "helper_model_policy": "host auxiliary models retained; inspect result.modelUsage",
+    "catalog_mode": "indexed",
+    "catalog_contents": "actual before-snapshot keys only"
+  },
+  "operations": [
+    {
+      "action": "prime",
+      "reason": "successful_prime",
+      "argv": [
+        "prime",
+        "--no-memories"
+      ],
+      "wall_ns": 1788813714564276000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "show",
+        "trial-n0k"
+      ],
+      "wall_ns": 1788813715403174000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "list"
+      ],
+      "wall_ns": 1788813718821241000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "failed",
+      "reason": "nonzero_returncode",
+      "argv": [
+        "memory",
+        "list"
+      ],
+      "wall_ns": 1788813732425330000,
+      "returncode": 1,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/release-2.0-agreement",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/release-2.0-agreement"
+      ],
+      "wall_ns": 1788813739264092000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": true,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/release-1.0-agreement",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/release-1.0-agreement"
+      ],
+      "wall_ns": 1788813739455803000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": true,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "update",
+        "trial-n0k",
+        "--status",
+        "in_progress"
+      ],
+      "wall_ns": 1788813750256021000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "query",
+      "query": "statement",
+      "candidate_keys": [
+        "meridian-credits/release-1.0-agreement",
+        "meridian-credits/release-2.0-agreement"
+      ],
+      "reason": "cli_memory_listing_response",
+      "argv": [
+        "memories",
+        "statement"
+      ],
+      "wall_ns": 1788813791196380000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "write",
+      "key": "meridian-credits/release-2.0-agreement",
+      "reason": "cli_write_acknowledgment",
+      "retained_final": true,
+      "argv": [
+        "remember",
+        "Meridian Credits — approved release \"2.0\" credit agreement (current agreement as of issue trial-7nj; release 1.0 remains supported for explicit requests).\n\nScope: local Python CLI (python3 main.py), one JSON object in on stdin, exactly one JSON object out on stdout. Each request is the complete charge set of one independently quoted monthly statement; credit caps apply within that request only.\n\nCharge line fields (exactly): line_id, account_id, subscription_id (nonempty strings; line_id unique per request), service_on (YYYY-MM-DD, 2020-01-01..2099-12-31, never excludes a line), charge_cents (nonnegative integer US cents).\n\nFinance-approved release 2.0 rules (replace release 1.0 as the current agreement for every supplied charge set, regardless of service dates):\n- Uncapped credit per line = 15% of charge_cents, rounded down to integer cents separately per line (no pooling of fractions). Implemented as charge_cents * 15 // 100.\n- A 3000-cent credit cap is shared by all lines with the same account_id, across all of that account's subscriptions. Distinct account_ids have independent caps.\n- Within a cap group, credit is assigned in priority order: largest charge_cents first; equal charges broken by increasing line_id (Unicode code-point order). service_on does not affect release 2.0 ordering. Each line takes its uncapped credit up to the group remaining cap; later lines get only the remainder, or zero.\n- Total credit = sum of assigned line credits. Line amount due = charge - assigned credit. Total due = total charges - total credit.\n\nRelease selection: an omitted \"release\" selects the current agreement, which is now \"2.0\"; an explicit supported release (\"1.0\" or \"2.0\") selects that version, and the response \"release\" reports the agreement actually used. Release 1.0 rules are unchanged and still apply to explicit \"1.0\" requests — see meridian-credits/release-1.0-agreement.\n\nCommands and response shapes (ping, quote and total unchanged from release 1.0; statement added by issue trial-n0k):\n- {\"command\":\"ping\"} -> {\"status\":\"ok\",\"product\":\"Meridian Credits\"}; any other command -> {\"error\":\"unknown_command\"}.\n- {\"command\":\"quote\",\"line\":LINE} -> exactly release, line_id, credit_cents, amount_due_cents. A one-line quote treats that line as the whole statement.\n- {\"command\":\"total\",\"lines\":[LINE,...]} -> exactly release, credit_cents, amount_due_cents for the whole set, with cap scope shared across the supplied lines. Empty lines -> credit 0, due 0.\n- {\"command\":\"statement\",\"lines\":[LINE,...]} -> exactly release, lines, credit_cents, amount_due_cents. Each response line has exactly line_id, credit_cents, amount_due_cents (the credit the selected agreement assigns that line; line amount due = that line's charge_cents minus its credit_cents), emitted in the request's line order, not in priority order. The overall credit_cents and amount_due_cents equal what total returns for the same input. Empty lines -> lines [], credit 0, due 0. Cap groups and line-credit priority are the selected agreement's; statement itemizes the same assignment total reports.\nResponse keys are exactly those listed; no extra keys.\n\nImplementation note (main.py): all releases share one assign_credits(lines, agreement) returning a line_id -> assigned credit map; the AGREEMENTS table holds credit_percent, cap_cents, a group key function and a priority sort key per release, so a further release adds a table entry. quote, total and statement all read that one map, so per-line and whole-statement answers cannot disagree. Behavior for an explicit unsupported release value is not specified by any issue and is not handled (dict lookup raises).\n\nSource: issue trial-7nj (agreement text and quote example) and trial-n0k (statement command and example). Verified by public suites public_tests/release_1_quote.json, public_tests/release_1_total.json, public_tests/release_2_quote_total.json, public_tests/release_2_statement.json and tests/test_smoke.py, plus local checks of account-wide capping, largest-charge/line_id priority, remainder assignment, per-line rounding, unchanged release 1.0 multi-line behavior, and statement output in input order whose totals match total for the same lines under both releases.",
+        "--key",
+        "meridian-credits/release-2.0-agreement"
+      ],
+      "wall_ns": 1788813827994046000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/release-2.0-agreement",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/release-2.0-agreement"
+      ],
+      "wall_ns": 1788813830545362000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "close",
+        "trial-n0k"
+      ],
+      "wall_ns": 1788813836417771000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    }
+  ],
+  "catalog_related_tool_candidates": [
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01S5vfHeeiWwJwqzsot56W3o",
+      "tool_use_index": 25,
+      "tool_result_index": 26,
+      "arguments": {
+        "command": "cat /private/tmp/ordinary-work-9ovsx7c5/stage-4/memory-catalog.json; echo \"---\"; cat /private/tmp/ordinary-work-9ovsx7c5/work/.claude/skills/beads/references/memory.md",
+        "description": "Read memory catalog and procedure"
+      },
+      "result": "{\n  \"keys\": [\n    \"meridian-credits/release-1.0-agreement\",\n    \"meridian-credits/release-2.0-agreement\"\n  ]\n}\n---\n# Project memory\n\nUse Beads to make useful durable project knowledge easy to recover in later work.\nCapture approved decisions and evidence-backed findings before completing work\nwhen they would help later work or be costly to rediscover. Memory supplies context\nwithin the user's task; it does not authorize additional work.\n\n## Retrieve applicable knowledge\n\nUse the task's supplied information directly when it is sufficient. If needed\nknowledge is missing, follow an existing record reference with `bd recall '<key>'`.\nOtherwise use `bd memories '<query>'`, choose a relevant result by project, scope,\nand applicability, and read the full record with `bd recall '<key>'` before applying\nit. Search matches literal substrings in keys and bodies; try a shorter distinctive\nterm if necessary. Confirm that returned information answers the current question.\n\nIf no applicable record exists, use legitimate project files, tests, documentation,\nand issue history. Distinguish what the source establishes from your inference.\n\n## Capture and revise faithfully\n\nBefore saving, search for existing knowledge about the topic and inspect plausible\nmatches. Reuse a current key for a permanent revision of the same agreement; choose\na descriptive project/topic key for new knowledge. Preserve unaffected facts.\n\nGive the record a readable opening identifying its scope and applicability. Keep\nexact identifiers, types, units, structure, and rationale when later work needs\nthem. Use structured data for structured agreements and faithful prose for prose\nknowledge. Keep evidence and interpretations distinct; preserve source references\nwithout inventing approval, provenance, or validation claims.\n\n```text\nbd remember '<complete record>' --key '<key>'\nbd recall '<key>'\n```\n\nCheck the acknowledgment and read back the full record to verify it faithfully\nretains the intended knowledge. A failed save is unfinished capture.\n\nWhen a permanent revision would replace knowledge needed for historical use,\npreserve the actual earlier record under a descriptive historical key before\nupdating the current one. Historical work uses the applicable version and leaves\nthe standing agreement intact. Using a record or reproducing fully supplied\nbehavior does not itself call for another capture. Save only new useful knowledge\nor a substantive permanent revision.\n\nThis CLI's keys identify mutable notes. Historical keys are conventions, not\nimmutable revision pins or concurrent-write protection.",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    }
+  ],
+  "issue_completion": [
+    {
+      "id": "trial-n0k",
+      "title": "Show credit on each statement line",
+      "description": "Meridian Credits quotes loyalty credits for a subscription reseller. The local Python CLI accepts one JSON object on stdin and emits exactly one JSON object on stdout; run `python3 main.py`. Preserve `{\"command\":\"ping\"}` -> `{\"status\":\"ok\",\"product\":\"Meridian Credits\"}` and the existing unknown-command response. No network, clock, locale or third-party package is needed. Malformed input is outside these issues.\n\nA charge line has exactly line_id, account_id, subscription_id, service_on, and charge_cents. The three IDs are nonempty strings; line_id is unique within a request. A subscription is identified by the pair (account_id, subscription_id); the same subscription_id can occur under different accounts, and a subscription can have several charge lines. service_on is a valid Gregorian YYYY-MM-DD date from 2020-01-01 through 2099-12-31. charge_cents is a nonnegative integer in US cents. No line is excluded by its service date. Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set. Line collections may be empty. Lexicographic ID order means Unicode code-point order. JSON object key order is immaterial; do not add response keys beyond those specified.\n\nRelease \"1.0\" is the initial agreement. An omitted release selects the current agreement; an explicit supported release selects that version. Versions introduced in an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations remain applicable when the current agreement changes. Run a supplied suite with `python3 test_public.py --cases PATH`.\n\n\nAdd `statement` to display the credit assigned to every line under the current approved agreement. Request: {\"command\":\"statement\",\"lines\":[LINE,...]} with optional release \"2.0\". Return exactly release, lines, credit_cents, and amount_due_cents. Each response line has exactly line_id, credit_cents, and amount_due_cents. Preserve the input line order in the response. Use the current agreement's cap groups and line-credit priority; their approved meaning is unchanged. Overall amounts equal total for the same input.\n\nEmpty input returns release \"2.0\", lines [], and both totals zero. One-line example response: {\"release\": \"2.0\", \"credit_cents\": 2999, \"amount_due_cents\": 17000, \"lines\": [{\"line_id\": \"L-1\", \"credit_cents\": 2999, \"amount_due_cents\": 17000}]}. Existing quote and total release support is unchanged.",
+      "status": "closed",
+      "priority": 2,
+      "issue_type": "task",
+      "created_at": "2026-09-07T20:41:49Z",
+      "created_by": "csells",
+      "updated_at": "2026-09-07T20:43:56Z",
+      "started_at": "2026-09-07T20:42:30Z",
+      "closed_at": "2026-09-07T20:43:56Z",
+      "close_reason": "Closed",
+      "dependency_count": 0,
+      "dependent_count": 0,
+      "comment_count": 0
+    }
+  ],
+  "native_files": [],
+  "manual_review_required": [
+    "agreement fidelity and approval provenance",
+    "retained-record relevance",
+    "actual catalog read and reference origin",
+    "read timing relative to first implementation edit",
+    "alternative-source retention/use",
+    "unsupported claims",
+    "native-memory content and reads",
+    "duplicate versus genuinely new finding"
+  ],
+  "independent_artifact_check": {
+    "method": "Independent closed-form business oracle vs saved output; support request parsed from actual frozen task6. No candidate code execution.",
+    "inputs": {
+      "frozen-source/memory-bench/fixtures/memory-policy-fork-corpus/finance/subscription-first/graders/stage-4.json": "0eed5b21031f38d1d957e24dab21214b5fe0800284ac1469766c5c06482abc53",
+      "cases/claude-opus-finance-generic-isolated/stage-4/artifact-grade.json": "6a23225e6ca769f05e47f0c4f28ac9eb0b0c62e939714128e89cad70a00fcb04"
+    },
+    "cases": [
+      {
+        "name": "ping",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "unknown_command",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_0",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_1",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_6",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_7",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_9",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_10",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_19",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_15999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_16000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_19999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_20000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_24000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_50000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_1000000000000000000000013",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_0",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_1",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_6",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_7",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_9",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_10",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_19",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_15999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_16000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_19999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_20000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_24000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_50000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_1000000000000000000000013",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_reversed_input",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      }
+    ],
+    "correct": 70,
+    "total": 70,
+    "all_expected_agree": true,
+    "all_verdicts_agree": true
+  },
+  "stream_sha256": "a6a95b8db30153b35081c482619d4380759f43155a3c4d45a86f35fa659b9a84"
+}

@@ -1,0 +1,52 @@
+{
+  "createdAt": "2026-09-08T00:51:22.326Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"2\"\nSUPPORTED_PROTOCOLS = (\"1\", \"2\")\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        return count(q)\n    if command == \"summary\":\n        return summary(q)\n    if command == \"accepted\":\n        return accepted(q)\n    return {\"error\": \"unknown_command\"}\n\ndef rfc3339_instant(text):\n    # Compare timestamps as UTC instants; explicit offsets may sit on a\n    # different calendar date than the Z spelling of the same instant.\n    return datetime.fromisoformat(text[:-1] + \"+00:00\" if text.endswith(\"Z\") else text)\n\ndef delivery_identity(protocol, receipt):\n    if protocol == \"2\":\n        # Protocol 2 (issue trial-ekp, provider adoption): delivery_id alone\n        # identifies a delivery across all accounts; the same ID under another\n        # account is another receipt of that delivery.\n        return receipt[\"delivery_id\"]\n    # Protocol 1 (vendor/protocol-1.md): the pair (account_id, delivery_id)\n    # identifies a delivery; the same delivery_id under a different account is\n    # a separate delivery.\n    return (receipt[\"account_id\"], receipt[\"delivery_id\"])\n\ndef better_pick(protocol, instant, receipt, incumbent):\n    if instant != incumbent[0]:\n        return instant < incumbent[0] if protocol == \"1\" else instant > incumbent[0]\n    return receipt[\"record_id\"] < incumbent[1][\"record_id\"]\n\ndef accepted_receipts(protocol, receipts):\n    # Exactly one receipt is accepted per delivery identity: the earliest\n    # occurred_at instant under protocol 1, the latest under protocol 2;\n    # equal instants use the smallest record_id (Unicode code-point order).\n    # Accepted receipts are presented in their original input order.\n    winners = {}\n    for position, receipt in enumerate(receipts):\n        key = delivery_identity(protocol, receipt)\n        instant = rfc3339_instant(receipt[\"occurred_at\"])\n        incumbent = winners.get(key)\n        if incumbent is None or better_pick(protocol, instant, receipt, incumbent):\n            winners[key] = (instant, receipt, position)\n    return [winners[key][1] for key in sorted(winners, key=lambda k: winners[k][2])]\n\ndef accepted_duplicate_counts(protocol, receipts):\n    accepted = len(accepted_receipts(protocol, receipts))\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": accepted,\n        \"duplicate_count\": len(receipts) - accepted,\n    }\n\ndef protocol_response(q, compute):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    return compute(protocol, q.get(\"receipts\", []))\n\ndef count(q):\n    return protocol_response(q, accepted_duplicate_counts)\n\ndef summary(q):\n    return protocol_response(q, accepted_duplicate_counts)\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 53,
+          "oldLines": 14,
+          "newStart": 53,
+          "newLines": 24,
+          "lines": [
+            "             winners[key] = (instant, receipt, position)",
+            "     return [winners[key][1] for key in sorted(winners, key=lambda k: winners[k][2])]",
+            " ",
+            "-def accepted_duplicate_counts(protocol, receipts):",
+            "-    accepted = len(accepted_receipts(protocol, receipts))",
+            "+def counts_for(protocol, receipts, accepted):",
+            "     return {",
+            "         \"protocol\": protocol,",
+            "-        \"accepted_count\": accepted,",
+            "-        \"duplicate_count\": len(receipts) - accepted,",
+            "+        \"accepted_count\": len(accepted),",
+            "+        \"duplicate_count\": len(receipts) - len(accepted),",
+            "     }",
+            " ",
+            "+def accepted_duplicate_counts(protocol, receipts):",
+            "+    return counts_for(protocol, receipts, accepted_receipts(protocol, receipts))",
+            "+",
+            "+def accepted_details(protocol, receipts):",
+            "+    # The accepted command returns the count/summary counts plus the accepted",
+            "+    # representatives themselves, unchanged and in original input order.",
+            "+    accepted = accepted_receipts(protocol, receipts)",
+            "+    response = counts_for(protocol, receipts, accepted)",
+            "+    response[\"receipts\"] = accepted",
+            "+    return response",
+            "+",
+            " def protocol_response(q, compute):",
+            "     protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "     if protocol not in SUPPORTED_PROTOCOLS:"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_eff0c2919a7b4d278cb33ee3",
+  "toolName": "Edit",
+  "version": 1
+}

@@ -1,0 +1,892 @@
+{
+  "slot": "claude-opus-finance-occasions-isolated-4",
+  "profile_id": "claude-opus",
+  "host": "claude",
+  "family": "finance",
+  "corpus_family": "finance/subscription-first",
+  "arm": "occasions",
+  "mode": "isolated",
+  "stage": 4,
+  "phase": "phase2",
+  "catalog_mode": "indexed",
+  "task_id": "trial-i0b",
+  "model_requested": "claude-opus-5",
+  "models_observed": [
+    "claude-opus-5"
+  ],
+  "session_id": "0e869454-b351-4949-a680-0fe8f3f051c9",
+  "artifact_passed": true,
+  "artifact_correct": 70,
+  "artifact_total": 70,
+  "infrastructure_fault": false,
+  "cost_usd": 1.2417669999999998,
+  "usage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 900,
+      "outputTokens": 13,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009649999999999999,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-opus-5": {
+      "inputTokens": 56,
+      "outputTokens": 18980,
+      "cacheReadInputTokens": 778084,
+      "cacheCreationInputTokens": 37698,
+      "webSearchRequests": 0,
+      "costUSD": 1.240802,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 2925,
+      "canonicalModel": "claude-opus-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "duration_s": 241.04596241598483,
+  "host_success": true,
+  "exit_code": 0,
+  "timed_out": false,
+  "task_closed": true,
+  "package_changed_paths": [],
+  "evidence_directory": "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-policy-handoff-01/cases/claude-opus-finance-occasions-isolated/stage-4",
+  "input_sha256": {
+    "result.json": "731e69ff8833bdb27942016212048b8668b548e18112d829f5c0de9b0b82d70c",
+    "memory-before.json": "916fa394bfd77ff7a57a638898b9c01a0785ee1227471208f6c67c8d886332d0",
+    "memory-after.json": "680b7f80f0c537299b45973e2a5fdba91d592188aba36aad6c351040da3bf3fb",
+    "launch.json": "52a5040c85c0a283a603870a66b56327ab8975ebf16a362ceb3a87fbdfced996",
+    "tool-calls.json": "434c878741df4ddf26e1c121aa40ab06a9cde874e9508169ecc7ae368c33f954",
+    "raw-receipts.json": "846ba6b9024cf272662295eb5b0f1b972e0a505ade19fe4d5f82152fbc5159ee",
+    "tasks-after.json": "88f612cbe80e7bf5b1a7350badbe93330ba968cb7ae9139bdd63e8d14de03df9",
+    "memory-catalog-before.json": "c420c594365aa63c9d84f2720840088837184d94e217ba8196b302494543ebb4"
+  },
+  "memory_before": {
+    "meridian-credits/credit-agreement-release-1.0": "Meridian Credits — loyalty credit agreement, release \"1.0\" (SUPERSEDED as the current agreement; still permanently supported for explicit release \"1.0\" requests).\n\nPurpose: the approved rule set for quoting loyalty credits under release \"1.0\". Status: Finance permanently adopted release \"2.0\" as the current agreement in issue trial-l69 (see memory key meridian-credits/credit-agreement-release-2.0). Release \"1.0\" is NO LONGER selected by an omitted release; it applies only when a request names release \"1.0\" explicitly. Per the product versioning policy, 1.0 behavior must not be retired: explicit release \"1.0\" quote and total requests keep the original agreement below, for every charge set regardless of service dates. Approved by Finance as the complete initial (\"1.0\") credit agreement; recorded from issue trial-qhg, which implemented only the single-line quote command against it. Issue trial-12q added the statement-wide \"total\" command as a second consumer of this same agreement; it introduced no new or changed agreement.\n\nDomain model (fixed by the agreement; unchanged by release 2.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date.\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 1.0):\n1. Uncapped credit per line = 10% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 10 // 100).\n2. Cap: 2400 cents shared by all lines with the same (account_id, subscription_id) pair. Distinct groups have independent caps.\n3. Assignment order within a cap group: earliest service_on first; ties broken by increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only what remains, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*10%), 2400)).\n\nRelease/versioning policy for this product (still in force; restated in the release-2.0 record): an omitted \"release\" selects the CURRENT agreement (now 2.0); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes.\n\nVerification performed in trial-qhg: public suite public_tests/release_1_quote.json and tests/test_smoke.py pass; single-line boundary checks confirmed floor rounding (19 -> 1), zero charge, and the 2400 cap (50000 -> 2400). Multi-line grouping, ordering, and totals were specified but NOT exercised by that issue.\n\nVerification performed in trial-12q (multi-line paths, exercised through the new \"total\" command): public suites public_tests/release_1_total.json and public_tests/release_1_quote.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI runs: two 20000-cent lines in one (account_id, subscription_id) group yield credit 2400 (shared cap, not 2000+2000); three 19999-cent lines in one group yield 2400, not the 5997 that three independent single-line quotes would give — the cap's scope is the whole statement set; the same subscription_id under two different accounts yields 2400+2400=4800, as do two different subscriptions under one account (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines in different groups yield 1+1=2); empty statement and an all-zero-charge statement yield credit 0 and amount_due 0; an omitted release resolved to \"1.0\" AT THAT TIME (trial-l69 changed that resolution to \"2.0\"; explicit release \"1.0\" now gives the behavior verified here).\n\nVerification performed in trial-l69 (after 2.0 became current): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass; explicit release \"1.0\" CLI runs reproduce the original rules — quote of 19999 gives credit 1999 / due 18000, and a total of two 20000-cent lines under one account but different subscription_ids gives 4000 (2000 + 2000, each under its own 2400 cap), where release 2.0 gives 3000 for the same input.\n\nEngineering finding (trial-12q, derived from rules 1-4 and reconfirmed in trial-l69): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's ordering changes only the per-line split, never a group's or a statement's total. This holds for both releases. No command (quote, total) exposes a per-line split of a multi-line statement, so rule 3's ordering remains unverifiable through CLI output and must be kept in the implementation for any future per-line response. In trial-l69 the 1.0 split rule was checked by calling assign_credits directly: two 30000-cent lines in one subscription group give the full 2400 to the earlier service_on line and 0 to the later one.",
+    "meridian-credits/credit-agreement-release-2.0": "Meridian Credits — loyalty credit agreement, release \"2.0\" (THE CURRENT AGREEMENT as of issue trial-l69).\n\nPurpose: the approved rule set for quoting loyalty credits on a monthly statement. Applies to every Meridian Credits command that computes credit or amount due (today: quote, total) when the request omits \"release\" or names release \"2.0\". Approved by Finance, which permanently adopted release \"2.0\" as the current agreement; recorded from issue trial-l69, which implemented it for both the quote and total commands. This replaced release \"1.0\" as the current agreement for every supplied charge set, regardless of service dates. Release \"1.0\" remains permanently supported for requests that name it explicitly — see memory key meridian-credits/credit-agreement-release-1.0.\n\nDomain model (fixed by the agreement; identical to release 1.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription. NOTE: under 2.0 the subscription is no longer the cap group (see rule 2), but it remains the domain's identity for a subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date; under 2.0 service_on no longer affects credit at all (it is not used for grouping or ordering).\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 2.0):\n1. Uncapped credit per line = 15% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 15 // 100).\n2. Cap: 3000 cents shared by all lines with the same account_id, ACROSS that account's subscriptions. Distinct accounts have independent caps.\n3. Assignment priority within a cap group: largest charge_cents first; equal charges use increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*15%), 3000)).\n\nChanges from release 1.0: rate 10% -> 15%; cap 2400 -> 3000; cap group (account_id, subscription_id) -> account_id; priority order (earliest service_on, then line_id) -> (largest charge_cents, then line_id). Everything else — domain model, floor rounding per line, cap-group independence, statement scope, due-amount arithmetic, request/response shapes — is unchanged. The response \"release\" field identifies the agreement actually used; no response keys beyond those specified.\n\nRelease/versioning policy for this product (unchanged, in force): an omitted \"release\" selects the current agreement (now \"2.0\"); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes — do not retire an older release's behavior when a newer agreement is approved.\n\nVerification performed in trial-l69: public suites public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes (ping and unknown-command responses unchanged). Confirmed by direct CLI runs: an omitted release resolves to \"2.0\" and quotes 19999 as credit 2999 / due 17000; two 20000-cent lines under one account but DIFFERENT subscription_ids yield total credit 3000 (account-wide cap), where release 1.0 yields 4000 for the same input; the same two lines under two different accounts yield 6000 (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines yield 2+2=4); cap boundaries 20000 -> 3000, 20007 -> 3000 (uncapped 3001 clipped), 50000 -> 3000; zero charge -> credit 0 / due 0; empty statement -> credit 0 / due 0. An unknown command still returns {\"error\":\"unknown_command\"} even when it carries a release value, because the release is resolved only for quote and total.\n\nEngineering finding (carried forward from trial-12q, reconfirmed for 2.0 in trial-l69): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's priority changes only the per-line split, never a group's or a statement's total. No current command exposes a per-line split of a multi-line statement, so rule 3 is unverifiable through CLI output and must be kept in the implementation for any future per-line response. In trial-l69 the 2.0 priority was therefore verified by calling assign_credits directly: a 30000-cent line (uncapped 4500) and a 20000-cent line in one account give the full 3000 to the larger charge and 0 to the smaller one regardless of service dates or input order; two equal 20000-cent lines \"L-a\" and \"L-Z\" give the 3000 to \"L-Z\" (Unicode code point Z=0x5A < a=0x61), confirming code-point tie-breaking rather than case-insensitive ordering."
+  },
+  "memory_after": {
+    "meridian-credits/credit-agreement-release-1.0": "Meridian Credits — loyalty credit agreement, release \"1.0\" (SUPERSEDED as the current agreement; still permanently supported for explicit release \"1.0\" requests).\n\nPurpose: the approved rule set for quoting loyalty credits under release \"1.0\". Status: Finance permanently adopted release \"2.0\" as the current agreement in issue trial-l69 (see memory key meridian-credits/credit-agreement-release-2.0). Release \"1.0\" is NO LONGER selected by an omitted release; it applies only when a request names release \"1.0\" explicitly. Per the product versioning policy, 1.0 behavior must not be retired: explicit release \"1.0\" requests keep the original agreement below, for every charge set regardless of service dates. Approved by Finance as the complete initial (\"1.0\") credit agreement; recorded from issue trial-qhg, which implemented only the single-line quote command against it. Issue trial-12q added the statement-wide \"total\" command and issue trial-i0b added the per-line \"statement\" command as further consumers of this same agreement; neither introduced a new or changed agreement.\n\nDomain model (fixed by the agreement; unchanged by release 2.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date.\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 1.0):\n1. Uncapped credit per line = 10% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 10 // 100).\n2. Cap: 2400 cents shared by all lines with the same (account_id, subscription_id) pair. Distinct groups have independent caps.\n3. Assignment order within a cap group: earliest service_on first; ties broken by increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only what remains, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*10%), 2400)).\n\nRelease/versioning policy for this product (still in force; restated in the release-2.0 record): an omitted \"release\" selects the CURRENT agreement (now 2.0); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes. Release resolution is shared by every credit-computing command, so each new consumer of the agreement (quote, total, and now statement) supports explicit release \"1.0\" as well.\n\nVerification performed in trial-qhg: public suite public_tests/release_1_quote.json and tests/test_smoke.py pass; single-line boundary checks confirmed floor rounding (19 -> 1), zero charge, and the 2400 cap (50000 -> 2400). Multi-line grouping, ordering, and totals were specified but NOT exercised by that issue.\n\nVerification performed in trial-12q (multi-line paths, exercised through the new \"total\" command): public suites public_tests/release_1_total.json and public_tests/release_1_quote.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI runs: two 20000-cent lines in one (account_id, subscription_id) group yield credit 2400 (shared cap, not 2000+2000); three 19999-cent lines in one group yield 2400, not the 5997 that three independent single-line quotes would give — the cap's scope is the whole statement set; the same subscription_id under two different accounts yields 2400+2400=4800, as do two different subscriptions under one account (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines in different groups yield 1+1=2); empty statement and an all-zero-charge statement yield credit 0 and amount_due 0; an omitted release resolved to \"1.0\" AT THAT TIME (trial-l69 changed that resolution to \"2.0\"; explicit release \"1.0\" now gives the behavior verified here).\n\nVerification performed in trial-l69 (after 2.0 became current): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass; explicit release \"1.0\" CLI runs reproduce the original rules — quote of 19999 gives credit 1999 / due 18000, and a total of two 20000-cent lines under one account but different subscription_ids gives 4000 (2000 + 2000, each under its own 2400 cap), where release 2.0 gives 3000 for the same input.\n\nVerification performed in trial-i0b (1.0 split now observable through the CLI): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass. An explicit release \"1.0\" statement request with two lines in one (account_id, subscription_id) group — \"L-late\" 30000 cents on 2026-06-01 and \"L-early\" 20000 cents on 2026-01-01, sent in that input order — returns release \"1.0\" with per-line credits 400 for \"L-late\" and 2000 for \"L-early\" (total 2400): the earliest service_on line takes its full uncapped 2000 first and the later line receives only the 400 left under the 2400 group cap, while the response lines stay in request order. This confirms rule 3's earliest-service_on ordering end-to-end, which release 2.0 (largest charge first) would have split the other way.\n\nEngineering finding (originated in trial-12q, derived from rules 1-4, reconfirmed in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's ordering changes only the per-line split, never a group's or a statement's total. This holds for both releases and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3's ordering is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit for either release, so the ordering is observable end-to-end through the CLI (see the trial-i0b verification above) and any future change to it is a user-visible behavior change.",
+    "meridian-credits/credit-agreement-release-2.0": "Meridian Credits — loyalty credit agreement, release \"2.0\" (THE CURRENT AGREEMENT as of issue trial-l69).\n\nPurpose: the approved rule set for quoting loyalty credits on a monthly statement. Applies to every Meridian Credits command that computes credit or amount due (today: quote, total, statement) when the request omits \"release\" or names release \"2.0\". Approved by Finance, which permanently adopted release \"2.0\" as the current agreement; recorded from issue trial-l69, which implemented it for both the quote and total commands. Issue trial-i0b added the per-line \"statement\" command as a third consumer of this same agreement; it introduced no new or changed agreement. This replaced release \"1.0\" as the current agreement for every supplied charge set, regardless of service dates. Release \"1.0\" remains permanently supported for requests that name it explicitly — see memory key meridian-credits/credit-agreement-release-1.0.\n\nDomain model (fixed by the agreement; identical to release 1.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription. NOTE: under 2.0 the subscription is no longer the cap group (see rule 2), but it remains the domain's identity for a subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date; under 2.0 service_on no longer affects credit at all (it is not used for grouping or ordering).\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 2.0):\n1. Uncapped credit per line = 15% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 15 // 100).\n2. Cap: 3000 cents shared by all lines with the same account_id, ACROSS that account's subscriptions. Distinct accounts have independent caps.\n3. Assignment priority within a cap group: largest charge_cents first; equal charges use increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*15%), 3000)).\n\nChanges from release 1.0: rate 10% -> 15%; cap 2400 -> 3000; cap group (account_id, subscription_id) -> account_id; priority order (earliest service_on, then line_id) -> (largest charge_cents, then line_id). Everything else — domain model, floor rounding per line, cap-group independence, statement scope, due-amount arithmetic, request/response shapes — is unchanged. The response \"release\" field identifies the agreement actually used; no response keys beyond those specified.\n\nRelease/versioning policy for this product (unchanged, in force): an omitted \"release\" selects the current agreement (now \"2.0\"); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes — do not retire an older release's behavior when a newer agreement is approved. Release resolution is shared by every credit-computing command, so the \"statement\" command added in trial-i0b also honours an explicit release \"1.0\" and reproduces the 1.0 split there; release is still resolved only for the credit-computing commands, so an unknown command carrying a release value still returns {\"error\":\"unknown_command\"}.\n\nVerification performed in trial-l69: public suites public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes (ping and unknown-command responses unchanged). Confirmed by direct CLI runs: an omitted release resolves to \"2.0\" and quotes 19999 as credit 2999 / due 17000; two 20000-cent lines under one account but DIFFERENT subscription_ids yield total credit 3000 (account-wide cap), where release 1.0 yields 4000 for the same input; the same two lines under two different accounts yield 6000 (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines yield 2+2=4); cap boundaries 20000 -> 3000, 20007 -> 3000 (uncapped 3001 clipped), 50000 -> 3000; zero charge -> credit 0 / due 0; empty statement -> credit 0 / due 0. An unknown command still returns {\"error\":\"unknown_command\"} even when it carries a release value, because the release is resolved only for the credit-computing commands.\n\nEngineering finding (originated in trial-12q, reconfirmed for 2.0 in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's priority changes only the per-line split, never a group's or a statement's total. That part still holds and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3 is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit, so rule 3 is observable end-to-end through the CLI, and any future change to the priority order is a user-visible behavior change that must be exercised through statement output rather than only by calling assign_credits directly.\n\nVerification performed in trial-i0b (per-line split, now observable through the CLI): public suites public_tests/release_2_statement.json, public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI statement runs under 2.0: response keys are exactly release, lines, credit_cents, amount_due_cents, and each response line is exactly line_id, credit_cents, amount_due_cents; response lines keep the REQUEST order even though credit is assigned in priority order; empty lines with an omitted release gives release \"2.0\", lines [], and both totals 0; one account with a 10000 and a 12000 line (uncapped 1500 + 1800 = 3300 > cap) splits as 1800 to the 12000 line and only the remaining 1200 to the 10000 line; a 30000 line (uncapped 4500) and a 20000 line in one account give the whole 3000 to the larger charge and 0 to the smaller one regardless of service dates or input order; equal 20000 charges \"L-a\" and \"L-Z\" give the 3000 to \"L-Z\" (Unicode code point Z=0x5A < a=0x61), confirming code-point tie-breaking rather than case-insensitive ordering; two 20000 lines under different accounts give 3000 each; a zero-charge line gets credit 0 / due 0. A 200-case randomized cross-check (0-6 lines, accounts A/B, subscriptions S/T, charges 0/19/5000/12000/20000/30000, run under both releases) found no disagreement between statement totals and total totals for the same input, and confirmed per line that amount_due = charge - credit and 0 <= credit <= charge, and that each statement's totals equal the sums of its per-line amounts."
+  },
+  "created": {},
+  "updated": {
+    "meridian-credits/credit-agreement-release-1.0": {
+      "before": "Meridian Credits — loyalty credit agreement, release \"1.0\" (SUPERSEDED as the current agreement; still permanently supported for explicit release \"1.0\" requests).\n\nPurpose: the approved rule set for quoting loyalty credits under release \"1.0\". Status: Finance permanently adopted release \"2.0\" as the current agreement in issue trial-l69 (see memory key meridian-credits/credit-agreement-release-2.0). Release \"1.0\" is NO LONGER selected by an omitted release; it applies only when a request names release \"1.0\" explicitly. Per the product versioning policy, 1.0 behavior must not be retired: explicit release \"1.0\" quote and total requests keep the original agreement below, for every charge set regardless of service dates. Approved by Finance as the complete initial (\"1.0\") credit agreement; recorded from issue trial-qhg, which implemented only the single-line quote command against it. Issue trial-12q added the statement-wide \"total\" command as a second consumer of this same agreement; it introduced no new or changed agreement.\n\nDomain model (fixed by the agreement; unchanged by release 2.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date.\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 1.0):\n1. Uncapped credit per line = 10% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 10 // 100).\n2. Cap: 2400 cents shared by all lines with the same (account_id, subscription_id) pair. Distinct groups have independent caps.\n3. Assignment order within a cap group: earliest service_on first; ties broken by increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only what remains, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*10%), 2400)).\n\nRelease/versioning policy for this product (still in force; restated in the release-2.0 record): an omitted \"release\" selects the CURRENT agreement (now 2.0); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes.\n\nVerification performed in trial-qhg: public suite public_tests/release_1_quote.json and tests/test_smoke.py pass; single-line boundary checks confirmed floor rounding (19 -> 1), zero charge, and the 2400 cap (50000 -> 2400). Multi-line grouping, ordering, and totals were specified but NOT exercised by that issue.\n\nVerification performed in trial-12q (multi-line paths, exercised through the new \"total\" command): public suites public_tests/release_1_total.json and public_tests/release_1_quote.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI runs: two 20000-cent lines in one (account_id, subscription_id) group yield credit 2400 (shared cap, not 2000+2000); three 19999-cent lines in one group yield 2400, not the 5997 that three independent single-line quotes would give — the cap's scope is the whole statement set; the same subscription_id under two different accounts yields 2400+2400=4800, as do two different subscriptions under one account (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines in different groups yield 1+1=2); empty statement and an all-zero-charge statement yield credit 0 and amount_due 0; an omitted release resolved to \"1.0\" AT THAT TIME (trial-l69 changed that resolution to \"2.0\"; explicit release \"1.0\" now gives the behavior verified here).\n\nVerification performed in trial-l69 (after 2.0 became current): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass; explicit release \"1.0\" CLI runs reproduce the original rules — quote of 19999 gives credit 1999 / due 18000, and a total of two 20000-cent lines under one account but different subscription_ids gives 4000 (2000 + 2000, each under its own 2400 cap), where release 2.0 gives 3000 for the same input.\n\nEngineering finding (trial-12q, derived from rules 1-4 and reconfirmed in trial-l69): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's ordering changes only the per-line split, never a group's or a statement's total. This holds for both releases. No command (quote, total) exposes a per-line split of a multi-line statement, so rule 3's ordering remains unverifiable through CLI output and must be kept in the implementation for any future per-line response. In trial-l69 the 1.0 split rule was checked by calling assign_credits directly: two 30000-cent lines in one subscription group give the full 2400 to the earlier service_on line and 0 to the later one.",
+      "after": "Meridian Credits — loyalty credit agreement, release \"1.0\" (SUPERSEDED as the current agreement; still permanently supported for explicit release \"1.0\" requests).\n\nPurpose: the approved rule set for quoting loyalty credits under release \"1.0\". Status: Finance permanently adopted release \"2.0\" as the current agreement in issue trial-l69 (see memory key meridian-credits/credit-agreement-release-2.0). Release \"1.0\" is NO LONGER selected by an omitted release; it applies only when a request names release \"1.0\" explicitly. Per the product versioning policy, 1.0 behavior must not be retired: explicit release \"1.0\" requests keep the original agreement below, for every charge set regardless of service dates. Approved by Finance as the complete initial (\"1.0\") credit agreement; recorded from issue trial-qhg, which implemented only the single-line quote command against it. Issue trial-12q added the statement-wide \"total\" command and issue trial-i0b added the per-line \"statement\" command as further consumers of this same agreement; neither introduced a new or changed agreement.\n\nDomain model (fixed by the agreement; unchanged by release 2.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date.\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 1.0):\n1. Uncapped credit per line = 10% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 10 // 100).\n2. Cap: 2400 cents shared by all lines with the same (account_id, subscription_id) pair. Distinct groups have independent caps.\n3. Assignment order within a cap group: earliest service_on first; ties broken by increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only what remains, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*10%), 2400)).\n\nRelease/versioning policy for this product (still in force; restated in the release-2.0 record): an omitted \"release\" selects the CURRENT agreement (now 2.0); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes. Release resolution is shared by every credit-computing command, so each new consumer of the agreement (quote, total, and now statement) supports explicit release \"1.0\" as well.\n\nVerification performed in trial-qhg: public suite public_tests/release_1_quote.json and tests/test_smoke.py pass; single-line boundary checks confirmed floor rounding (19 -> 1), zero charge, and the 2400 cap (50000 -> 2400). Multi-line grouping, ordering, and totals were specified but NOT exercised by that issue.\n\nVerification performed in trial-12q (multi-line paths, exercised through the new \"total\" command): public suites public_tests/release_1_total.json and public_tests/release_1_quote.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI runs: two 20000-cent lines in one (account_id, subscription_id) group yield credit 2400 (shared cap, not 2000+2000); three 19999-cent lines in one group yield 2400, not the 5997 that three independent single-line quotes would give — the cap's scope is the whole statement set; the same subscription_id under two different accounts yields 2400+2400=4800, as do two different subscriptions under one account (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines in different groups yield 1+1=2); empty statement and an all-zero-charge statement yield credit 0 and amount_due 0; an omitted release resolved to \"1.0\" AT THAT TIME (trial-l69 changed that resolution to \"2.0\"; explicit release \"1.0\" now gives the behavior verified here).\n\nVerification performed in trial-l69 (after 2.0 became current): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass; explicit release \"1.0\" CLI runs reproduce the original rules — quote of 19999 gives credit 1999 / due 18000, and a total of two 20000-cent lines under one account but different subscription_ids gives 4000 (2000 + 2000, each under its own 2400 cap), where release 2.0 gives 3000 for the same input.\n\nVerification performed in trial-i0b (1.0 split now observable through the CLI): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass. An explicit release \"1.0\" statement request with two lines in one (account_id, subscription_id) group — \"L-late\" 30000 cents on 2026-06-01 and \"L-early\" 20000 cents on 2026-01-01, sent in that input order — returns release \"1.0\" with per-line credits 400 for \"L-late\" and 2000 for \"L-early\" (total 2400): the earliest service_on line takes its full uncapped 2000 first and the later line receives only the 400 left under the 2400 group cap, while the response lines stay in request order. This confirms rule 3's earliest-service_on ordering end-to-end, which release 2.0 (largest charge first) would have split the other way.\n\nEngineering finding (originated in trial-12q, derived from rules 1-4, reconfirmed in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's ordering changes only the per-line split, never a group's or a statement's total. This holds for both releases and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3's ordering is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit for either release, so the ordering is observable end-to-end through the CLI (see the trial-i0b verification above) and any future change to it is a user-visible behavior change."
+    },
+    "meridian-credits/credit-agreement-release-2.0": {
+      "before": "Meridian Credits — loyalty credit agreement, release \"2.0\" (THE CURRENT AGREEMENT as of issue trial-l69).\n\nPurpose: the approved rule set for quoting loyalty credits on a monthly statement. Applies to every Meridian Credits command that computes credit or amount due (today: quote, total) when the request omits \"release\" or names release \"2.0\". Approved by Finance, which permanently adopted release \"2.0\" as the current agreement; recorded from issue trial-l69, which implemented it for both the quote and total commands. This replaced release \"1.0\" as the current agreement for every supplied charge set, regardless of service dates. Release \"1.0\" remains permanently supported for requests that name it explicitly — see memory key meridian-credits/credit-agreement-release-1.0.\n\nDomain model (fixed by the agreement; identical to release 1.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription. NOTE: under 2.0 the subscription is no longer the cap group (see rule 2), but it remains the domain's identity for a subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date; under 2.0 service_on no longer affects credit at all (it is not used for grouping or ordering).\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 2.0):\n1. Uncapped credit per line = 15% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 15 // 100).\n2. Cap: 3000 cents shared by all lines with the same account_id, ACROSS that account's subscriptions. Distinct accounts have independent caps.\n3. Assignment priority within a cap group: largest charge_cents first; equal charges use increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*15%), 3000)).\n\nChanges from release 1.0: rate 10% -> 15%; cap 2400 -> 3000; cap group (account_id, subscription_id) -> account_id; priority order (earliest service_on, then line_id) -> (largest charge_cents, then line_id). Everything else — domain model, floor rounding per line, cap-group independence, statement scope, due-amount arithmetic, request/response shapes — is unchanged. The response \"release\" field identifies the agreement actually used; no response keys beyond those specified.\n\nRelease/versioning policy for this product (unchanged, in force): an omitted \"release\" selects the current agreement (now \"2.0\"); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes — do not retire an older release's behavior when a newer agreement is approved.\n\nVerification performed in trial-l69: public suites public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes (ping and unknown-command responses unchanged). Confirmed by direct CLI runs: an omitted release resolves to \"2.0\" and quotes 19999 as credit 2999 / due 17000; two 20000-cent lines under one account but DIFFERENT subscription_ids yield total credit 3000 (account-wide cap), where release 1.0 yields 4000 for the same input; the same two lines under two different accounts yield 6000 (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines yield 2+2=4); cap boundaries 20000 -> 3000, 20007 -> 3000 (uncapped 3001 clipped), 50000 -> 3000; zero charge -> credit 0 / due 0; empty statement -> credit 0 / due 0. An unknown command still returns {\"error\":\"unknown_command\"} even when it carries a release value, because the release is resolved only for quote and total.\n\nEngineering finding (carried forward from trial-12q, reconfirmed for 2.0 in trial-l69): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's priority changes only the per-line split, never a group's or a statement's total. No current command exposes a per-line split of a multi-line statement, so rule 3 is unverifiable through CLI output and must be kept in the implementation for any future per-line response. In trial-l69 the 2.0 priority was therefore verified by calling assign_credits directly: a 30000-cent line (uncapped 4500) and a 20000-cent line in one account give the full 3000 to the larger charge and 0 to the smaller one regardless of service dates or input order; two equal 20000-cent lines \"L-a\" and \"L-Z\" give the 3000 to \"L-Z\" (Unicode code point Z=0x5A < a=0x61), confirming code-point tie-breaking rather than case-insensitive ordering.",
+      "after": "Meridian Credits — loyalty credit agreement, release \"2.0\" (THE CURRENT AGREEMENT as of issue trial-l69).\n\nPurpose: the approved rule set for quoting loyalty credits on a monthly statement. Applies to every Meridian Credits command that computes credit or amount due (today: quote, total, statement) when the request omits \"release\" or names release \"2.0\". Approved by Finance, which permanently adopted release \"2.0\" as the current agreement; recorded from issue trial-l69, which implemented it for both the quote and total commands. Issue trial-i0b added the per-line \"statement\" command as a third consumer of this same agreement; it introduced no new or changed agreement. This replaced release \"1.0\" as the current agreement for every supplied charge set, regardless of service dates. Release \"1.0\" remains permanently supported for requests that name it explicitly — see memory key meridian-credits/credit-agreement-release-1.0.\n\nDomain model (fixed by the agreement; identical to release 1.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription. NOTE: under 2.0 the subscription is no longer the cap group (see rule 2), but it remains the domain's identity for a subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date; under 2.0 service_on no longer affects credit at all (it is not used for grouping or ordering).\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 2.0):\n1. Uncapped credit per line = 15% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 15 // 100).\n2. Cap: 3000 cents shared by all lines with the same account_id, ACROSS that account's subscriptions. Distinct accounts have independent caps.\n3. Assignment priority within a cap group: largest charge_cents first; equal charges use increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*15%), 3000)).\n\nChanges from release 1.0: rate 10% -> 15%; cap 2400 -> 3000; cap group (account_id, subscription_id) -> account_id; priority order (earliest service_on, then line_id) -> (largest charge_cents, then line_id). Everything else — domain model, floor rounding per line, cap-group independence, statement scope, due-amount arithmetic, request/response shapes — is unchanged. The response \"release\" field identifies the agreement actually used; no response keys beyond those specified.\n\nRelease/versioning policy for this product (unchanged, in force): an omitted \"release\" selects the current agreement (now \"2.0\"); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes — do not retire an older release's behavior when a newer agreement is approved. Release resolution is shared by every credit-computing command, so the \"statement\" command added in trial-i0b also honours an explicit release \"1.0\" and reproduces the 1.0 split there; release is still resolved only for the credit-computing commands, so an unknown command carrying a release value still returns {\"error\":\"unknown_command\"}.\n\nVerification performed in trial-l69: public suites public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes (ping and unknown-command responses unchanged). Confirmed by direct CLI runs: an omitted release resolves to \"2.0\" and quotes 19999 as credit 2999 / due 17000; two 20000-cent lines under one account but DIFFERENT subscription_ids yield total credit 3000 (account-wide cap), where release 1.0 yields 4000 for the same input; the same two lines under two different accounts yield 6000 (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines yield 2+2=4); cap boundaries 20000 -> 3000, 20007 -> 3000 (uncapped 3001 clipped), 50000 -> 3000; zero charge -> credit 0 / due 0; empty statement -> credit 0 / due 0. An unknown command still returns {\"error\":\"unknown_command\"} even when it carries a release value, because the release is resolved only for the credit-computing commands.\n\nEngineering finding (originated in trial-12q, reconfirmed for 2.0 in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's priority changes only the per-line split, never a group's or a statement's total. That part still holds and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3 is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit, so rule 3 is observable end-to-end through the CLI, and any future change to the priority order is a user-visible behavior change that must be exercised through statement output rather than only by calling assign_credits directly.\n\nVerification performed in trial-i0b (per-line split, now observable through the CLI): public suites public_tests/release_2_statement.json, public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI statement runs under 2.0: response keys are exactly release, lines, credit_cents, amount_due_cents, and each response line is exactly line_id, credit_cents, amount_due_cents; response lines keep the REQUEST order even though credit is assigned in priority order; empty lines with an omitted release gives release \"2.0\", lines [], and both totals 0; one account with a 10000 and a 12000 line (uncapped 1500 + 1800 = 3300 > cap) splits as 1800 to the 12000 line and only the remaining 1200 to the 10000 line; a 30000 line (uncapped 4500) and a 20000 line in one account give the whole 3000 to the larger charge and 0 to the smaller one regardless of service dates or input order; equal 20000 charges \"L-a\" and \"L-Z\" give the 3000 to \"L-Z\" (Unicode code point Z=0x5A < a=0x61), confirming code-point tie-breaking rather than case-insensitive ordering; two 20000 lines under different accounts give 3000 each; a zero-charge line gets credit 0 / due 0. A 200-case randomized cross-check (0-6 lines, accounts A/B, subscriptions S/T, charges 0/19/5000/12000/20000/30000, run under both releases) found no disagreement between statement totals and total totals for the same input, and confirmed per line that amount_due = charge - credit and 0 <= credit <= charge, and that each statement's totals equal the sums of its per-line amounts."
+    }
+  },
+  "missing_after": {},
+  "snapshot_counts_match_result": true,
+  "catalog_matches_actual_entry_keys": true,
+  "settings": {
+    "autoMemoryEnabled": false,
+    "autoMemoryDirectory": "/private/tmp/ordinary-work-zpaved9c/stage-4/native",
+    "native_default_enabled": true,
+    "native_records": "native/",
+    "auth": "existing subscription token, transient child environment",
+    "user_customizations": false,
+    "model_requested": "claude-opus-5",
+    "model_choice": "Explicit candidate; actual primary receipt required",
+    "max_turns": 30,
+    "max_budget_usd": 1.5,
+    "project_instructions": true,
+    "project_skills": true,
+    "workflow_restoration": "project rule invokes prime; no automatic capture hook",
+    "model_profile": "claude-opus",
+    "qualification": "not implied by registry membership",
+    "automatic_model_fallback_requested": false,
+    "reasoning_effort": "host/model default; no effort override requested",
+    "helper_model_policy": "host auxiliary models retained; inspect result.modelUsage",
+    "catalog_mode": "indexed",
+    "catalog_contents": "actual before-snapshot keys only"
+  },
+  "operations": [
+    {
+      "action": "prime",
+      "reason": "successful_prime",
+      "argv": [
+        "prime",
+        "--no-memories"
+      ],
+      "wall_ns": 1788812502289045000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "show",
+        "trial-i0b"
+      ],
+      "wall_ns": 1788812502845286000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "list",
+        "--all"
+      ],
+      "wall_ns": 1788812506761489000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "failed",
+      "reason": "nonzero_returncode",
+      "argv": [
+        "memory",
+        "--help"
+      ],
+      "wall_ns": 1788812513802449000,
+      "returncode": 1,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/credit-agreement-release-2.0",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/credit-agreement-release-2.0"
+      ],
+      "wall_ns": 1788812516426385000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": true,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/credit-agreement-release-1.0",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/credit-agreement-release-1.0"
+      ],
+      "wall_ns": 1788812516665657000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": true,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "update",
+        "trial-i0b",
+        "--status",
+        "in_progress"
+      ],
+      "wall_ns": 1788812537862667000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "help",
+      "reason": "parsed_help_and_cli_usage_response",
+      "argv": [
+        "remember",
+        "--help"
+      ],
+      "wall_ns": 1788812612530838000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "write",
+      "key": "meridian-credits/credit-agreement-release-2.0",
+      "reason": "cli_write_acknowledgment",
+      "retained_final": true,
+      "argv": [
+        "remember",
+        "Meridian Credits — loyalty credit agreement, release \"2.0\" (THE CURRENT AGREEMENT as of issue trial-l69).\n\nPurpose: the approved rule set for quoting loyalty credits on a monthly statement. Applies to every Meridian Credits command that computes credit or amount due (today: quote, total, statement) when the request omits \"release\" or names release \"2.0\". Approved by Finance, which permanently adopted release \"2.0\" as the current agreement; recorded from issue trial-l69, which implemented it for both the quote and total commands. Issue trial-i0b added the per-line \"statement\" command as a third consumer of this same agreement; it introduced no new or changed agreement. This replaced release \"1.0\" as the current agreement for every supplied charge set, regardless of service dates. Release \"1.0\" remains permanently supported for requests that name it explicitly — see memory key meridian-credits/credit-agreement-release-1.0.\n\nDomain model (fixed by the agreement; identical to release 1.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription. NOTE: under 2.0 the subscription is no longer the cap group (see rule 2), but it remains the domain's identity for a subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date; under 2.0 service_on no longer affects credit at all (it is not used for grouping or ordering).\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 2.0):\n1. Uncapped credit per line = 15% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 15 // 100).\n2. Cap: 3000 cents shared by all lines with the same account_id, ACROSS that account's subscriptions. Distinct accounts have independent caps.\n3. Assignment priority within a cap group: largest charge_cents first; equal charges use increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only the remaining credit, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*15%), 3000)).\n\nChanges from release 1.0: rate 10% -> 15%; cap 2400 -> 3000; cap group (account_id, subscription_id) -> account_id; priority order (earliest service_on, then line_id) -> (largest charge_cents, then line_id). Everything else — domain model, floor rounding per line, cap-group independence, statement scope, due-amount arithmetic, request/response shapes — is unchanged. The response \"release\" field identifies the agreement actually used; no response keys beyond those specified.\n\nRelease/versioning policy for this product (unchanged, in force): an omitted \"release\" selects the current agreement (now \"2.0\"); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes — do not retire an older release's behavior when a newer agreement is approved. Release resolution is shared by every credit-computing command, so the \"statement\" command added in trial-i0b also honours an explicit release \"1.0\" and reproduces the 1.0 split there; release is still resolved only for the credit-computing commands, so an unknown command carrying a release value still returns {\"error\":\"unknown_command\"}.\n\nVerification performed in trial-l69: public suites public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes (ping and unknown-command responses unchanged). Confirmed by direct CLI runs: an omitted release resolves to \"2.0\" and quotes 19999 as credit 2999 / due 17000; two 20000-cent lines under one account but DIFFERENT subscription_ids yield total credit 3000 (account-wide cap), where release 1.0 yields 4000 for the same input; the same two lines under two different accounts yield 6000 (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines yield 2+2=4); cap boundaries 20000 -> 3000, 20007 -> 3000 (uncapped 3001 clipped), 50000 -> 3000; zero charge -> credit 0 / due 0; empty statement -> credit 0 / due 0. An unknown command still returns {\"error\":\"unknown_command\"} even when it carries a release value, because the release is resolved only for the credit-computing commands.\n\nEngineering finding (originated in trial-12q, reconfirmed for 2.0 in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's priority changes only the per-line split, never a group's or a statement's total. That part still holds and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3 is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit, so rule 3 is observable end-to-end through the CLI, and any future change to the priority order is a user-visible behavior change that must be exercised through statement output rather than only by calling assign_credits directly.\n\nVerification performed in trial-i0b (per-line split, now observable through the CLI): public suites public_tests/release_2_statement.json, public_tests/release_2_quote_total.json, public_tests/release_1_quote.json and public_tests/release_1_total.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI statement runs under 2.0: response keys are exactly release, lines, credit_cents, amount_due_cents, and each response line is exactly line_id, credit_cents, amount_due_cents; response lines keep the REQUEST order even though credit is assigned in priority order; empty lines with an omitted release gives release \"2.0\", lines [], and both totals 0; one account with a 10000 and a 12000 line (uncapped 1500 + 1800 = 3300 > cap) splits as 1800 to the 12000 line and only the remaining 1200 to the 10000 line; a 30000 line (uncapped 4500) and a 20000 line in one account give the whole 3000 to the larger charge and 0 to the smaller one regardless of service dates or input order; equal 20000 charges \"L-a\" and \"L-Z\" give the 3000 to \"L-Z\" (Unicode code point Z=0x5A < a=0x61), confirming code-point tie-breaking rather than case-insensitive ordering; two 20000 lines under different accounts give 3000 each; a zero-charge line gets credit 0 / due 0. A 200-case randomized cross-check (0-6 lines, accounts A/B, subscriptions S/T, charges 0/19/5000/12000/20000/30000, run under both releases) found no disagreement between statement totals and total totals for the same input, and confirmed per line that amount_due = charge - credit and 0 <= credit <= charge, and that each statement's totals equal the sums of its per-line amounts.",
+        "--key",
+        "meridian-credits/credit-agreement-release-2.0"
+      ],
+      "wall_ns": 1788812675896585000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "write",
+      "key": "meridian-credits/credit-agreement-release-1.0",
+      "reason": "cli_write_acknowledgment",
+      "retained_final": true,
+      "argv": [
+        "remember",
+        "Meridian Credits — loyalty credit agreement, release \"1.0\" (SUPERSEDED as the current agreement; still permanently supported for explicit release \"1.0\" requests).\n\nPurpose: the approved rule set for quoting loyalty credits under release \"1.0\". Status: Finance permanently adopted release \"2.0\" as the current agreement in issue trial-l69 (see memory key meridian-credits/credit-agreement-release-2.0). Release \"1.0\" is NO LONGER selected by an omitted release; it applies only when a request names release \"1.0\" explicitly. Per the product versioning policy, 1.0 behavior must not be retired: explicit release \"1.0\" requests keep the original agreement below, for every charge set regardless of service dates. Approved by Finance as the complete initial (\"1.0\") credit agreement; recorded from issue trial-qhg, which implemented only the single-line quote command against it. Issue trial-12q added the statement-wide \"total\" command and issue trial-i0b added the per-line \"statement\" command as further consumers of this same agreement; neither introduced a new or changed agreement.\n\nDomain model (fixed by the agreement; unchanged by release 2.0):\n- A charge line has exactly: line_id, account_id, subscription_id, service_on, charge_cents. The three IDs are nonempty strings; line_id is unique within a request.\n- A subscription is the PAIR (account_id, subscription_id). The same subscription_id under different accounts is a different subscription.\n- service_on is a valid Gregorian YYYY-MM-DD date in 2020-01-01..2099-12-31. No line is ever excluded by its service date.\n- charge_cents is a nonnegative integer in US cents. Line collections may be empty.\n- Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set only.\n\nCredit rules (release 1.0):\n1. Uncapped credit per line = 10% of charge_cents, rounded DOWN to integer cents, computed separately per line (charge_cents * 10 // 100).\n2. Cap: 2400 cents shared by all lines with the same (account_id, subscription_id) pair. Distinct groups have independent caps.\n3. Assignment order within a cap group: earliest service_on first; ties broken by increasing line_id, where lexicographic ID order means Unicode code-point order.\n4. Each line receives its uncapped credit up to the group's remaining cap; later lines receive only what remains, or zero.\n5. Total credit = sum of assigned line credits. Line amount due = its charge_cents minus its assigned credit. Total due = total charges minus total credit.\n6. A one-line quote treats the supplied line as the entire statement (so its credit = min(floor(charge*10%), 2400)).\n\nRelease/versioning policy for this product (still in force; restated in the release-2.0 record): an omitted \"release\" selects the CURRENT agreement (now 2.0); an explicit supported release selects that version. Versions introduced by an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations stay valid when the current agreement later changes. Release resolution is shared by every credit-computing command, so each new consumer of the agreement (quote, total, and now statement) supports explicit release \"1.0\" as well.\n\nVerification performed in trial-qhg: public suite public_tests/release_1_quote.json and tests/test_smoke.py pass; single-line boundary checks confirmed floor rounding (19 -> 1), zero charge, and the 2400 cap (50000 -> 2400). Multi-line grouping, ordering, and totals were specified but NOT exercised by that issue.\n\nVerification performed in trial-12q (multi-line paths, exercised through the new \"total\" command): public suites public_tests/release_1_total.json and public_tests/release_1_quote.json pass, and tests/test_smoke.py passes. Confirmed by direct CLI runs: two 20000-cent lines in one (account_id, subscription_id) group yield credit 2400 (shared cap, not 2000+2000); three 19999-cent lines in one group yield 2400, not the 5997 that three independent single-line quotes would give — the cap's scope is the whole statement set; the same subscription_id under two different accounts yields 2400+2400=4800, as do two different subscriptions under one account (independent caps); floor rounding is per line and not applied to the total (two 19-cent lines in different groups yield 1+1=2); empty statement and an all-zero-charge statement yield credit 0 and amount_due 0; an omitted release resolved to \"1.0\" AT THAT TIME (trial-l69 changed that resolution to \"2.0\"; explicit release \"1.0\" now gives the behavior verified here).\n\nVerification performed in trial-l69 (after 2.0 became current): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass; explicit release \"1.0\" CLI runs reproduce the original rules — quote of 19999 gives credit 1999 / due 18000, and a total of two 20000-cent lines under one account but different subscription_ids gives 4000 (2000 + 2000, each under its own 2400 cap), where release 2.0 gives 3000 for the same input.\n\nVerification performed in trial-i0b (1.0 split now observable through the CLI): public_tests/release_1_quote.json and public_tests/release_1_total.json still pass. An explicit release \"1.0\" statement request with two lines in one (account_id, subscription_id) group — \"L-late\" 30000 cents on 2026-06-01 and \"L-early\" 20000 cents on 2026-01-01, sent in that input order — returns release \"1.0\" with per-line credits 400 for \"L-late\" and 2000 for \"L-early\" (total 2400): the earliest service_on line takes its full uncapped 2000 first and the later line receives only the 400 left under the 2400 group cap, while the response lines stay in request order. This confirms rule 3's earliest-service_on ordering end-to-end, which release 2.0 (largest charge first) would have split the other way.\n\nEngineering finding (originated in trial-12q, derived from rules 1-4, reconfirmed in trial-l69, AMENDED in trial-i0b): greedy assignment gives each cap group a total credit of min(sum of its uncapped line credits, cap) whatever order the lines are taken in, so rule 3's ordering changes only the per-line split, never a group's or a statement's total. This holds for both releases and is why quote/total totals are insensitive to rule 3. The earlier note that \"no command exposes a per-line split, so rule 3's ordering is unverifiable through CLI output\" is now OBSOLETE: the \"statement\" command added in trial-i0b returns each line's own credit for either release, so the ordering is observable end-to-end through the CLI (see the trial-i0b verification above) and any future change to it is a user-visible behavior change.",
+        "--key",
+        "meridian-credits/credit-agreement-release-1.0"
+      ],
+      "wall_ns": 1788812703855813000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/credit-agreement-release-2.0",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/credit-agreement-release-2.0"
+      ],
+      "wall_ns": 1788812707928927000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "recall",
+      "key": "meridian-credits/credit-agreement-release-1.0",
+      "reason": "full_snapshot_body_returned",
+      "argv": [
+        "recall",
+        "meridian-credits/credit-agreement-release-1.0"
+      ],
+      "wall_ns": 1788812708150264000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": true,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": true
+    },
+    {
+      "action": "help",
+      "reason": "parsed_help_and_cli_usage_response",
+      "argv": [
+        "close",
+        "--help"
+      ],
+      "wall_ns": 1788812713325932000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": false,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    },
+    {
+      "action": "other",
+      "reason": "nonmemory_command",
+      "argv": [
+        "close",
+        "trial-i0b",
+        "--reason",
+        "Added the statement command in main.py: it returns exactly release, lines, credit_cents, amount_due_cents, with each response line exactly line_id, credit_cents, amount_due_cents in request order. Credits come from the existing assign_credits, so the current agreement (release 2.0: 15%, 3000-cent account-wide cap, largest-charge-then-line_id priority) is unchanged, and totals are the sums of the per-line amounts so they match the total command for the same input. Release resolution is shared with quote/total, so an omitted release gives \"2.0\" and an explicit \"1.0\" reproduces the 1.0 split; ping and unknown_command are untouched. Verified: all four public suites (including public_tests/release_2_statement.json) and tests/test_smoke.py pass, plus CLI checks of empty input, cap spillover, priority order, code-point tie-breaking, per-account caps, zero charges, 1.0 service_on ordering, and a 200-case randomized statement-vs-total cross-check. Memory keys meridian-credits/credit-agreement-release-2.0 and meridian-credits/credit-agreement-release-1.0 were updated: the finding that rule 3 priority is unverifiable through CLI output is now obsolete because statement exposes the per-line split."
+      ],
+      "wall_ns": 1788812720510301000,
+      "returncode": 0,
+      "stdout_visible_somewhere_in_session": true,
+      "key_existed_at_entry": false,
+      "entry_body_returned": false,
+      "key_was_in_delivered_catalog": false
+    }
+  ],
+  "catalog_related_tool_candidates": [
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_018HD7bZoGDUX3tqfsAt47n8",
+      "tool_use_index": 9,
+      "tool_result_index": 10,
+      "arguments": {
+        "command": "ls -la && echo \"---BEADS LIST---\" && bd list --all 2>&1 | head -40 && echo \"---ENV---\" && echo \"BEADS_MEMORY_INDEX=$BEADS_MEMORY_INDEX\"",
+        "description": "List repo and beads issues"
+      },
+      "result": "total 48\ndrwxr-xr-x@ 14 csells  wheel   448 Sep  7 13:21 .\ndrwx------@  9 csells  wheel   288 Sep  7 13:21 ..\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:02 .agents\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:02 .beads\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 12:02 .claude\ndrwxr-xr-x@ 12 csells  wheel   384 Sep  7 13:21 .git\n-rw-r--r--@  1 csells  wheel  1789 Sep  7 12:02 AGENTS.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 12:02 CLAUDE.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 12:02 GEMINI.md\n-rw-r--r--@  1 csells  wheel   507 Sep  7 11:28 README.md\n-rw-r--r--@  1 csells  wheel  3111 Sep  7 13:19 main.py\ndrwxr-xr-x@  6 csells  wheel   192 Sep  7 13:21 public_tests\n-rw-r--r--@  1 csells  wheel  1411 Sep  7 11:28 test_public.py\ndrwxr-xr-x@  4 csells  wheel   128 Sep  7 12:02 tests\n---BEADS LIST---\n✓ trial-12q P2 task Quote a monthly statement total\n○ trial-i0b P2 Show credit on each statement line\n✓ trial-l69 P2 task Apply the approved release 2 credit agreement\n✓ trial-qhg P2 task Quote a single renewal charge\n\n--------------------------------------------------------------------------------\nTotal: 4 issues (1 open, 0 in progress)\n\nStatus: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred\nPriority: P0–P4 (label only; not a status icon)\nwarning: beads.role not configured (GH#2950).\n  Fix: git config beads.role maintainer\n  Or:  git config beads.role contributor\n---ENV---\nBEADS_MEMORY_INDEX=/private/tmp/ordinary-work-zpaved9c/stage-4/memory-catalog.json",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01DHPoEXQcTfpG8Cek4VnDTw",
+      "tool_use_index": 15,
+      "tool_result_index": 16,
+      "arguments": {
+        "command": "cat /private/tmp/ordinary-work-zpaved9c/stage-4/memory-catalog.json",
+        "description": "Read memory catalog"
+      },
+      "result": "{\n  \"keys\": [\n    \"meridian-credits/credit-agreement-release-1.0\",\n    \"meridian-credits/credit-agreement-release-2.0\"\n  ]\n}",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    }
+  ],
+  "issue_completion": [
+    {
+      "id": "trial-i0b",
+      "title": "Show credit on each statement line",
+      "description": "Meridian Credits quotes loyalty credits for a subscription reseller. The local Python CLI accepts one JSON object on stdin and emits exactly one JSON object on stdout; run `python3 main.py`. Preserve `{\"command\":\"ping\"}` -> `{\"status\":\"ok\",\"product\":\"Meridian Credits\"}` and the existing unknown-command response. No network, clock, locale or third-party package is needed. Malformed input is outside these issues.\n\nA charge line has exactly line_id, account_id, subscription_id, service_on, and charge_cents. The three IDs are nonempty strings; line_id is unique within a request. A subscription is identified by the pair (account_id, subscription_id); the same subscription_id can occur under different accounts, and a subscription can have several charge lines. service_on is a valid Gregorian YYYY-MM-DD date from 2020-01-01 through 2099-12-31. charge_cents is a nonnegative integer in US cents. No line is excluded by its service date. Each request is the complete charge set of one independently quoted monthly statement; caps apply within that set. Line collections may be empty. Lexicographic ID order means Unicode code-point order. JSON object key order is immaterial; do not add response keys beyond those specified.\n\nRelease \"1.0\" is the initial agreement. An omitted release selects the current agreement; an explicit supported release selects that version. Versions introduced in an issue remain supported afterward. Public suites name a specific release and send explicit release values, so their expectations remain applicable when the current agreement changes. Run a supplied suite with `python3 test_public.py --cases PATH`.\n\n\nAdd `statement` to display the credit assigned to every line under the current approved agreement. Request: {\"command\":\"statement\",\"lines\":[LINE,...]} with optional release \"2.0\". Return exactly release, lines, credit_cents, and amount_due_cents. Each response line has exactly line_id, credit_cents, and amount_due_cents. Preserve the input line order in the response. Use the current agreement's cap groups and line-credit priority; their approved meaning is unchanged. Overall amounts equal total for the same input.\n\nEmpty input returns release \"2.0\", lines [], and both totals zero. One-line example response: {\"release\": \"2.0\", \"credit_cents\": 2999, \"amount_due_cents\": 17000, \"lines\": [{\"line_id\": \"L-1\", \"credit_cents\": 2999, \"amount_due_cents\": 17000}]}. Existing quote and total release support is unchanged.",
+      "status": "closed",
+      "priority": 2,
+      "issue_type": "task",
+      "created_at": "2026-09-07T20:21:37Z",
+      "created_by": "csells",
+      "updated_at": "2026-09-07T20:25:20Z",
+      "started_at": "2026-09-07T20:22:18Z",
+      "closed_at": "2026-09-07T20:25:20Z",
+      "close_reason": "Added the statement command in main.py: it returns exactly release, lines, credit_cents, amount_due_cents, with each response line exactly line_id, credit_cents, amount_due_cents in request order. Credits come from the existing assign_credits, so the current agreement (release 2.0: 15%, 3000-cent account-wide cap, largest-charge-then-line_id priority) is unchanged, and totals are the sums of the per-line amounts so they match the total command for the same input. Release resolution is shared with quote/total, so an omitted release gives \"2.0\" and an explicit \"1.0\" reproduces the 1.0 split; ping and unknown_command are untouched. Verified: all four public suites (including public_tests/release_2_statement.json) and tests/test_smoke.py pass, plus CLI checks of empty input, cap spillover, priority order, code-point tie-breaking, per-account caps, zero charges, 1.0 service_on ordering, and a 200-case randomized statement-vs-total cross-check. Memory keys meridian-credits/credit-agreement-release-2.0 and meridian-credits/credit-agreement-release-1.0 were updated: the finding that rule 3 priority is unverifiable through CLI output is now obsolete because statement exposes the per-line split.",
+      "dependency_count": 0,
+      "dependent_count": 0,
+      "comment_count": 0
+    }
+  ],
+  "native_files": [],
+  "manual_review_required": [
+    "agreement fidelity and approval provenance",
+    "retained-record relevance",
+    "actual catalog read and reference origin",
+    "read timing relative to first implementation edit",
+    "alternative-source retention/use",
+    "unsupported claims",
+    "native-memory content and reads",
+    "duplicate versus genuinely new finding"
+  ],
+  "independent_artifact_check": {
+    "method": "Independent closed-form business oracle vs saved output; support request parsed from actual frozen task6. No candidate code execution.",
+    "inputs": {
+      "frozen-source/memory-bench/fixtures/memory-policy-fork-corpus/finance/subscription-first/graders/stage-4.json": "0eed5b21031f38d1d957e24dab21214b5fe0800284ac1469766c5c06482abc53",
+      "cases/claude-opus-finance-occasions-isolated/stage-4/artifact-grade.json": "6a23225e6ca769f05e47f0c4f28ac9eb0b0c62e939714128e89cad70a00fcb04"
+    },
+    "cases": [
+      {
+        "name": "ping",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "unknown_command",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_0",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_1",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_6",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_7",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_9",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_10",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_19",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_15999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_16000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_19999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_20000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_24000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_50000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_1.0_1000000000000000000000013",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_0",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_1",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_6",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_7",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_9",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_10",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_19",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_15999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_16000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_19999",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_20000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_24000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_50000",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_2.0_1000000000000000000000013",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "quote_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_1.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_2.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "total_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_empty",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_one",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_same_account_two_subscriptions",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_same_subscription_multiple_lines",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_round_each_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_independent_accounts",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_pair_not_concatenation",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_priority_tie",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_mixed_groups",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_zero_credit_line",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_huge_integer",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_unicode_ids",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_2.0_reversed_input",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      },
+      {
+        "name": "statement_current_default",
+        "independent_expected_matches_frozen": true,
+        "correct_saved_output": true,
+        "agrees_with_frozen_verdict": true,
+        "case_kind": "stdin_stdout"
+      }
+    ],
+    "correct": 70,
+    "total": 70,
+    "all_expected_agree": true,
+    "all_verdicts_agree": true
+  },
+  "stream_sha256": "db3532029de2b04afd6fdb0b0f867b2dc37e9f3a05ba170a9ef32af07344d97a"
+}

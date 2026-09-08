@@ -1,0 +1,301 @@
+{
+  "slot": "claude-sonnet-finance-startup-briefing-isolated-6",
+  "lifecycle": "claude-sonnet-finance-startup-briefing-isolated",
+  "profile_id": "claude-sonnet",
+  "family": "finance",
+  "corpus_family": "finance/subscription-first",
+  "arm": "startup-briefing",
+  "catalog_mode": "search-only",
+  "stage": 6,
+  "artifact_passed": false,
+  "artifact_correct": 80,
+  "artifact_total": 84,
+  "task_closed": true,
+  "host_success": true,
+  "errors": [],
+  "infrastructure_fault": false,
+  "delivery": {
+    "schema": "memory-prime-delivery.v1",
+    "arm": "startup-briefing",
+    "startup_briefing_injected": true,
+    "startup_instruction_role": "user-message section",
+    "task_prompt_sha256": "69c49b99272bb5aacf39d1e0376fe9d5b433a3d377e3b37a68e3f6cdd1755537",
+    "launch_prompt_sha256": "dbbb90f24f7bc7af3a182354f25d4525c8fa1da5eadbde53a62499806ac81233",
+    "briefing_sha256": "ad67aa824137168f346269352ff2857f2d264d0d658949c687f65eea3591c2ec",
+    "actual_prime_sha256": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "expected_prime_sha256": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "actual_prime_equals_briefing": false,
+    "prime_observation": "lifecycle setup prime.json; harness invocation before agent launch",
+    "task_specific_memory_cues_added": false
+  },
+  "administrative_memory_reads": 2,
+  "evidence_directory": "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6",
+  "memory_before": {
+    "meridian-credits/release-1.0-statement-line-credit-priority": "meridian-credits/release-1.0-statement-line-credit-priority: Release 1.0 statement (issue trial-omm) reports each charge line's own credit_cents/amount_due_cents while credit_cents/amount_due_cents totals must exactly equal what the \"total\" command produces for the same charge set (per meridian-credits/total-credit-cap-scope: group by (account_id, subscription_id), group credit = min(group_charge_cents * 10 // 100, 2400)). Because floor division is subadditive (sum of per-line floor(charge_i*10/100) can be less than floor(group_sum*10/100)), a naive per-line 10%-then-cap computation does not sum to the approved group total, so an explicit distribution rule was needed within each subscription group.\n\nRule: within each (account_id, subscription_id) group, order lines by descending charge_cents, ties broken by ascending line_id (Unicode code-point order) -- the same priority order release 2.0 established for its per-account cap groups. Walk lines in that priority order accumulating cumulative_charge_cents; each line's credit_cents is the increase in min(cumulative_charge_cents * 10 // 100, 2400) as that line is added (i.e. capped-cumulative-after minus capped-cumulative-before). This makes per-line credits sum to exactly the group total in all cases (whether the cap binds or only rounding differs), assigns any rounding remainder and any cap shortfall to the earlier-priority (larger-charge, then smaller-line_id) lines first, and reduces to credit_for_charge_r1(charge_cents) for a single-line group (matching quote_line_r1). The response's \"lines\" array still preserves original input order; only the internal credit computation uses priority order. Empty input returns {\"release\":\"1.0\",\"lines\":[],\"credit_cents\":0,\"amount_due_cents\":0}.\n\nVerified in main.py (assign_credits_r1/statement_r1) against public_tests/release_1_statement.json (one-line receipt) plus manual multi-subscription/cross-account cases confirming statement totals match the \"total\" command for the same lines, an equal-charge tie-break case confirming the ascending-line_id priority line receives the larger share when the cap truncates the sum, and the empty-input case.",
+    "meridian-credits/release-2.0-agreement": "meridian-credits/release-2.0 current agreement: Finance has permanently adopted release 2.0 as the current agreement (issue trial-hma), replacing release 1.0 as the default for every supplied charge set regardless of service date. Requests to quote/total with an omitted release, or an explicit release '2.0', use this agreement; explicit release '1.0' continues to use the original release-1.0 behavior (see meridian-credits/total-credit-cap-scope) unchanged and remains supported indefinitely.\n\nRelease 2.0 rules: each charge line's uncapped credit is 15% of charge_cents, floored independently per line (charge_cents * 15 // 100) -- NOT computed on a subscription-summed charge as release 1.0 did. The 3000-cent credit cap is shared by all lines with the same account_id, across ALL of that account's subscriptions (grouping key is account_id alone, not (account_id, subscription_id)). Distinct account_id values are independent, non-interacting cap groups.\n\nWithin each account's cap group, lines are ordered by descending charge_cents, ties broken by ascending line_id in Unicode code-point order (Python's default string ordering already satisfies this). Credit is assigned to lines in that order: each line gets min(its own uncapped 15% credit, the group's remaining cap), and the remaining cap is decremented by the amount actually assigned; a line reached after the cap is exhausted gets 0. Total credit_cents for a 'total' response is the sum of all assigned line credits across all groups; amount_due_cents is total charges minus total credit. A line's own amount_due (for 'quote') is its charge minus its assigned credit.\n\nThe single-line 'quote' command is not a special case of the formula: it is implemented by running the same per-account cap-assignment algorithm over the one-line list, so a lone line simply receives min(floor(charge*0.15), 3000) because it is alone in its group with the full 3000 cap available.\n\nVerified in main.py (assign_credits_r2/quote_line_r2/quote_total_r2) against public_tests/release_2_quote_total.json (single-line quote and empty total) plus manual multi-line same-account/cross-subscription cases and an explicit tie-break case (three same-charge lines under one account) confirming cap sharing across subscriptions and line_id tie-break order; explicit release '1.0' requests were re-verified against public_tests/release_1_quote.json and release_1_total.json to confirm no regression.",
+    "meridian-credits/total-credit-cap-scope": "meridian-credits/release-1.0 credit-cap scope: The 10%-of-charge credit, capped at CREDIT_CAP_CENTS=2400 cents (24.00 USD), is scoped per subscription (the (account_id, subscription_id) pair), not per charge line and not per whole statement. For the \"total\" command (release 1.0), group a statement's charge lines by (account_id, subscription_id), sum charge_cents within each group, compute that group's credit as min(group_charge_cents * 10 // 100, 2400), then sum credit and charge across all groups for the statement's credit_cents/amount_due_cents. The same subscription_id under different account_id values is a distinct subscription and must not be merged. The single-line \"quote\" command still applies the cap per individual line (unchanged). Rationale: issue trial-5lx explicitly defines the (account_id, subscription_id) subscription identity immediately before stating caps apply within the statement set, and states total 'is not a collection of independent single-line quote requests,' implying the cap must aggregate at the subscription level rather than per line or per statement. Verified in main.py (quote_total/credit_for_charge) against public_tests/release_1_total.json and a manual multi-line same-subscription/cross-account case confirming the result differs from both a naive per-line sum and a single whole-statement cap."
+  },
+  "memory_after": {
+    "meridian-credits/release-1.0-statement-line-credit-priority": "meridian-credits/release-1.0-statement-line-credit-priority: Release 1.0 statement (issue trial-omm) reports each charge line's own credit_cents/amount_due_cents while credit_cents/amount_due_cents totals must exactly equal what the \"total\" command produces for the same charge set (per meridian-credits/total-credit-cap-scope: group by (account_id, subscription_id), group credit = min(group_charge_cents * 10 // 100, 2400)). Because floor division is subadditive (sum of per-line floor(charge_i*10/100) can be less than floor(group_sum*10/100)), a naive per-line 10%-then-cap computation does not sum to the approved group total, so an explicit distribution rule was needed within each subscription group.\n\nRule: within each (account_id, subscription_id) group, order lines by descending charge_cents, ties broken by ascending line_id (Unicode code-point order) -- the same priority order release 2.0 established for its per-account cap groups. Walk lines in that priority order accumulating cumulative_charge_cents; each line's credit_cents is the increase in min(cumulative_charge_cents * 10 // 100, 2400) as that line is added (i.e. capped-cumulative-after minus capped-cumulative-before). This makes per-line credits sum to exactly the group total in all cases (whether the cap binds or only rounding differs), assigns any rounding remainder and any cap shortfall to the earlier-priority (larger-charge, then smaller-line_id) lines first, and reduces to credit_for_charge_r1(charge_cents) for a single-line group (matching quote_line_r1). The response's \"lines\" array still preserves original input order; only the internal credit computation uses priority order. Empty input returns {\"release\":\"1.0\",\"lines\":[],\"credit_cents\":0,\"amount_due_cents\":0}.\n\nVerified in main.py (assign_credits_r1/statement_r1) against public_tests/release_1_statement.json (one-line receipt) plus manual multi-subscription/cross-account cases confirming statement totals match the \"total\" command for the same lines, an equal-charge tie-break case confirming the ascending-line_id priority line receives the larger share when the cap truncates the sum, and the empty-input case.",
+    "meridian-credits/release-2.0-agreement": "meridian-credits/release-2.0 current agreement: Finance has permanently adopted release 2.0 as the current agreement (issue trial-hma), replacing release 1.0 as the default for every supplied charge set regardless of service date. Requests to quote/total with an omitted release, or an explicit release '2.0', use this agreement; explicit release '1.0' continues to use the original release-1.0 behavior (see meridian-credits/total-credit-cap-scope) unchanged and remains supported indefinitely.\n\nRelease 2.0 rules: each charge line's uncapped credit is 15% of charge_cents, floored independently per line (charge_cents * 15 // 100) -- NOT computed on a subscription-summed charge as release 1.0 did. The 3000-cent credit cap is shared by all lines with the same account_id, across ALL of that account's subscriptions (grouping key is account_id alone, not (account_id, subscription_id)). Distinct account_id values are independent, non-interacting cap groups.\n\nWithin each account's cap group, lines are ordered by descending charge_cents, ties broken by ascending line_id in Unicode code-point order (Python's default string ordering already satisfies this). Credit is assigned to lines in that order: each line gets min(its own uncapped 15% credit, the group's remaining cap), and the remaining cap is decremented by the amount actually assigned; a line reached after the cap is exhausted gets 0. Total credit_cents for a 'total' response is the sum of all assigned line credits across all groups; amount_due_cents is total charges minus total credit. A line's own amount_due (for 'quote') is its charge minus its assigned credit.\n\nThe single-line 'quote' command is not a special case of the formula: it is implemented by running the same per-account cap-assignment algorithm over the one-line list, so a lone line simply receives min(floor(charge*0.15), 3000) because it is alone in its group with the full 3000 cap available.\n\nVerified in main.py (assign_credits_r2/quote_line_r2/quote_total_r2) against public_tests/release_2_quote_total.json (single-line quote and empty total) plus manual multi-line same-account/cross-subscription cases and an explicit tie-break case (three same-charge lines under one account) confirming cap sharing across subscriptions and line_id tie-break order; explicit release '1.0' requests were re-verified against public_tests/release_1_quote.json and release_1_total.json to confirm no regression.",
+    "meridian-credits/total-credit-cap-scope": "meridian-credits/release-1.0 credit-cap scope: The 10%-of-charge credit, capped at CREDIT_CAP_CENTS=2400 cents (24.00 USD), is scoped per subscription (the (account_id, subscription_id) pair), not per charge line and not per whole statement. For the \"total\" command (release 1.0), group a statement's charge lines by (account_id, subscription_id), sum charge_cents within each group, compute that group's credit as min(group_charge_cents * 10 // 100, 2400), then sum credit and charge across all groups for the statement's credit_cents/amount_due_cents. The same subscription_id under different account_id values is a distinct subscription and must not be merged. The single-line \"quote\" command still applies the cap per individual line (unchanged). Rationale: issue trial-5lx explicitly defines the (account_id, subscription_id) subscription identity immediately before stating caps apply within the statement set, and states total 'is not a collection of independent single-line quote requests,' implying the cap must aggregate at the subscription level rather than per line or per statement. Verified in main.py (quote_total/credit_for_charge) against public_tests/release_1_total.json and a manual multi-line same-subscription/cross-account case confirming the result differs from both a naive per-line sum and a single whole-statement cap."
+  },
+  "created": [],
+  "updated": [],
+  "removed": [],
+  "calls": [
+    {
+      "name": "Skill",
+      "tool_use_id": "toolu_011bLAssWLWmukU1pTzXY6ey",
+      "tool_use_index": 1,
+      "tool_result_index": 2,
+      "arguments": {
+        "skill": "beads"
+      },
+      "result": "Launching skill: beads",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_012czPTu3UdHJgnNHCx3DU4k",
+      "tool_use_index": 4,
+      "tool_result_index": 5,
+      "arguments": {
+        "command": "bd prime --no-memories"
+      },
+      "result": "# Project workflow\n\nRead AGENTS.md for the project workflow and Beads skill.",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_016kanF4HbJcJpagtu8wzZpT",
+      "tool_use_index": 6,
+      "tool_result_index": 7,
+      "arguments": {
+        "command": "bd show trial-50r"
+      },
+      "result": "○ trial-50r · Reproduce support case MC-406   [P2 · OPEN]\nOwner: csells · Type: task\nCreated: 2026-09-08 · Updated: 2026-09-08\n\nDESCRIPTION\n\n  Meridian Credits quotes loyalty credits for a subscription reseller. The    \n  local Python CLI accepts one JSON object on stdin and emits exactly one JSON\n  object on stdout; run python3 main.py. Preserve {\"command\":\"ping\"} ->       \n  {\"status\":\"ok\",\"product\":\"Meridian Credits\"} and the existing unknown-      \n  command response. No network, clock, locale or third-party package is       \n  needed. Malformed input is outside these issues.                            \n                                                                              \n  A charge line has exactly line_id, account_id, subscription_id, service_on, \n  and charge_cents. The three IDs are nonempty strings; line_id is unique     \n  within a request. A subscription is identified by the pair (account_id,     \n  subscription_id); the same subscription_id can occur under different        \n  accounts, and a subscription can have several charge lines. service_on is a \n  valid Gregorian YYYY-MM-DD date from 2020-01-01 through 2099-12-31.         \n  charge_cents is a nonnegative integer in US cents. No line is excluded by   \n  its service date. Each request is the complete charge set of one            \n  independently quoted monthly statement; caps apply within that set. Line    \n  collections may be empty. Lexicographic ID order means Unicode code-point   \n  order. JSON object key order is immaterial; do not add response keys beyond \n  those specified.                                                            \n                                                                              \n  Release \"1.0\" is the initial agreement. An omitted release selects the      \n  current agreement; an explicit supported release selects that version.      \n  Versions introduced in an issue remain supported afterward. Public suites   \n  name a specific release and send explicit release values, so their          \n  expectations remain applicable when the current agreement changes. Run a    \n  supplied suite with python3 test_public.py --cases PATH.                    \n                                                                              \n  Support requests a one-off JSON fixture for case MC-406 using the existing  \n  release 2.0 statement interface. Create support/MC-406.json containing      \n  exactly {\"request\":REQUEST,\"response\":RESPONSE}, with the complete request  \n  below and its computed statement response. This is a case fixture; product  \n  commands and approved agreements remain unchanged.                          \n                                                                              \n  The complete applicable agreement is: Each line's uncapped credit is 15% of \n  charge_cents, rounded down separately to integer cents. The 3000-cent credit\n  cap is shared by all lines with the same account_id, across its             \n  subscriptions. Distinct groups have independent caps. Within each cap group,\n  credit is assigned to lines in this priority: largest charge_cents first;   \n  equal charges use increasing line_id. Each line receives its uncapped credit\n  up to the group's remaining cap; later lines receive only the remaining     \n  credit, or zero. The total credit is the sum of assigned line credits. A    \n  line's amount due is its charge minus its assigned credit; the total due is \n  total charges minus total credit. The statement response contains exactly   \n  release (\"2.0\"), lines, credit_cents, and amount_due_cents. Return one      \n  response line per input line in input order; each has exactly line_id,      \n  credit_cents, and amount_due_cents.                                         \n                                                                              \n  REQUEST: {\"command\": \"statement\", \"release\": \"2.0\", \"lines\": [{\"line_id\":   \n  \"C-30\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04- \n  01\", \"charge_cents\": 20000}, {\"line_id\": \"C-10\", \"account_id\": \"A\",         \n  \"subscription_id\": \"S2\", \"service_on\": \"2026-04-20\", \"charge_cents\": 40000},\n  {\"line_id\": \"C-20\", \"account_id\": \"A\", \"subscription_id\": \"S1\",             \n  \"service_on\": \"2026-04-10\", \"charge_cents\": 19999}]}                        \n                                                                              \n  Check that the existing release-specific public suites remain valid.",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_018B3YS5FtzLaLmdhEht75qZ",
+      "tool_use_index": 9,
+      "tool_result_index": 10,
+      "arguments": {
+        "command": "bd update trial-50r --status in_progress"
+      },
+      "result": "✓ Updated issue: trial-50r — Reproduce support case MC-406",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_0136wiucbcYBidQxX4ChXbhr",
+      "tool_use_index": 11,
+      "tool_result_index": 12,
+      "arguments": {
+        "command": "bd memories \"release 2.0\" 2>&1 | head -100; echo \"---\"; bd memories \"statement\" 2>&1 | head -100"
+      },
+      "result": "Memories matching \"release 2.0\":\n\n  meridian-credits/release-1.0-statement-line-credit-priority\n    meridian-credits/release-1.0-statement-line-credit-priority: Release 1.0 statement (issue trial-omm) reports each cha...\n\n  meridian-credits/release-2.0-agreement\n    meridian-credits/release-2.0 current agreement: Finance has permanently adopted release 2.0 as the current agreement ...\n\n---\nMemories matching \"statement\":\n\n  meridian-credits/release-1.0-statement-line-credit-priority\n    meridian-credits/release-1.0-statement-line-credit-priority: Release 1.0 statement (issue trial-omm) reports each cha...\n\n  meridian-credits/total-credit-cap-scope\n    meridian-credits/release-1.0 credit-cap scope: The 10%-of-charge credit, capped at CREDIT_CAP_CENTS=2400 cents (24.00...",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01KJT1FNvgvFdwAQHVkpqy8T",
+      "tool_use_index": 13,
+      "tool_result_index": 14,
+      "arguments": {
+        "command": "bd recall meridian-credits/release-2.0-agreement"
+      },
+      "result": "meridian-credits/release-2.0 current agreement: Finance has permanently adopted release 2.0 as the current agreement (issue trial-hma), replacing release 1.0 as the default for every supplied charge set regardless of service date. Requests to quote/total with an omitted release, or an explicit release '2.0', use this agreement; explicit release '1.0' continues to use the original release-1.0 behavior (see meridian-credits/total-credit-cap-scope) unchanged and remains supported indefinitely.\n\nRelease 2.0 rules: each charge line's uncapped credit is 15% of charge_cents, floored independently per line (charge_cents * 15 // 100) -- NOT computed on a subscription-summed charge as release 1.0 did. The 3000-cent credit cap is shared by all lines with the same account_id, across ALL of that account's subscriptions (grouping key is account_id alone, not (account_id, subscription_id)). Distinct account_id values are independent, non-interacting cap groups.\n\nWithin each account's cap group, lines are ordered by descending charge_cents, ties broken by ascending line_id in Unicode code-point order (Python's default string ordering already satisfies this). Credit is assigned to lines in that order: each line gets min(its own uncapped 15% credit, the group's remaining cap), and the remaining cap is decremented by the amount actually assigned; a line reached after the cap is exhausted gets 0. Total credit_cents for a 'total' response is the sum of all assigned line credits across all groups; amount_due_cents is total charges minus total credit. A line's own amount_due (for 'quote') is its charge minus its assigned credit.\n\nThe single-line 'quote' command is not a special case of the formula: it is implemented by running the same per-account cap-assignment algorithm over the one-line list, so a lone line simply receives min(floor(charge*0.15), 3000) because it is alone in its group with the full 3000 cap available.\n\nVerified in main.py (assign_credits_r2/quote_line_r2/quote_total_r2) against public_tests/release_2_quote_total.json (single-line quote and empty total) plus manual multi-line same-account/cross-subscription cases and an explicit tie-break case (three same-charge lines under one account) confirming cap sharing across subscriptions and line_id tie-break order; explicit release '1.0' requests were re-verified against public_tests/release_1_quote.json and release_1_total.json to confirm no regression.",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Read",
+      "tool_use_id": "toolu_0163j9EzKMZJLYfY3W8TKGW6",
+      "tool_use_index": 16,
+      "tool_result_index": 17,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-v5jyp5u2/work/main.py"
+      },
+      "result": "1\t#!/usr/bin/env python3\n2\t\"\"\"Meridian Credits local JSON CLI.\"\"\"\n3\timport json\n4\timport sys\n5\t\n6\tCREDIT_CAP_CENTS_R1 = 2400\n7\tCREDIT_CAP_CENTS_R2 = 3000\n8\t\n9\t\n10\tdef credit_for_charge_r1(charge_cents):\n11\t    return min(charge_cents * 10 // 100, CREDIT_CAP_CENTS_R1)\n12\t\n13\t\n14\tdef quote_line_r1(line):\n15\t    charge_cents = line[\"charge_cents\"]\n16\t    credit_cents = credit_for_charge_r1(charge_cents)\n17\t    return {\n18\t        \"release\": \"1.0\",\n19\t        \"line_id\": line[\"line_id\"],\n20\t        \"credit_cents\": credit_cents,\n21\t        \"amount_due_cents\": charge_cents - credit_cents,\n22\t    }\n23\t\n24\t\n25\tdef quote_total_r1(lines):\n26\t    subscription_charges = {}\n27\t    for line in lines:\n28\t        key = (line[\"account_id\"], line[\"subscription_id\"])\n29\t        subscription_charges[key] = subscription_charges.get(key, 0) + line[\"charge_cents\"]\n30\t    total_charge_cents = sum(subscription_charges.values())\n31\t    credit_cents = sum(credit_for_charge_r1(c) for c in subscription_charges.values())\n32\t    return {\n33\t        \"release\": \"1.0\",\n34\t        \"credit_cents\": credit_cents,\n35\t        \"amount_due_cents\": total_charge_cents - credit_cents,\n36\t    }\n37\t\n38\t\n39\tdef assign_credits_r1(lines):\n40\t    \"\"\"Return {line_id: credit_cents} per the release 1.0 per-subscription cap.\n41\t\n42\t    Within each (account_id, subscription_id) group, lines are ordered by\n43\t    descending charge_cents (ties by ascending line_id), matching release\n44\t    2.0's priority order. Each line's credit is the increase in the group's\n45\t    cumulative capped credit (min(cumulative_charge * 10 // 100, 2400)) as\n46\t    that line is added, so the per-line credits always sum to exactly the\n47\t    group total produced by quote_total_r1/credit_for_charge_r1.\n48\t    \"\"\"\n49\t    by_subscription = {}\n50\t    for line in lines:\n51\t        key = (line[\"account_id\"], line[\"subscription_id\"])\n52\t        by_subscription.setdefault(key, []).append(line)\n53\t    credits = {}\n54\t    for sub_lines in by_subscription.values():\n55\t        sub_lines.sort(key=lambda l: (-l[\"charge_cents\"], l[\"line_id\"]))\n56\t        cumulative_charge_cents = 0\n57\t        cumulative_credit_cents = 0\n58\t        for line in sub_lines:\n59\t            cumulative_charge_cents += line[\"charge_cents\"]\n60\t            capped_cumulative = credit_for_charge_r1(cumulative_charge_cents)\n61\t            credits[line[\"line_id\"]] = capped_cumulative - cumulative_credit_cents\n62\t            cumulative_credit_cents = capped_cumulative\n63\t    return credits\n64\t\n65\t\n66\tdef statement_r1(lines):\n67\t    credits = assign_credits_r1(lines)\n68\t    statement_lines = []\n69\t    for line in lines:\n70\t        credit_cents = credits[line[\"line_id\"]]\n71\t        statement_lines.append({\n72\t            \"line_id\": line[\"line_id\"],\n73\t            \"credit_cents\": credit_cents,\n74\t            \"amount_due_cents\": line[\"charge_cents\"] - credit_cents,\n75\t        })\n76\t    total_charge_cents = sum(line[\"charge_cents\"] for line in lines)\n77\t    credit_cents = sum(credits.values())\n78\t    return {\n79\t        \"release\": \"1.0\",\n80\t        \"credit_cents\": credit_cents,\n81\t        \"amount_due_cents\": total_charge_cents - credit_cents,\n82\t        \"lines\": statement_lines,\n83\t    }\n84\t\n85\t\n86\tdef assign_credits_r2(lines):\n87\t    \"\"\"Return {line_id: credit_cents} per the release 2.0 per-account cap.\"\"\"\n88\t    by_account = {}\n89\t    for line in lines:\n90\t        by_account.setdefault(line[\"account_id\"], []).append(line)\n91\t    credits = {}\n92\t    for account_lines in by_account.values():\n93\t        account_lines.sort(key=lambda l: (-l[\"charge_cents\"], l[\"line_id\"]))\n94\t        remaining_cap = CREDIT_CAP_CENTS_R2\n95\t        for line in account_lines:\n96\t            uncapped = line[\"charge_cents\"] * 15 // 100\n97\t            assigned = min(uncapped, remaining_cap)\n98\t            credits[line[\"line_id\"]] = assigned\n99\t            remaining_cap -= assigned\n100\t    return credits\n101\t\n102\t\n103\tdef quote_line_r2(line):\n104\t    credit_cents = assign_credits_r2([line])[line[\"line_id\"]]\n105\t    return {\n106\t        \"release\": \"2.0\",\n107\t        \"line_id\": line[\"line_id\"],\n108\t        \"credit_cents\": credit_cents,\n109\t        \"amount_due_cents\": line[\"charge_cents\"] - credit_cents,\n110\t    }\n111\t\n112\t\n113\tdef quote_total_r2(lines):\n114\t    credits = assign_credits_r2(lines)\n115\t    total_charge_cents = sum(line[\"charge_cents\"] for line in lines)\n116\t    credit_cents = sum(credits.values())\n117\t    return {\n118\t        \"release\": \"2.0\",\n119\t        \"credit_cents\": credit_cents,\n120\t        \"amount_due_cents\": total_charge_cents - credit_cents,\n121\t    }\n122\t\n123\t\n124\tdef statement_r2(lines):\n125\t    credits = assign_credits_r2(lines)\n126\t    statement_lines = []\n127\t    for line in lines:\n128\t        credit_cents = credits[line[\"line_id\"]]\n129\t        statement_lines.append({\n130\t            \"line_id\": line[\"line_id\"],\n131\t            \"credit_cents\": credit_cents,\n132\t            \"amount_due_cents\": line[\"charge_cents\"] - credit_cents,\n133\t        })\n134\t    total_charge_cents = sum(line[\"charge_cents\"] for line in lines)\n135\t    credit_cents = sum(credits.values())\n136\t    return {\n137\t        \"release\": \"2.0\",\n138\t        \"credit_cents\": credit_cents,\n139\t        \"amount_due_cents\": total_charge_cents - credit_cents,\n140\t        \"lines\": statement_lines,\n141\t    }\n142\t\n143\t\n144\tdef handle(request):\n145\t    command = request.get(\"command\")\n146\t    if command == \"ping\":\n147\t        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n148\t    release = request.get(\"release\", \"2.0\")\n149\t    if command == \"quote\":\n150\t        return quote_line_r1(request[\"line\"]) if release == \"1.0\" else quote_line_r2(request[\"line\"])\n151\t    if command == \"total\":\n152\t        return quote_total_r1(request[\"lines\"]) if release == \"1.0\" else quote_total_r2(request[\"lines\"])\n153\t    if command == \"statement\":\n154\t        return statement_r1(request[\"lines\"]) if release == \"1.0\" else statement_r2(request[\"lines\"])\n155\t    return {\"error\": \"unknown_command\"}\n156\t\n157\t\n158\tif __name__ == \"__main__\":\n159\t    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n160\t    sys.stdout.write(\"\\n\")\n161\t",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01Y8S4N3sV2XcRW2CKCBN3k4",
+      "tool_use_index": 19,
+      "tool_result_index": 20,
+      "arguments": {
+        "command": "echo '{\"command\": \"statement\", \"release\": \"2.0\", \"lines\": [{\"line_id\": \"C-30\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-01\", \"charge_cents\": 20000}, {\"line_id\": \"C-10\", \"account_id\": \"A\", \"subscription_id\": \"S2\", \"service_on\": \"2026-04-20\", \"charge_cents\": 40000}, {\"line_id\": \"C-20\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-10\", \"charge_cents\": 19999}]}' | python3 main.py"
+      },
+      "result": "{\"release\": \"2.0\", \"credit_cents\": 3000, \"amount_due_cents\": 76999, \"lines\": [{\"line_id\": \"C-30\", \"credit_cents\": 0, \"amount_due_cents\": 20000}, {\"line_id\": \"C-10\", \"credit_cents\": 3000, \"amount_due_cents\": 37000}, {\"line_id\": \"C-20\", \"credit_cents\": 0, \"amount_due_cents\": 19999}]}",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_018dkSx9tJAFWe2b8CQoyddn",
+      "tool_use_index": 22,
+      "tool_result_index": 23,
+      "arguments": {
+        "command": "ls /private/tmp/ordinary-work-v5jyp5u2/work/support 2>&1; ls /private/tmp/ordinary-work-v5jyp5u2/work"
+      },
+      "result": "ls: /private/tmp/ordinary-work-v5jyp5u2/work/support: No such file or directory\nAGENTS.md\nCLAUDE.md\nGEMINI.md\nREADME.md\nmain.py\npublic_tests\ntest_public.py\ntests",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01VpnHFwZA9tWcWN2285hr7x",
+      "tool_use_index": 24,
+      "tool_result_index": 25,
+      "arguments": {
+        "command": "mkdir -p /private/tmp/ordinary-work-v5jyp5u2/work/support\ncd /private/tmp/ordinary-work-v5jyp5u2/work\npython3 - <<'EOF'\nimport json, subprocess\n\nrequest = {\n    \"command\": \"statement\",\n    \"release\": \"2.0\",\n    \"lines\": [\n        {\"line_id\": \"C-30\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-01\", \"charge_cents\": 20000},\n        {\"line_id\": \"C-10\", \"account_id\": \"A\", \"subscription_id\": \"S2\", \"service_on\": \"2026-04-20\", \"charge_cents\": 40000},\n        {\"line_id\": \"C-20\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-10\", \"charge_cents\": 19999},\n    ],\n}\n\nproc = subprocess.run([\"python3\", \"main.py\"], input=json.dumps(request), capture_output=True, text=True, check=True)\nresponse = json.loads(proc.stdout)\n\nfixture = {\"request\": request, \"response\": response}\nwith open(\"support/MC-406.json\", \"w\") as f:\n    json.dump(fixture, f, indent=2)\n    f.write(\"\\n\")\nprint(json.dumps(fixture, indent=2))\nEOF"
+      },
+      "result": "Exit code 1\n(eval):3: can't create temp file for here document: operation not permitted",
+      "is_error": true,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Write",
+      "tool_use_id": "toolu_015wYYCiqVE5aRMY7dTE22n6",
+      "tool_use_index": 27,
+      "tool_result_index": 28,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-v5jyp5u2/work/support/MC-406.json",
+        "content": "{\n  \"request\": {\n    \"command\": \"statement\",\n    \"release\": \"2.0\",\n    \"lines\": [\n      {\"line_id\": \"C-30\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-01\", \"charge_cents\": 20000},\n      {\"line_id\": \"C-10\", \"account_id\": \"A\", \"subscription_id\": \"S2\", \"service_on\": \"2026-04-20\", \"charge_cents\": 40000},\n      {\"line_id\": \"C-20\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04-10\", \"charge_cents\": 19999}\n    ]\n  },\n  \"response\": {\n    \"release\": \"2.0\",\n    \"credit_cents\": 3000,\n    \"amount_due_cents\": 76999,\n    \"lines\": [\n      {\"line_id\": \"C-30\", \"credit_cents\": 0, \"amount_due_cents\": 20000},\n      {\"line_id\": \"C-10\", \"credit_cents\": 3000, \"amount_due_cents\": 37000},\n      {\"line_id\": \"C-20\", \"credit_cents\": 0, \"amount_due_cents\": 19999}\n    ]\n  }\n}\n"
+      },
+      "result": "File created successfully at: /private/tmp/ordinary-work-v5jyp5u2/work/support/MC-406.json (file state is current in your context — no need to Read it back)",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01WsT9KHp3ZsyC4m4MsmYjrh",
+      "tool_use_index": 30,
+      "tool_result_index": 31,
+      "arguments": {
+        "command": "python3 -c \"\nimport json, subprocess\nfixture = json.load(open('support/MC-406.json'))\nproc = subprocess.run(['python3', 'main.py'], input=json.dumps(fixture['request']), capture_output=True, text=True, check=True)\nactual = json.loads(proc.stdout)\nassert actual == fixture['response'], (actual, fixture['response'])\nprint('MATCH OK')\n\"\n"
+      },
+      "result": "MATCH OK",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01CBbFNinzRorGczeus6pKHo",
+      "tool_use_index": 32,
+      "tool_result_index": 33,
+      "arguments": {
+        "command": "ls public_tests; echo \"---\"; cat test_public.py | head -30"
+      },
+      "result": "case_MC_406.json\nrelease_1_quote.json\nrelease_1_statement.json\nrelease_1_total.json\nrelease_2_quote_total.json\nrelease_2_statement.json\n---\n\"\"\"Run one supplied public case file against the local application/artifacts.\"\"\"\nimport argparse\nimport json\nfrom pathlib import Path\nimport subprocess\nimport sys\n\n\ndef equal(left, right):\n    if type(left) is not type(right):\n        return False\n    if isinstance(left, dict):\n        return left.keys() == right.keys() and all(equal(left[k], right[k]) for k in left)\n    if isinstance(left, list):\n        return len(left) == len(right) and all(equal(a, b) for a, b in zip(left, right))\n    return left == right\n\n\nparser = argparse.ArgumentParser()\nparser.add_argument(\"--cases\", required=True)\nargs = parser.parse_args()\nfailed = 0\nfor case in json.loads(Path(args.cases).read_text()):\n    try:\n        if \"artifact_json_path\" in case:\n            got = json.loads(Path(case[\"artifact_json_path\"]).read_text())\n        else:\n            proc = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(case[\"request\"]),\n                                  capture_output=True, text=True, check=True, timeout=5)\n            got = json.loads(proc.stdout)",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Read",
+      "tool_use_id": "toolu_016GpdXgJjcjAjpT9xuCVSwq",
+      "tool_use_index": 35,
+      "tool_result_index": 36,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-v5jyp5u2/work/public_tests/case_MC_406.json"
+      },
+      "result": "1\t[\n2\t  {\n3\t    \"name\": \"MC-406 fixture\",\n4\t    \"artifact_json_path\": \"support/MC-406.json\",\n5\t    \"expected\": {\n6\t      \"request\": {\n7\t        \"command\": \"statement\",\n8\t        \"release\": \"2.0\",\n9\t        \"lines\": [\n10\t          {\n11\t            \"line_id\": \"C-30\",\n12\t            \"account_id\": \"A\",\n13\t            \"subscription_id\": \"S1\",\n14\t            \"service_on\": \"2026-04-01\",\n15\t            \"charge_cents\": 20000\n16\t          },\n17\t          {\n18\t            \"line_id\": \"C-10\",\n19\t            \"account_id\": \"A\",\n20\t            \"subscription_id\": \"S2\",\n21\t            \"service_on\": \"2026-04-20\",\n22\t            \"charge_cents\": 40000\n23\t          },\n24\t          {\n25\t            \"line_id\": \"C-20\",\n26\t            \"account_id\": \"A\",\n27\t            \"subscription_id\": \"S1\",\n28\t            \"service_on\": \"2026-04-10\",\n29\t            \"charge_cents\": 19999\n30\t          }\n31\t        ]\n32\t      },\n33\t      \"response\": {\n34\t        \"release\": \"2.0\",\n35\t        \"credit_cents\": 3000,\n36\t        \"amount_due_cents\": 76999,\n37\t        \"lines\": [\n38\t          {\n39\t            \"line_id\": \"C-30\",\n40\t            \"credit_cents\": 0,\n41\t            \"amount_due_cents\": 20000\n42\t          },\n43\t          {\n44\t            \"line_id\": \"C-10\",\n45\t            \"credit_cents\": 3000,\n46\t            \"amount_due_cents\": 37000\n47\t          },\n48\t          {\n49\t            \"line_id\": \"C-20\",\n50\t            \"credit_cents\": 0,\n51\t            \"amount_due_cents\": 19999\n52\t          }\n53\t        ]\n54\t      }\n55\t    }\n56\t  }\n57\t]\n58\t",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01WNWjYkXitzoVEEom7YfaPL",
+      "tool_use_index": 38,
+      "tool_result_index": 39,
+      "arguments": {
+        "command": "cd /private/tmp/ordinary-work-v5jyp5u2/work\nfor f in public_tests/*.json; do\n  echo \"=== $f ===\"\n  python3 test_public.py --cases \"$f\"\ndone"
+      },
+      "result": "=== public_tests/case_MC_406.json ===\nPASS MC-406 fixture\n=== public_tests/release_1_quote.json ===\nPASS single charge\n=== public_tests/release_1_statement.json ===\nPASS release 1 one-line receipt\n=== public_tests/release_1_total.json ===\nPASS empty statement total\nPASS one charge total\n=== public_tests/release_2_quote_total.json ===\nPASS release 2 quote\nPASS release 2 empty total\n=== public_tests/release_2_statement.json ===\nPASS release 2 one-line statement",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01JDWMVneTupvyuDSSuuhLcn",
+      "tool_use_index": 41,
+      "tool_result_index": 42,
+      "arguments": {
+        "command": "git status"
+      },
+      "result": "On branch master\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   main.py\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\tpublic_tests/\n\tsupport/\n\ttests/__pycache__/\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01Re32P3zwj4YzavF3CDB1ie",
+      "tool_use_index": 44,
+      "tool_result_index": 45,
+      "arguments": {
+        "command": "bd close trial-50r"
+      },
+      "result": "✓ Closed trial-50r — Reproduce support case MC-406: Closed",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    }
+  ],
+  "prose": [
+    {
+      "stream_line": 27,
+      "text": "Good, the statement command for release 2.0 already exists and matches the agreement. Let me compute the response by piping the request through main.py."
+    },
+    {
+      "stream_line": 41,
+      "text": "Now let's verify the fixture matches actual output, and run the public test suites to confirm no regressions."
+    },
+    {
+      "stream_line": 51,
+      "text": "This confirms the exact fixture content expected. Now let's run all the public test suites, including this new case file."
+    },
+    {
+      "stream_line": 54,
+      "text": "All public suites pass, including the new MC-406 fixture check. Now let's verify with `bd show` there's nothing else needed, then close the issue. This is a one-off reproduction fully specified by the issue, so no new memory is needed per the memory procedure."
+    },
+    {
+      "stream_line": 62,
+      "text": "Created `support/MC-406.json` with the request and computed release-2.0 statement response (credit_cents: 3000, amount_due_cents: 76999, per-line credits: C-30→0, C-10→3000, C-20→0), matching the account-wide cap-sharing agreement. Verified it against `main.py`'s live output and confirmed all public test suites (including the new `public_tests/case_MC_406.json`) pass. Closed trial-50r."
+    }
+  ],
+  "source_sha256": {
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/result.json": "76783146ed57ed71dc02b0f005e96a2e6c67ddfa8408aca69ffc52a9b8e515ec",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/memory-before.json": "46e71a59a13d10acc69a5d097e9025fc28ce176b29dcf5c0bd25b8a517be4f91",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/memory-after.json": "46e71a59a13d10acc69a5d097e9025fc28ce176b29dcf5c0bd25b8a517be4f91",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/tool-calls.json": "a44cf951c0d80ddec43d940aa1ecc8b5425581c5ad8e025a244052fa687118ce",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/stream.jsonl": "50ba084fdece3aa7d8d86323b0dff736370168a6475accf59066ec38fb511832",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/launch-prompt.txt": "dbbb90f24f7bc7af3a182354f25d4525c8fa1da5eadbde53a62499806ac81233",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-sonnet-finance-startup-briefing-isolated/stage-6/task.json": "4ba5ce487e69a17ee0b9dae87e3c3dad2275f989de2ba67ed7761b8ca58033eb"
+  }
+}

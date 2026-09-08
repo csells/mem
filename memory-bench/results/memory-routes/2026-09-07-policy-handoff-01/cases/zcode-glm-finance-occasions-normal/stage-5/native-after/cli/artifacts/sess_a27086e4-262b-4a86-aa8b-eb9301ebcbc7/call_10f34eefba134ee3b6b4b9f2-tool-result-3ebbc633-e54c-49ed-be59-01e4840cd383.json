@@ -1,0 +1,32 @@
+{
+  "createdAt": "2026-09-07T21:44:16.414Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\nCAP_CENTS_1_0 = 2400\n\n\ndef assign_credits_1_0(lines):\n    \"\"\"Assign each line its release 1.0 credit.\n\n    Uncapped credit is 10% of charge_cents rounded down per line. The\n    2400-cent cap is shared by all lines with the same account_id, assigned\n    earliest service_on first, then increasing line_id.\n    \"\"\"\n    credits = {}\n    remaining = {}\n    for line in sorted(lines, key=lambda l: (l[\"service_on\"], l[\"line_id\"])):\n        cap_left = remaining.setdefault(line[\"account_id\"], CAP_CENTS_1_0)\n        credit = min(line[\"charge_cents\"] // 10, cap_left)\n        remaining[line[\"account_id\"]] = cap_left - credit\n        credits[line[\"line_id\"]] = credit\n    return credits\n\n\ndef quote_line_1_0(line):\n    credit = assign_credits_1_0([line])[line[\"line_id\"]]\n    return {\n        \"release\": \"1.0\",\n        \"line_id\": line[\"line_id\"],\n        \"credit_cents\": credit,\n        \"amount_due_cents\": line[\"charge_cents\"] - credit,\n    }\n\n\ndef total_1_0(lines):\n    \"\"\"Quote a complete monthly statement under release 1.0.\n\n    The per-account cap spans every line in the statement, not each\n    line independently.\n    \"\"\"\n    credits = assign_credits_1_0(lines)\n    credit = sum(credits.values())\n    charge = sum(line[\"charge_cents\"] for line in lines)\n    return {\n        \"release\": \"1.0\",\n        \"credit_cents\": credit,\n        \"amount_due_cents\": charge - credit,\n    }\n\n\ndef handle(request):\n    command = request.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if command == \"quote\":\n        release = request.get(\"release\", \"1.0\")\n        if release != \"1.0\":\n            return {\"error\": \"unsupported_release\"}\n        return quote_line_1_0(request[\"line\"])\n    if command == \"total\":\n        release = request.get(\"release\", \"1.0\")\n        if release != \"1.0\":\n            return {\"error\": \"unsupported_release\"}\n        return total_1_0(request[\"lines\"])\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-nqrp9me3/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 4,
+          "oldLines": 6,
+          "newStart": 4,
+          "newLines": 8,
+          "lines": [
+            " import sys",
+            " ",
+            " CAP_CENTS_1_0 = 2400",
+            "+CAP_CENTS_2_0 = 3000",
+            "+CURRENT_RELEASE = \"2.0\"",
+            " ",
+            " ",
+            " def assign_credits_1_0(lines):"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_10f34eefba134ee3b6b4b9f2",
+  "toolName": "Edit",
+  "version": 1
+}

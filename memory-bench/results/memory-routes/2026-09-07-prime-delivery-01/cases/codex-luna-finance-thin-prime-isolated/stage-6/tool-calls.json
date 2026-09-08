@@ -1,0 +1,236 @@
+[
+  {
+    "name": "Bash",
+    "tool_use_id": "item_1",
+    "tool_use_index": 3,
+    "tool_result_index": 4,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,240p' .agents/skills/beads/SKILL.md && bd prime --no-memories && bd show trial-die && bd update trial-die --status in_progress\""
+    },
+    "result": "# Project workflow\n\nRead AGENTS.md for the project workflow and Beads skill.\n○ trial-die · Reproduce support case MC-406   [P2 · OPEN]\nOwner: csells · Type: task\nCreated: 2026-09-08 · Updated: 2026-09-08\n\nDESCRIPTION\n\n  Meridian Credits quotes loyalty credits for a subscription reseller. The    \n  local Python CLI accepts one JSON object on stdin and emits exactly one JSON\n  object on stdout; run python3 main.py. Preserve {\"command\":\"ping\"} ->       \n  {\"status\":\"ok\",\"product\":\"Meridian Credits\"} and the existing unknown-      \n  command response. No network, clock, locale or third-party package is       \n  needed. Malformed input is outside these issues.                            \n                                                                              \n  A charge line has exactly line_id, account_id, subscription_id, service_on, \n  and charge_cents. The three IDs are nonempty strings; line_id is unique     \n  within a request. A subscription is identified by the pair (account_id,     \n  subscription_id); the same subscription_id can occur under different        \n  accounts, and a subscription can have several charge lines. service_on is a \n  valid Gregorian YYYY-MM-DD date from 2020-01-01 through 2099-12-31.         \n  charge_cents is a nonnegative integer in US cents. No line is excluded by   \n  its service date. Each request is the complete charge set of one            \n  independently quoted monthly statement; caps apply within that set. Line    \n  collections may be empty. Lexicographic ID order means Unicode code-point   \n  order. JSON object key order is immaterial; do not add response keys beyond \n  those specified.                                                            \n                                                                              \n  Release \"1.0\" is the initial agreement. An omitted release selects the      \n  current agreement; an explicit supported release selects that version.      \n  Versions introduced in an issue remain supported afterward. Public suites   \n  name a specific release and send explicit release values, so their          \n  expectations remain applicable when the current agreement changes. Run a    \n  supplied suite with python3 test_public.py --cases PATH.                    \n                                                                              \n  Support requests a one-off JSON fixture for case MC-406 using the existing  \n  release 2.0 statement interface. Create support/MC-406.json containing      \n  exactly {\"request\":REQUEST,\"response\":RESPONSE}, with the complete request  \n  below and its computed statement response. This is a case fixture; product  \n  commands and approved agreements remain unchanged.                          \n                                                                              \n  The complete applicable agreement is: Each line's uncapped credit is 15% of \n  charge_cents, rounded down separately to integer cents. The 3000-cent credit\n  cap is shared by all lines with the same account_id, across its             \n  subscriptions. Distinct groups have independent caps. Within each cap group,\n  credit is assigned to lines in this priority: largest charge_cents first;   \n  equal charges use increasing line_id. Each line receives its uncapped credit\n  up to the group's remaining cap; later lines receive only the remaining     \n  credit, or zero. The total credit is the sum of assigned line credits. A    \n  line's amount due is its charge minus its assigned credit; the total due is \n  total charges minus total credit. The statement response contains exactly   \n  release (\"2.0\"), lines, credit_cents, and amount_due_cents. Return one      \n  response line per input line in input order; each has exactly line_id,      \n  credit_cents, and amount_due_cents.                                         \n                                                                              \n  REQUEST: {\"command\": \"statement\", \"release\": \"2.0\", \"lines\": [{\"line_id\":   \n  \"C-30\", \"account_id\": \"A\", \"subscription_id\": \"S1\", \"service_on\": \"2026-04- \n  01\", \"charge_cents\": 20000}, {\"line_id\": \"C-10\", \"account_id\": \"A\",         \n  \"subscription_id\": \"S2\", \"service_on\": \"2026-04-20\", \"charge_cents\": 40000},\n  {\"line_id\": \"C-20\", \"account_id\": \"A\", \"subscription_id\": \"S1\",             \n  \"service_on\": \"2026-04-10\", \"charge_cents\": 19999}]}                        \n                                                                              \n  Check that the existing release-specific public suites remain valid.        \n\n\n\n✓ Updated issue: trial-die — Reproduce support case MC-406\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_3",
+    "tool_use_index": 6,
+    "tool_result_index": 7,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,260p' .agents/skills/beads/references/memory.md; if [ -n \\\"\"'$BEADS_MEMORY_INDEX\" ]; then echo '\"'--- memory index ---'; sed -n '1,220p' \\\"\"'$BEADS_MEMORY_INDEX\"; fi; echo '\"'--- files ---'; rg --files -g '\"'!*.pyc'\"' | sort; echo '--- status ---'; git status --short\""
+    },
+    "result": "# Project memory\n\nMemories carry approved intent and verified findings into later issue work.\nPreserve policy scope, exceptions, rationale, and engineering constraints whose\nmeaning a later agent cannot establish from the implementation alone. A task log,\na list of changed files, and unsupported guesses do not serve that purpose.\n\n## Before a policy-dependent change\n\nRead the applicable retained knowledge before implementing behavior governed by\nan earlier agreement or investigation. A known relevant key from the project\ncatalog, issue history, or another record supports direct lookup:\n\n```text\nbd recall '<key>'\n```\n\nWithout a known relevant reference, search by project and topic, then read the\nfull applicable result:\n\n```text\nbd memories '<query>'\nbd recall '<key>'\n```\n\nSearch matches literal substrings in keys and bodies; shorten a query when needed.\nConfirm project, scope, version, and evidence before applying a record. If records\nare absent or incomplete, consult legitimate approval sources, docs, tests, and\nissue history. Resolve conflicts against those sources. Distinguish an approval\nfrom an inference and a remembered claim from evidence.\n\n## Before closing a knowledge-producing issue\n\nCapture newly approved durable decisions and verified reusable findings, including\nscope or rationale beyond the feature implemented today. First inspect existing\nknowledge on the topic to reuse a current key for the same agreement and avoid\nduplicates. Choose a descriptive project/topic key for new knowledge.\n\nGive the record a readable opening stating its purpose and applicability. Retain\nexact identifiers, types, units, boundaries, structure, and exceptions needed for\nlater work. Use structured data where the agreement is structured and faithful\nprose where prose fits. Cite actual approval or investigation sources. For a\nworkaround, include tool/version, circumstances, evidence, and when to recheck it;\na past failure is not a permanent avoidance policy. Report only validation that\nactually occurred.\n\n```text\nbd remember '<complete record>' --key '<key>'\nbd recall '<key>'\n```\n\nCheck the save acknowledgment and full readback for faithful retention. Readback\nverifies storage, not whether the saved claim is true. Include the record key in\nthe issue's completion context so later work can follow it.\n\n## Revision, history, and reproduction\n\nFor a permanent revision, read the actual current record and preserve any earlier\nknowledge needed for historical work under a descriptive historical key before\nupdating the current key. Carry unaffected facts forward. If no earlier record\nexists, recover what the approval sources support and describe its source\naccurately; never invent an earlier capture or verification.\n\nHistorical work uses the applicable old agreement while leaving the current one\nand unrelated historical notes intact. Implementing another consumer of an\nexisting agreement does not create a new agreement. Fully supplied one-off\nreproduction ordinarily requires neither retrieval nor another capture. Save\nonly if the work actually establishes new durable knowledge or changes it.\n\nThese legacy keys identify mutable notes. Historical keys are naming conventions,\nnot immutable revision pins or protection against concurrent writers.\n--- files ---\nAGENTS.md\nCLAUDE.md\nGEMINI.md\nREADME.md\nmain.py\npublic_tests/case_MC_406.json\npublic_tests/release_1_quote.json\npublic_tests/release_1_statement.json\npublic_tests/release_1_total.json\npublic_tests/release_2_quote_total.json\npublic_tests/release_2_statement.json\ntest_public.py\ntests/test_smoke.py\n--- status ---\n M main.py\n?? __pycache__/\n?? public_tests/\n?? tests/__pycache__/\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_4",
+    "tool_use_index": 8,
+    "tool_result_index": 11,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,280p' test_public.py; sed -n '1,220p' tests/test_smoke.py\""
+    },
+    "result": "\"\"\"Run one supplied public case file against the local application/artifacts.\"\"\"\nimport argparse\nimport json\nfrom pathlib import Path\nimport subprocess\nimport sys\n\n\ndef equal(left, right):\n    if type(left) is not type(right):\n        return False\n    if isinstance(left, dict):\n        return left.keys() == right.keys() and all(equal(left[k], right[k]) for k in left)\n    if isinstance(left, list):\n        return len(left) == len(right) and all(equal(a, b) for a, b in zip(left, right))\n    return left == right\n\n\nparser = argparse.ArgumentParser()\nparser.add_argument(\"--cases\", required=True)\nargs = parser.parse_args()\nfailed = 0\nfor case in json.loads(Path(args.cases).read_text()):\n    try:\n        if \"artifact_json_path\" in case:\n            got = json.loads(Path(case[\"artifact_json_path\"]).read_text())\n        else:\n            proc = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(case[\"request\"]),\n                                  capture_output=True, text=True, check=True, timeout=5)\n            got = json.loads(proc.stdout)\n        ok = equal(got, case[\"expected\"])\n    except (OSError, ValueError, subprocess.SubprocessError) as exc:\n        ok = False\n        got = str(exc)\n    print((\"PASS \" if ok else \"FAIL \") + case[\"name\"])\n    if not ok:\n        print(\" expected:\", case[\"expected\"])\n        print(\" received:\", got)\n        failed += 1\nraise SystemExit(bool(failed))\nimport json\nfrom pathlib import Path\nimport subprocess\nimport sys\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\n\n\nclass SmokeTests(unittest.TestCase):\n    def check_request(self, request, expected):\n        got = subprocess.run([sys.executable, str(ROOT / \"main.py\")],\n                             input=json.dumps(request), text=True, capture_output=True, check=True)\n        self.assertEqual(json.loads(got.stdout), expected)\n\n    def test_ping(self):\n        self.check_request({\"command\": \"ping\"}, {\"status\": \"ok\", \"product\": \"Meridian Credits\"})\n\n    def test_unknown(self):\n        self.check_request({\"command\": \"unknown\"}, {\"error\": \"unknown_command\"})\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_5",
+    "tool_use_index": 9,
+    "tool_result_index": 10,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,320p' main.py\""
+    },
+    "result": "#!/usr/bin/env python3\n\"\"\"Meridian Credits local JSON CLI.\"\"\"\nimport json\nimport sys\n\n\nCURRENT_RELEASE = \"2.0\"\nRELEASE_1_RATE_DIVISOR = 10\nRELEASE_1_CAP_CENTS = 2400\nRELEASE_2_RATE_DIVISOR = 100\nRELEASE_2_CAP_CENTS = 3000\n\n\ndef release_1_line_credits(lines):\n    \"\"\"Return each line's assigned credit under release 1.0.\"\"\"\n    groups = {}\n    for line in lines:\n        key = (line[\"account_id\"], line[\"subscription_id\"])\n        groups.setdefault(key, []).append(line)\n\n    credits = {}\n    for group_lines in groups.values():\n        remaining = RELEASE_1_CAP_CENTS\n        ordered_lines = sorted(group_lines,\n                               key=lambda line: (line[\"service_on\"], line[\"line_id\"]))\n        for line in ordered_lines:\n            credit_cents = min(line[\"charge_cents\"] // RELEASE_1_RATE_DIVISOR,\n                               remaining)\n            credits[line[\"line_id\"]] = credit_cents\n            remaining -= credit_cents\n    return credits\n\n\ndef release_2_line_credits(lines):\n    \"\"\"Return each line's assigned credit under release 2.0.\"\"\"\n    groups = {}\n    for line in lines:\n        groups.setdefault(line[\"account_id\"], []).append(line)\n\n    credits = {}\n    for group_lines in groups.values():\n        remaining = RELEASE_2_CAP_CENTS\n        ordered_lines = sorted(group_lines,\n                               key=lambda line: (-line[\"charge_cents\"], line[\"line_id\"]))\n        for line in ordered_lines:\n            credit_cents = min(line[\"charge_cents\"] * 15 // RELEASE_2_RATE_DIVISOR,\n                               remaining)\n            credits[line[\"line_id\"]] = credit_cents\n            remaining -= credit_cents\n    return credits\n\n\ndef statement_line_credits(lines, release):\n    \"\"\"Return each line's assigned credit under the selected release.\"\"\"\n    if release == \"1.0\":\n        return release_1_line_credits(lines)\n    return release_2_line_credits(lines)\n\n\ndef statement_credit(lines, release=\"1.0\"):\n    \"\"\"Return the total credit assigned across a complete statement.\"\"\"\n    return sum(statement_line_credits(lines, release).values())\n\n\ndef line_credit(line, release):\n    \"\"\"Return the credit for a one-line statement under the selected release.\"\"\"\n    if release == \"1.0\":\n        return min(line[\"charge_cents\"] // RELEASE_1_RATE_DIVISOR,\n                   RELEASE_1_CAP_CENTS)\n    return min(line[\"charge_cents\"] * 15 // RELEASE_2_RATE_DIVISOR,\n               RELEASE_2_CAP_CENTS)\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        line = request[\"line\"]\n        release = request.get(\"release\", CURRENT_RELEASE)\n        credit_cents = line_credit(line, release)\n        return {\n            \"release\": release,\n            \"credit_cents\": credit_cents,\n            \"amount_due_cents\": line[\"charge_cents\"] - credit_cents,\n            \"line_id\": line[\"line_id\"],\n        }\n    if request.get(\"command\") == \"total\":\n        lines = request[\"lines\"]\n        release = request.get(\"release\", CURRENT_RELEASE)\n        total_charge = sum(line[\"charge_cents\"] for line in lines)\n        credit_cents = statement_credit(lines, release)\n        return {\n            \"release\": release,\n            \"credit_cents\": credit_cents,\n            \"amount_due_cents\": total_charge - credit_cents,\n        }\n    if request.get(\"command\") == \"statement\":\n        lines = request[\"lines\"]\n        release = request.get(\"release\", CURRENT_RELEASE)\n        credits = statement_line_credits(lines, release)\n        statement_lines = [\n            {\n                \"line_id\": line[\"line_id\"],\n                \"credit_cents\": credits[line[\"line_id\"]],\n                \"amount_due_cents\": line[\"charge_cents\"] - credits[line[\"line_id\"]],\n            }\n            for line in lines\n        ]\n        credit_cents = sum(item[\"credit_cents\"] for item in statement_lines)\n        total_charge = sum(line[\"charge_cents\"] for line in lines)\n        return {\n            \"release\": release,\n            \"lines\": statement_lines,\n            \"credit_cents\": credit_cents,\n            \"amount_due_cents\": total_charge - credit_cents,\n        }\n    return {\"error\": \"unknown_command\"}\n\n\nif __name__ == \"__main__\":\n    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n    sys.stdout.write(\"\\n\")\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_6",
+    "tool_use_index": 12,
+    "tool_result_index": 13,
+    "arguments": {
+      "command": "/bin/zsh -lc 'for f in public_tests/*.json; do echo \"--- $f\"; sed -n '\"'1,220p' \\\"\"'$f\"; done'"
+    },
+    "result": "--- public_tests/case_MC_406.json\n[\n  {\n    \"name\": \"MC-406 fixture\",\n    \"artifact_json_path\": \"support/MC-406.json\",\n    \"expected\": {\n      \"request\": {\n        \"command\": \"statement\",\n        \"release\": \"2.0\",\n        \"lines\": [\n          {\n            \"line_id\": \"C-30\",\n            \"account_id\": \"A\",\n            \"subscription_id\": \"S1\",\n            \"service_on\": \"2026-04-01\",\n            \"charge_cents\": 20000\n          },\n          {\n            \"line_id\": \"C-10\",\n            \"account_id\": \"A\",\n            \"subscription_id\": \"S2\",\n            \"service_on\": \"2026-04-20\",\n            \"charge_cents\": 40000\n          },\n          {\n            \"line_id\": \"C-20\",\n            \"account_id\": \"A\",\n            \"subscription_id\": \"S1\",\n            \"service_on\": \"2026-04-10\",\n            \"charge_cents\": 19999\n          }\n        ]\n      },\n      \"response\": {\n        \"release\": \"2.0\",\n        \"credit_cents\": 3000,\n        \"amount_due_cents\": 76999,\n        \"lines\": [\n          {\n            \"line_id\": \"C-30\",\n            \"credit_cents\": 0,\n            \"amount_due_cents\": 20000\n          },\n          {\n            \"line_id\": \"C-10\",\n            \"credit_cents\": 3000,\n            \"amount_due_cents\": 37000\n          },\n          {\n            \"line_id\": \"C-20\",\n            \"credit_cents\": 0,\n            \"amount_due_cents\": 19999\n          }\n        ]\n      }\n    }\n  }\n]\n--- public_tests/release_1_quote.json\n[\n  {\n    \"name\": \"single charge\",\n    \"request\": {\n      \"command\": \"quote\",\n      \"release\": \"1.0\",\n      \"line\": {\n        \"line_id\": \"L-1\",\n        \"account_id\": \"A\",\n        \"subscription_id\": \"S\",\n        \"service_on\": \"2026-04-15\",\n        \"charge_cents\": 19999\n      }\n    },\n    \"expected\": {\n      \"release\": \"1.0\",\n      \"credit_cents\": 1999,\n      \"amount_due_cents\": 18000,\n      \"line_id\": \"L-1\"\n    }\n  }\n]\n--- public_tests/release_1_statement.json\n[\n  {\n    \"name\": \"release 1 one-line receipt\",\n    \"request\": {\n      \"command\": \"statement\",\n      \"release\": \"1.0\",\n      \"lines\": [\n        {\n          \"line_id\": \"L-1\",\n          \"account_id\": \"A\",\n          \"subscription_id\": \"S\",\n          \"service_on\": \"2026-04-15\",\n          \"charge_cents\": 19999\n        }\n      ]\n    },\n    \"expected\": {\n      \"release\": \"1.0\",\n      \"credit_cents\": 1999,\n      \"amount_due_cents\": 18000,\n      \"lines\": [\n        {\n          \"line_id\": \"L-1\",\n          \"credit_cents\": 1999,\n          \"amount_due_cents\": 18000\n        }\n      ]\n    }\n  }\n]\n--- public_tests/release_1_total.json\n[\n  {\n    \"name\": \"empty statement total\",\n    \"request\": {\n      \"command\": \"total\",\n      \"release\": \"1.0\",\n      \"lines\": []\n    },\n    \"expected\": {\n      \"release\": \"1.0\",\n      \"credit_cents\": 0,\n      \"amount_due_cents\": 0\n    }\n  },\n  {\n    \"name\": \"one charge total\",\n    \"request\": {\n      \"command\": \"total\",\n      \"release\": \"1.0\",\n      \"lines\": [\n        {\n          \"line_id\": \"L-1\",\n          \"account_id\": \"A\",\n          \"subscription_id\": \"S\",\n          \"service_on\": \"2026-04-15\",\n          \"charge_cents\": 19999\n        }\n      ]\n    },\n    \"expected\": {\n      \"release\": \"1.0\",\n      \"credit_cents\": 1999,\n      \"amount_due_cents\": 18000\n    }\n  }\n]\n--- public_tests/release_2_quote_total.json\n[\n  {\n    \"name\": \"release 2 quote\",\n    \"request\": {\n      \"command\": \"quote\",\n      \"release\": \"2.0\",\n      \"line\": {\n        \"line_id\": \"L-1\",\n        \"account_id\": \"A\",\n        \"subscription_id\": \"S\",\n        \"service_on\": \"2026-04-15\",\n        \"charge_cents\": 19999\n      }\n    },\n    \"expected\": {\n      \"release\": \"2.0\",\n      \"credit_cents\": 2999,\n      \"amount_due_cents\": 17000,\n      \"line_id\": \"L-1\"\n    }\n  },\n  {\n    \"name\": \"release 2 empty total\",\n    \"request\": {\n      \"command\": \"total\",\n      \"release\": \"2.0\",\n      \"lines\": []\n    },\n    \"expected\": {\n      \"release\": \"2.0\",\n      \"credit_cents\": 0,\n      \"amount_due_cents\": 0\n    }\n  }\n]\n--- public_tests/release_2_statement.json\n[\n  {\n    \"name\": \"release 2 one-line statement\",\n    \"request\": {\n      \"command\": \"statement\",\n      \"release\": \"2.0\",\n      \"lines\": [\n        {\n          \"line_id\": \"L-1\",\n          \"account_id\": \"A\",\n          \"subscription_id\": \"S\",\n          \"service_on\": \"2026-04-15\",\n          \"charge_cents\": 19999\n        }\n      ]\n    },\n    \"expected\": {\n      \"release\": \"2.0\",\n      \"credit_cents\": 2999,\n      \"amount_due_cents\": 17000,\n      \"lines\": [\n        {\n          \"line_id\": \"L-1\",\n          \"credit_cents\": 2999,\n          \"amount_due_cents\": 17000\n        }\n      ]\n    }\n  }\n]\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_7",
+    "tool_use_index": 14,
+    "tool_result_index": 15,
+    "arguments": {
+      "command": "/bin/zsh -lc 'git diff -- main.py; git status --short --untracked-files=all'"
+    },
+    "result": "diff --git a/main.py b/main.py\nindex 78569ce..10cf8d0 100644\n--- a/main.py\n+++ b/main.py\n@@ -4,9 +4,116 @@ import json\n import sys\n \n \n+CURRENT_RELEASE = \"2.0\"\n+RELEASE_1_RATE_DIVISOR = 10\n+RELEASE_1_CAP_CENTS = 2400\n+RELEASE_2_RATE_DIVISOR = 100\n+RELEASE_2_CAP_CENTS = 3000\n+\n+\n+def release_1_line_credits(lines):\n+    \"\"\"Return each line's assigned credit under release 1.0.\"\"\"\n+    groups = {}\n+    for line in lines:\n+        key = (line[\"account_id\"], line[\"subscription_id\"])\n+        groups.setdefault(key, []).append(line)\n+\n+    credits = {}\n+    for group_lines in groups.values():\n+        remaining = RELEASE_1_CAP_CENTS\n+        ordered_lines = sorted(group_lines,\n+                               key=lambda line: (line[\"service_on\"], line[\"line_id\"]))\n+        for line in ordered_lines:\n+            credit_cents = min(line[\"charge_cents\"] // RELEASE_1_RATE_DIVISOR,\n+                               remaining)\n+            credits[line[\"line_id\"]] = credit_cents\n+            remaining -= credit_cents\n+    return credits\n+\n+\n+def release_2_line_credits(lines):\n+    \"\"\"Return each line's assigned credit under release 2.0.\"\"\"\n+    groups = {}\n+    for line in lines:\n+        groups.setdefault(line[\"account_id\"], []).append(line)\n+\n+    credits = {}\n+    for group_lines in groups.values():\n+        remaining = RELEASE_2_CAP_CENTS\n+        ordered_lines = sorted(group_lines,\n+                               key=lambda line: (-line[\"charge_cents\"], line[\"line_id\"]))\n+        for line in ordered_lines:\n+            credit_cents = min(line[\"charge_cents\"] * 15 // RELEASE_2_RATE_DIVISOR,\n+                               remaining)\n+            credits[line[\"line_id\"]] = credit_cents\n+            remaining -= credit_cents\n+    return credits\n+\n+\n+def statement_line_credits(lines, release):\n+    \"\"\"Return each line's assigned credit under the selected release.\"\"\"\n+    if release == \"1.0\":\n+        return release_1_line_credits(lines)\n+    return release_2_line_credits(lines)\n+\n+\n+def statement_credit(lines, release=\"1.0\"):\n+    \"\"\"Return the total credit assigned across a complete statement.\"\"\"\n+    return sum(statement_line_credits(lines, release).values())\n+\n+\n+def line_credit(line, release):\n+    \"\"\"Return the credit for a one-line statement under the selected release.\"\"\"\n+    if release == \"1.0\":\n+        return min(line[\"charge_cents\"] // RELEASE_1_RATE_DIVISOR,\n+                   RELEASE_1_CAP_CENTS)\n+    return min(line[\"charge_cents\"] * 15 // RELEASE_2_RATE_DIVISOR,\n+               RELEASE_2_CAP_CENTS)\n+\n+\n def handle(request):\n     if request.get(\"command\") == \"ping\":\n         return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n+    if request.get(\"command\") == \"quote\":\n+        line = request[\"line\"]\n+        release = request.get(\"release\", CURRENT_RELEASE)\n+        credit_cents = line_credit(line, release)\n+        return {\n+            \"release\": release,\n+            \"credit_cents\": credit_cents,\n+            \"amount_due_cents\": line[\"charge_cents\"] - credit_cents,\n+            \"line_id\": line[\"line_id\"],\n+        }\n+    if request.get(\"command\") == \"total\":\n+        lines = request[\"lines\"]\n+        release = request.get(\"release\", CURRENT_RELEASE)\n+        total_charge = sum(line[\"charge_cents\"] for line in lines)\n+        credit_cents = statement_credit(lines, release)\n+        return {\n+            \"release\": release,\n+            \"credit_cents\": credit_cents,\n+            \"amount_due_cents\": total_charge - credit_cents,\n+        }\n+    if request.get(\"command\") == \"statement\":\n+        lines = request[\"lines\"]\n+        release = request.get(\"release\", CURRENT_RELEASE)\n+        credits = statement_line_credits(lines, release)\n+        statement_lines = [\n+            {\n+                \"line_id\": line[\"line_id\"],\n+                \"credit_cents\": credits[line[\"line_id\"]],\n+                \"amount_due_cents\": line[\"charge_cents\"] - credits[line[\"line_id\"]],\n+            }\n+            for line in lines\n+        ]\n+        credit_cents = sum(item[\"credit_cents\"] for item in statement_lines)\n+        total_charge = sum(line[\"charge_cents\"] for line in lines)\n+        return {\n+            \"release\": release,\n+            \"lines\": statement_lines,\n+            \"credit_cents\": credit_cents,\n+            \"amount_due_cents\": total_charge - credit_cents,\n+        }\n     return {\"error\": \"unknown_command\"}\n \n \n M main.py\n?? __pycache__/main.cpython-314.pyc\n?? public_tests/case_MC_406.json\n?? public_tests/release_1_quote.json\n?? public_tests/release_1_statement.json\n?? public_tests/release_1_total.json\n?? public_tests/release_2_quote_total.json\n?? public_tests/release_2_statement.json\n?? tests/__pycache__/test_smoke.cpython-314.pyc\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_8",
+    "tool_use_index": 16,
+    "tool_result_index": 17,
+    "arguments": {
+      "command": "/bin/zsh -lc \"sed -n '1,260p' README.md; echo '--- support references ---'; rg -n \\\"support|MC-406|artifact|release\\\" . --glob '\"'!__pycache__/**'\"'\""
+    },
+    "result": "# Meridian Credits\n\nA Python standard-library JSON CLI for monthly loyalty-credit statements.\n\nRun `python3 main.py` with one request on stdin. Check the starter with `python3 -m unittest discover -s tests`. Feature issues supply their interfaces and approved business agreements.\n\nRun only introduced public suites with `python3 test_public.py --cases PATH`. Suite names and explicit requests identify their release; a change to the current agreement does not invalidate an explicit earlier-release suite.\n--- support references ---\n./main.py:14:def release_1_line_credits(lines):\n./main.py:15:    \"\"\"Return each line's assigned credit under release 1.0.\"\"\"\n./main.py:34:def release_2_line_credits(lines):\n./main.py:35:    \"\"\"Return each line's assigned credit under release 2.0.\"\"\"\n./main.py:53:def statement_line_credits(lines, release):\n./main.py:54:    \"\"\"Return each line's assigned credit under the selected release.\"\"\"\n./main.py:55:    if release == \"1.0\":\n./main.py:56:        return release_1_line_credits(lines)\n./main.py:57:    return release_2_line_credits(lines)\n./main.py:60:def statement_credit(lines, release=\"1.0\"):\n./main.py:62:    return sum(statement_line_credits(lines, release).values())\n./main.py:65:def line_credit(line, release):\n./main.py:66:    \"\"\"Return the credit for a one-line statement under the selected release.\"\"\"\n./main.py:67:    if release == \"1.0\":\n./main.py:79:        release = request.get(\"release\", CURRENT_RELEASE)\n./main.py:80:        credit_cents = line_credit(line, release)\n./main.py:82:            \"release\": release,\n./main.py:89:        release = request.get(\"release\", CURRENT_RELEASE)\n./main.py:91:        credit_cents = statement_credit(lines, release)\n./main.py:93:            \"release\": release,\n./main.py:99:        release = request.get(\"release\", CURRENT_RELEASE)\n./main.py:100:        credits = statement_line_credits(lines, release)\n./main.py:112:            \"release\": release,\n./public_tests/release_2_quote_total.json:3:    \"name\": \"release 2 quote\",\n./public_tests/release_2_quote_total.json:6:      \"release\": \"2.0\",\n./public_tests/release_2_quote_total.json:16:      \"release\": \"2.0\",\n./public_tests/release_2_quote_total.json:23:    \"name\": \"release 2 empty total\",\n./public_tests/release_2_quote_total.json:26:      \"release\": \"2.0\",\n./public_tests/release_2_quote_total.json:30:      \"release\": \"2.0\",\n./public_tests/release_2_statement.json:3:    \"name\": \"release 2 one-line statement\",\n./public_tests/release_2_statement.json:6:      \"release\": \"2.0\",\n./public_tests/release_2_statement.json:18:      \"release\": \"2.0\",\n./public_tests/release_1_quote.json:6:      \"release\": \"1.0\",\n./public_tests/release_1_quote.json:16:      \"release\": \"1.0\",\n./public_tests/release_1_statement.json:3:    \"name\": \"release 1 one-line receipt\",\n./public_tests/release_1_statement.json:6:      \"release\": \"1.0\",\n./public_tests/release_1_statement.json:18:      \"release\": \"1.0\",\n./public_tests/case_MC_406.json:3:    \"name\": \"MC-406 fixture\",\n./public_tests/case_MC_406.json:4:    \"artifact_json_path\": \"support/MC-406.json\",\n./public_tests/case_MC_406.json:8:        \"release\": \"2.0\",\n./public_tests/case_MC_406.json:34:        \"release\": \"2.0\",\n./public_tests/release_1_total.json:6:      \"release\": \"1.0\",\n./public_tests/release_1_total.json:10:      \"release\": \"1.0\",\n./public_tests/release_1_total.json:19:      \"release\": \"1.0\",\n./public_tests/release_1_total.json:31:      \"release\": \"1.0\",\n./test_public.py:1:\"\"\"Run one supplied public case file against the local application/artifacts.\"\"\"\n./test_public.py:25:        if \"artifact_json_path\" in case:\n./test_public.py:26:            got = json.loads(Path(case[\"artifact_json_path\"]).read_text())\n./README.md:7:Run only introduced public suites with `python3 test_public.py --cases PATH`. Suite names and explicit requests identify their release; a change to the current agreement does not invalidate an explicit earlier-release suite.\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_10",
+    "tool_use_index": 19,
+    "tool_result_index": 20,
+    "arguments": {
+      "command": "/bin/zsh -lc 'mkdir -p support'"
+    },
+    "result": "",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Write",
+    "tool_use_id": "item_11",
+    "tool_use_index": 21,
+    "tool_result_index": 22,
+    "arguments": {
+      "file_path": "/private/tmp/ordinary-work-2g5x2ehq/work/support/MC-406.json"
+    },
+    "result": "{\"id\": \"item_11\", \"type\": \"file_change\", \"changes\": [{\"path\": \"/private/tmp/ordinary-work-2g5x2ehq/work/support/MC-406.json\", \"kind\": \"add\"}], \"status\": \"completed\"}",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_13",
+    "tool_use_index": 24,
+    "tool_result_index": 25,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 -m json.tool support/MC-406.json >/dev/null'"
+    },
+    "result": "",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_14",
+    "tool_use_index": 26,
+    "tool_result_index": 27,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/case_MC_406.json'"
+    },
+    "result": "PASS MC-406 fixture\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_15",
+    "tool_use_index": 28,
+    "tool_result_index": 29,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/release_1_quote.json'"
+    },
+    "result": "PASS single charge\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_16",
+    "tool_use_index": 30,
+    "tool_result_index": 31,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/release_1_statement.json'"
+    },
+    "result": "PASS release 1 one-line receipt\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_17",
+    "tool_use_index": 32,
+    "tool_result_index": 33,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/release_2_statement.json'"
+    },
+    "result": "PASS release 2 one-line statement\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_18",
+    "tool_use_index": 34,
+    "tool_result_index": 37,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 -m unittest discover -s tests'"
+    },
+    "result": "..\n----------------------------------------------------------------------\nRan 2 tests in 0.038s\n\nOK\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_19",
+    "tool_use_index": 35,
+    "tool_result_index": 38,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/release_2_quote_total.json'"
+    },
+    "result": "PASS release 2 quote\nPASS release 2 empty total\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_20",
+    "tool_use_index": 36,
+    "tool_result_index": 39,
+    "arguments": {
+      "command": "/bin/zsh -lc 'python3 test_public.py --cases public_tests/release_1_total.json'"
+    },
+    "result": "PASS empty statement total\nPASS one charge total\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  },
+  {
+    "name": "Bash",
+    "tool_use_id": "item_22",
+    "tool_use_index": 41,
+    "tool_result_index": 42,
+    "arguments": {
+      "command": "/bin/zsh -lc \"git status --short --untracked-files=all; git diff --stat -- main.py; sed -n '1p' support/MC-406.json; bd close trial-die\""
+    },
+    "result": "✓ Closed trial-die — Reproduce support case MC-406: Closed\n",
+    "is_error": false,
+    "latency_ms": 0.0,
+    "is_memory_tool": false
+  }
+]

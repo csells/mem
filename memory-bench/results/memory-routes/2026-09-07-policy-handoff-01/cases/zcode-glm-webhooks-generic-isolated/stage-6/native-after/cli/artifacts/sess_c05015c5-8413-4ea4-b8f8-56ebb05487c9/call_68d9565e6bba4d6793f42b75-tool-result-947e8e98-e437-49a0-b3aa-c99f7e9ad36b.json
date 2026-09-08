@@ -1,0 +1,48 @@
+{
+  "createdAt": "2026-09-07T18:54:26.199Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime, timedelta, timezone\n\nCURRENT_PROTOCOL = \"1\"\n\ndef parse_instant(text):\n    # RFC3339, seconds precision, \"Z\" or explicit ±HH:MM offset; aware datetimes\n    # compare as UTC instants across differing offsets.\n    if text.endswith(\"Z\"):\n        base, offset_minutes = text[:-1], 0\n    else:\n        sign = -1 if text[-6] == \"-\" else 1\n        offset_minutes = sign * (int(text[-5:-3]) * 60 + int(text[-2:]))\n        base = text[:-6]\n    naive = datetime.strptime(base, \"%Y-%m-%dT%H:%M:%S\")\n    return naive.replace(tzinfo=timezone(timedelta(minutes=offset_minutes)))\n\ndef select_accepted(receipts):\n    # Protocol 1: (account_id, delivery_id) identifies a delivery. The earliest\n    # occurred_at instant wins, ties break on smallest record_id; accepted\n    # receipts keep their original input order.\n    winners = {}\n    for index, receipt in enumerate(receipts):\n        identity = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n        if identity not in winners or rank < winners[identity][0]:\n            winners[identity] = (rank, index)\n    return [receipts[index] for _, index in sorted(winners.values(), key=lambda w: w[1])]\n\ndef count_v1(request):\n    accepted = select_accepted(request[\"receipts\"])\n    return {\n        \"protocol\": \"1\",\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(request[\"receipts\"]) - len(accepted),\n    }\n\nPROTOCOLS = {\"count\": {\"1\": count_v1}}\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    versions = PROTOCOLS.get(command)\n    if versions is None:\n        return {\"error\": \"unknown_command\"}\n    handler = versions.get(q.get(\"protocol\", CURRENT_PROTOCOL))\n    if handler is None:\n        return {\"error\": \"unknown_protocol\"}\n    return handler(q)\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-rniua7d7/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 29,
+          "oldLines": 7,
+          "newStart": 29,
+          "newLines": 7,
+          "lines": [
+            "             winners[identity] = (rank, index)",
+            "     return [receipts[index] for _, index in sorted(winners.values(), key=lambda w: w[1])]",
+            " ",
+            "-def count_v1(request):",
+            "+def counts_v1(request):",
+            "     accepted = select_accepted(request[\"receipts\"])",
+            "     return {",
+            "         \"protocol\": \"1\","
+          ]
+        },
+        {
+          "oldStart": 37,
+          "oldLines": 7,
+          "newStart": 37,
+          "newLines": 7,
+          "lines": [
+            "         \"duplicate_count\": len(request[\"receipts\"]) - len(accepted),",
+            "     }",
+            " ",
+            "-PROTOCOLS = {\"count\": {\"1\": count_v1}}",
+            "+PROTOCOLS = {\"count\": {\"1\": counts_v1}, \"summary\": {\"1\": counts_v1}}",
+            " ",
+            " def run(q):",
+            "     command = q.get(\"command\")"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_68d9565e6bba4d6793f42b75",
+  "toolName": "Edit",
+  "version": 1
+}

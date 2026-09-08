@@ -14,6 +14,23 @@ but initial treatment capture was 0/12 and direct known-reference lookup was
 unobserved. Frozen checks pass 100/120 artifacts; independent posthoc coverage
 exposes two additional failing artifacts. Earlier evidence remains unchanged.
 
+The completed [policy-handoff experiment](MEMORY-POLICY-HANDOFF.md) tests clearer
+workflow occasions on tasks whose later behavior depends on previously approved
+scope, with a model sweep within Claude Code and Codex plus OpenCode and zcode.
+Its task requests contain no instructions to use memories. The
+[264-session report](../../specs/memory-policy-handoff-results-2026-09-07.md)
+records strict main handoffs in 2/20 generic and 9/20 occasions lifecycles,
+including both direct and search routes. Occasions guidance improved observed
+memory capture/use, but did not improve overall artifact correctness. The 24
+normal-memory checks are reported separately.
+
+The [prime-delivery experiment](MEMORY-PRIME-DELIVERY.md) compares that same
+occasions procedure behind existing rules/skills, returned directly by prime,
+or supplied as a generic startup briefing. Its pre-run design covers 216 sessions
+across six models and all four CLIs, with twelve separate delivery qualifications.
+The ordinary task component is unchanged; the startup arm intentionally adds
+standing guidance to the full launch message.
+
 Task success cannot answer that question by itself. In our first run, the agents that
 were given only general "you have persistent memory" guidance solved their tasks
 without touching bd at all. They wrote the facts to Claude Code's own memory files
@@ -21,9 +38,11 @@ instead. The task passed; bd was never used. The harness therefore measures the
 pathway as well as the outcome, and it reads that pathway from execution receipts
 rather than from what the agent reports doing.
 
-Agent trials run against the real `claude` CLI and a real `bd` binary. There is no
-simulation mode. Only the `--fire` step starts paid sessions; installation, the local
-smoke check, corpus generation, planning, and reporting do not call a model.
+The original pair harness described below runs against the real `claude` CLI and
+a real `bd` binary. There is no simulation mode. Its `--fire` step starts paid
+sessions; installation, its local smoke check, corpus generation, planning, and
+reporting do not call a model. The newer experiments linked above have their own
+multi-CLI qualification and execution commands.
 
 A separate [end-to-end Memory Beads experiment](MEMORY-E2E.md) tested installed
 project rules and a shared Beads skill through real issue work. Its completed

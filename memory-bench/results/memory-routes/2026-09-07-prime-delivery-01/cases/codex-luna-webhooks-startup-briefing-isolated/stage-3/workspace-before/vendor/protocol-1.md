@@ -1,0 +1,3 @@
+# Provider protocol 1 contract
+
+Protocol 1: delivery_id alone identifies a delivery across all accounts; the same ID under another account is another receipt of that delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the earliest occurred_at UTC instant; equal instants use the smallest record_id. All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Present accepted receipts in their original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee.

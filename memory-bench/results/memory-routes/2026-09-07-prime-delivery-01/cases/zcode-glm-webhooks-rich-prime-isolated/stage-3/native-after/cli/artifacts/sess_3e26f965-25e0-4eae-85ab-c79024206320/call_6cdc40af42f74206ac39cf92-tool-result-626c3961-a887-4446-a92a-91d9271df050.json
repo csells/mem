@@ -1,0 +1,49 @@
+{
+  "createdAt": "2026-09-08T00:48:43.255Z",
+  "files": [
+    {
+      "beforeContent": "import json\nimport subprocess\nimport sys\nimport unittest\n\ndef relay(request):\n    p = subprocess.run([sys.executable, \"main.py\"], input=json.dumps(request),\n                       text=True, capture_output=True, check=True)\n    return json.loads(p.stdout)\n\ndef receipt(record_id, delivery_id, occurred_at=\"2026-04-01T10:00:00Z\", account_id=\"A\"):\n    return {\n        \"record_id\": record_id,\n        \"account_id\": account_id,\n        \"delivery_id\": delivery_id,\n        \"occurred_at\": occurred_at,\n        \"payload\": \"payload:\" + record_id,\n    }\n\nclass Summary(unittest.TestCase):\n    def test_empty(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\", \"receipts\": []}),\n                         {\"protocol\": \"1\", \"accepted_count\": 0, \"duplicate_count\": 0})\n\n    def test_single(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\",\n                                \"receipts\": [receipt(\"R-1\", \"D-1\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_omitted_protocol_selects_current(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"receipts\": [receipt(\"R-1\", \"D-1\")]}),\n                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})\n\n    def test_same_delivery_id_different_accounts_are_separate_deliveries(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", account_id=\"A\"),\n            receipt(\"R-2\", \"D-1\", account_id=\"B\"),\n            receipt(\"R-3\", \"D-1\", account_id=\"C\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 0})\n\n    def test_duplicates_within_account_in_cross_account_batch(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", account_id=\"A\"),\n            receipt(\"R-2\", \"D-1\", account_id=\"A\"),\n            receipt(\"R-3\", \"D-2\", account_id=\"B\"),\n            receipt(\"R-4\", \"D-1\", account_id=\"B\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 1})\n\n    def test_cross_account_batch_mixed(self):\n        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\", \"receipts\": [\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T10:00:00Z\", account_id=\"A\"),\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T09:00:00Z\", account_id=\"A\"),\n            receipt(\"R-3\", \"D-2\", account_id=\"B\"),\n            receipt(\"R-4\", \"D-1\", \"2026-04-01T23:30:00-05:00\", account_id=\"C\"),\n            receipt(\"R-5\", \"D-1\", \"2026-04-02T04:30:00Z\", account_id=\"C\"),\n        ]}), {\"protocol\": \"1\", \"accepted_count\": 3, \"duplicate_count\": 2})\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/tests/test_summary.py",
+      "structuredPatch": [
+        {
+          "oldStart": 29,
+          "oldLines": 8,
+          "newStart": 29,
+          "newLines": 24,
+          "lines": [
+            " ",
+            "     def test_omitted_protocol_selects_current(self):",
+            "         self.assertEqual(relay({\"command\": \"summary\", \"receipts\": [receipt(\"R-1\", \"D-1\")]}),",
+            "-                         {\"protocol\": \"1\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            "+                         {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 0})",
+            " ",
+            "+    def test_protocol_2_same_delivery_id_across_accounts_are_duplicates(self):",
+            "+        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"2\", \"receipts\": [",
+            "+            receipt(\"R-1\", \"D-1\", account_id=\"A\"),",
+            "+            receipt(\"R-2\", \"D-1\", account_id=\"B\"),",
+            "+            receipt(\"R-3\", \"D-1\", account_id=\"C\"),",
+            "+        ]}), {\"protocol\": \"2\", \"accepted_count\": 1, \"duplicate_count\": 2})",
+            "+",
+            "+    def test_protocol_2_cross_account_batch_mixed(self):",
+            "+        self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"2\", \"receipts\": [",
+            "+            receipt(\"R-1\", \"D-1\", \"2026-04-01T10:00:00Z\", account_id=\"A\"),",
+            "+            receipt(\"R-2\", \"D-1\", \"2026-04-01T09:00:00Z\", account_id=\"A\"),",
+            "+            receipt(\"R-3\", \"D-2\", account_id=\"B\"),",
+            "+            receipt(\"R-4\", \"D-1\", \"2026-04-01T23:30:00-05:00\", account_id=\"C\"),",
+            "+            receipt(\"R-5\", \"D-1\", \"2026-04-02T04:30:00Z\", account_id=\"C\"),",
+            "+        ]}), {\"protocol\": \"2\", \"accepted_count\": 2, \"duplicate_count\": 3})",
+            "+",
+            "     def test_same_delivery_id_different_accounts_are_separate_deliveries(self):",
+            "         self.assertEqual(relay({\"command\": \"summary\", \"protocol\": \"1\", \"receipts\": [",
+            "             receipt(\"R-1\", \"D-1\", account_id=\"A\"),"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_6cdc40af42f74206ac39cf92",
+  "toolName": "Edit",
+  "version": 1
+}

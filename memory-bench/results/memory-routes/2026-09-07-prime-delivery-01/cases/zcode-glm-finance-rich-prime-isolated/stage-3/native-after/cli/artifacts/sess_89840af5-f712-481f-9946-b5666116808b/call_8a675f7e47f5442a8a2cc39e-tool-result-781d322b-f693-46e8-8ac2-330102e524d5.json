@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-08T01:38:59.544Z",
+  "files": [
+    {
+      "afterContent": "import random\nimport sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nfrom main import assigned_credit_cents_2_0\n\nrandom.seed(7)\nfor trial in range(2000):\n    n = random.randint(0, 6)\n    lines = [{\n        \"line_id\": \"\",\n        \"account_id\": random.choice(\"AB\"),\n        \"subscription_id\": random.choice(\"ST\"),\n        \"service_on\": \"2026-04-15\",\n        \"charge_cents\": random.randint(0, 50000),\n    } for _ in range(n)]\n    seen = set()\n    i = 0\n    for line in lines:\n        while f\"L-{i}\" in seen:\n            i += 1\n        line[\"line_id\"] = f\"L-{i}\"\n        seen.add(line[\"line_id\"])\n\n    got = assigned_credit_cents_2_0(lines)\n\n    groups = {}\n    for line in lines:\n        groups.setdefault((line[\"account_id\"], line[\"subscription_id\"]), []).append(line)\n    expected = {}\n    for group_lines in groups.values():\n        remaining = 3000\n        for line in sorted(group_lines, key=lambda l: (-l[\"charge_cents\"], l[\"line_id\"])):\n            credit = min(line[\"charge_cents\"] * 15 // 100, remaining)\n            remaining -= credit\n            expected[line[\"line_id\"]] = credit\n    assert got == expected, (lines, got, expected)\n\n    reversed_credits = {}\n    for group_lines in groups.values():\n        remaining = 3000\n        for line in sorted(group_lines, key=lambda l: l[\"line_id\"], reverse=True):\n            credit = min(line[\"charge_cents\"] * 15 // 100, remaining)\n            remaining -= credit\n            reversed_credits[line[\"line_id\"]] = credit\n    for key, group_lines in groups.items():\n        uncapped_sum = sum(l[\"charge_cents\"] * 15 // 100 for l in group_lines)\n        floor = min(uncapped_sum, 3000)\n        assert sum(got[l[\"line_id\"]] for l in group_lines) == floor, (lines, key)\n        assert sum(reversed_credits[l[\"line_id\"]] for l in group_lines) == floor\nprint(\"all 2000 randomized trials passed: assignment matches spec, \"\n      \"group total = min(uncapped sum, 3000) regardless of priority order\")\n",
+      "afterContentLength": 1983,
+      "beforeContent": null,
+      "existedBefore": false,
+      "path": "/private/tmp/ordinary-work-swvkyhed/work/check_property_tmp.py",
+      "structuredPatch": []
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_8a675f7e47f5442a8a2cc39e",
+  "toolName": "Write",
+  "version": 1
+}

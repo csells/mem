@@ -1,0 +1,901 @@
+{
+  "slot": "claude-opus-webhooks-generic-isolated-4",
+  "review": "Manual semantic judgments plus independent offline recheck of saved output JSON",
+  "metadata": {
+    "profile_id": "claude-opus",
+    "host": "claude",
+    "arm": "generic",
+    "stage": 4,
+    "corpus_family": "webhooks/global-first",
+    "catalog_mode": "search-only",
+    "model_requested": "claude-opus-5",
+    "models_observed": [
+      "claude-opus-5"
+    ],
+    "session_id": "444c5799-a71c-478d-999c-8790a8a5115c",
+    "host_success": true,
+    "infrastructure_fault": false,
+    "errors": [],
+    "artifact_passed": true,
+    "artifact_correct": 130,
+    "artifact_total": 130,
+    "task_closed": true
+  },
+  "record_bodies_before": {
+    "courier-relay/protocol-contracts": "Courier Relay delivery-receipt protocols (main.py count/summary). Current protocol is \"2\" as of trial-ag7: the provider permanently adopted protocol 2 and the integration owner approved making it current, so an omitted \"protocol\" selects \"2\". Protocol \"1\" remains supported when named explicitly.\n\nProtocol 2 contract (as supplied in trial-ag7): the pair (account_id, delivery_id) identifies a delivery; the same delivery_id under a different account identifies a separate delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the latest occurred_at UTC instant; equal instants use the smallest record_id (Unicode code-point order). All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Accepted receipts are presented in original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee. It applies to the entire supplied receipt set regardless of receipt dates.\n\nProtocol 1 contract (unchanged, still the applicable rules for explicit \"protocol\":\"1\"): bundled verbatim in vendor/protocol-1.md — delivery_id alone identifies a delivery across all accounts, and the earliest occurred_at UTC instant wins with equal instants using the smallest record_id.\n\nBoth count and summary use the selected protocol's identity and selection rules and report the protocol actually used; count is the single-account command, summary the cross-account batch command. Implementation: main.py maps each version in PROTOCOLS to (identity, rank) functions, and rank_2 negates epoch seconds so the smallest rank still wins."
+  },
+  "record_bodies_after": {
+    "courier-relay/protocol-contracts": "Courier Relay delivery-receipt protocols (main.py count/summary/accepted). Current protocol is \"2\" as of trial-ag7: the provider permanently adopted protocol 2 and the integration owner approved making it current, so an omitted \"protocol\" selects \"2\". Protocol \"1\" remains supported when named explicitly.\n\nProtocol 2 contract (as supplied in trial-ag7): the pair (account_id, delivery_id) identifies a delivery; the same delivery_id under a different account identifies a separate delivery. Exactly one receipt is accepted per delivery identity. Accept the receipt with the latest occurred_at UTC instant; equal instants use the smallest record_id (Unicode code-point order). All other receipts for that identity are duplicates. Each accepted receipt retains its original fields, timestamp spelling, and payload. Accepted receipts are presented in original input order. This identity contract comes from the provider's delivery-ID allocation guarantee; account attribution alone does not change that guarantee. It applies to the entire supplied receipt set regardless of receipt dates.\n\nProtocol 1 contract (unchanged, still the applicable rules for explicit \"protocol\":\"1\"): bundled verbatim in vendor/protocol-1.md — delivery_id alone identifies a delivery across all accounts, and the earliest occurred_at UTC instant wins with equal instants using the smallest record_id.\n\nCommands and the versions they serve: count is the single-account command and summary the cross-account batch command; both exist in protocol 1 and 2 and use the selected protocol's identity and selection rules, reporting the protocol actually used. accepted was added in trial-0uv for the current protocol only: request {\"command\":\"accepted\",\"receipts\":[...]} with optional \"protocol\":\"2\", response exactly protocol, accepted_count, duplicate_count, receipts. Its counts equal summary's for the same request, and receipts holds the accepted representatives unchanged in original input order. trial-0uv specified accepted only for the current protocol and did not state behavior for \"protocol\":\"1\"; the implementation therefore answers {\"error\":\"unsupported_protocol\"} for accepted with any protocol other than \"2\" (an implementation choice made in trial-0uv, not a supplied provider rule).\n\nImplementation: main.py maps each version in PROTOCOLS to (identity, rank) functions, and rank_2 negates epoch seconds so the smallest rank still wins; accepted_receipts() returns the winning receipts in input order and backs both counts() and accepted(). SUPPORTED maps each command to the protocol versions it serves."
+  },
+  "older_issue_objects_changed": [],
+  "findings": {
+    "current_and_historical_faithful": false,
+    "capture_status": "Complete current2 agreement retained and accurately expanded with accepted command. Historical1 identity/earliest/tie preserved; its original-fields retention remains absent from the historical section. General shared-helper prose now mentions input order.",
+    "retrieval": {
+      "applicable_prior_record_at_entry": true,
+      "complete_required_agreement_at_entry": true,
+      "full_prior_body_read": true,
+      "route": "search",
+      "reference_tool": 6,
+      "full_body_tools": [
+        8
+      ],
+      "first_behavior_edit_tool": 12,
+      "pre_edit_or_informed_use": true,
+      "artifact_correct": true,
+      "successful_use": true,
+      "actual_exposure": "Search6 reveals key; direct recall8 delivers full preexisting current2 agreement before edits12/14/15. No index available1. Source5 also independently contains correct selected-version functions."
+    },
+    "same_session_save_readbacks": 1,
+    "unsupported_standing_or_historical_mutation": false,
+    "issue_authored_lookup_instruction": false,
+    "verification_and_provenance": {
+      "unsupported_claims": [],
+      "tests": "Initial discovery17 fails importability; running files19 executes only new9 tests; root discovery20 fails1 test. Correct final discovery21 passes42 tests. All8 public cases18 and CLI sanity22 pass. Final accurately cites42 tests and4 public suites.",
+      "source_support": "Current task2 defines accepted2. Note24 explicitly labels accepted1 rejection as its own implementation choice under unspecified stage4 behavior, not supplied provider rule. This is supported scope attribution, not fabricated approval.",
+      "body_verification": "Full before8 and full updated25 exactly match snapshots."
+    },
+    "evidence": "Correct130/130 after actual accepted implementation12-15. Prior full current2 read precedes work; update24 retains actual earlier historical scope while adding current output shape and explicitly qualified implementation choice."
+  },
+  "saved_output_oracle_recheck": {
+    "method": "Reparse saved per-case stdout only; independently derive fixture responses from supplied protocol rules. No candidate execution.",
+    "oracle_path": "frozen-source/memory-bench/fixtures/memory-policy-fork-corpus/webhooks/global-first/graders/stage-4.json",
+    "oracle_sha256": "549d84e40a6a9391714feb1f20cfdaf96e628ab44f0a61359f3cbb076bcf2e7f",
+    "frozen_expected_cases_independently_match": true,
+    "observations": [
+      {
+        "name": "case_0",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_1",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_2",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_3",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_4",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_5",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_6",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_7",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_8",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_9",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_10",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_11",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_12",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_13",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_14",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_15",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_16",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_17",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_18",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_19",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_20",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_21",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_22",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_23",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_24",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_25",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_26",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_27",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_28",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_29",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_30",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_31",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_32",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_33",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_34",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_35",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_36",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_37",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_38",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_39",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_40",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_41",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_42",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_43",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_44",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_45",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_46",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_47",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_48",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_49",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_50",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_51",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_52",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_53",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_54",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_55",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_56",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_57",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_58",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_59",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_60",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_61",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_62",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_63",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_64",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_65",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_66",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_67",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_68",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_69",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_70",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_71",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_72",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_73",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_74",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_75",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_76",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_77",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_78",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_79",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_80",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_81",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_82",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_83",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_84",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_85",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_86",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_87",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_88",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_89",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_90",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_91",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_92",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_93",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_94",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_95",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_96",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_97",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_98",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_99",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_100",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_101",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_102",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_103",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_104",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_105",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_106",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_107",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_108",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_109",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_110",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_111",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_112",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_113",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_114",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_115",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_116",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_117",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_118",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_119",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_120",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_121",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_122",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_123",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_124",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_125",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_126",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_127",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_128",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      },
+      {
+        "name": "case_129",
+        "independently_passed": true,
+        "recorded_passed": true,
+        "classification_agrees": true
+      }
+    ],
+    "classification_disagreements": [],
+    "independently_correct": 130,
+    "total": 130
+  },
+  "evidence_sha256": {
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/result.json": "996769c3a7fdef20ad66ef6dc05c818665dd1fa52f9c63ea3c696b186bd3d5e5",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/task.json": "08ce6fe130c4f515c7a0f85a6c3eea3181c597f697635791282dab1f834bb1d5",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/tasks-before.json": "f7838791d551c305aedb6ab78960f1e96ac012936d035dcf0b97e57f3177a8f3",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/tasks-after.json": "47cdc4fd524717b19c2d832a2ed06816233a0030d5fe7d248ce65ad995770fe9",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/memory-before.json": "17663486a05d4bffe111a32602f6f55e2709e4c7eb490a99d8fc14b8bf56788e",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/memory-after.json": "6d84db54be4c795ecd9f713b48d27b5dacc21c62c17b2ec3ffa0c65d36ffe1dc",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/tool-calls.json": "5fe97c3d1192327a41c6bc0b087447a556059efdaeefad9f606f0c684e0c7cc6",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/stream.jsonl": "094044eb766b852686f866dbc2dd91ad2339331ecfbf02f634c84f3114b5da6c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/raw-receipts.json": "fc4f16dce5521850640feb680b0138928a19db7efe775ea18678ca9927f954f7",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/artifact-grade.json": "60e87d1228f7e049b16163c14fb1b1c3955839536f70fc37111073de0fb8908c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/prompt.txt": "37d59232d7832df4af13b47006f0c0d243b60cdd77b679bdbd51f13892968a8c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/launch.json": "acf149f890eb935fc4e7c8ffd1baeb8aef0fd61b1b8ad1ce578d0445fce03fff",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/process.json": "f1e53cab14263f31d6d4bb1987a7f70ee7f224367b1675630efab6734529660c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/README.md": "67edbebb746dfeb3e9a9e0c109e646f7581ee5fd4122b23d422826f97f9afdff",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/test_public.py": "4b2ead01cc744553982dd31e0c9ea22f730bb55b1c5e7bd86aa806a07f47475e",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/GEMINI.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/AGENTS.md": "a3dcb7449507b18bc824d58be1debe57ee9c8209e360a18b5381ab33613836eb",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/main.py": "1f061271f3a7cbf93864da13e50d3975653d172d631dd6ffbfae62d5e63b5b7d",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/CLAUDE.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/tests/test_smoke.py": "067eb6577dfd55e29ed79673b5ccda4b009c0a82d60484f72075775339f762be",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/tests/test_count.py": "a8ad8ee9e5b238e38e59556929236dad0a6c9ca213d3e8627638fa16005e3e8b",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/tests/test_summary.py": "f756d2ec1dfb5e86d7f8ba21a40951d16f0a70369f7ab99b8dd09d71a7c07560",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/.beads/PRIME.md": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/public_tests/count_1.json": "ff1cbb13b1d1a19cd2cbee115271681f7a61eef3d3789511a56dc83e67b7d967",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/public_tests/summary_2.json": "1e96d9fb9663f994b8052cd3f2fd2618943a2ff81b72006a7ee74715009862ea",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/public_tests/accepted_2.json": "1b8d4c46be0408ea8eb75f1a91caeeae6d3958203f9501c02ef7b8956e87f12a",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/public_tests/summary_1.json": "78b7e9f8d12516bb1b8cdf9194455ac5077c343f6d9903848711f6fc1145dfc5",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/vendor/protocol-1.md": "1b9aab99cae45df1f4a6e0ba3497514d7224ae993810fce0b6715eaa627d12b2",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/.agents/skills/beads/SKILL.md": "612b5d2f760dd95ddeb66a23813b37857df94952694258457b8885c842164d6c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-before/.agents/skills/beads/references/memory.md": "6fb8fb175311bf635c3274f1958f3a525bb3da94c691a59f9e17dc71fcaa718a",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/README.md": "67edbebb746dfeb3e9a9e0c109e646f7581ee5fd4122b23d422826f97f9afdff",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/test_public.py": "4b2ead01cc744553982dd31e0c9ea22f730bb55b1c5e7bd86aa806a07f47475e",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/GEMINI.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/AGENTS.md": "a3dcb7449507b18bc824d58be1debe57ee9c8209e360a18b5381ab33613836eb",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/main.py": "ebd5f77521f9952d00cb41ed55e777b2c6141943805a1caf39db410b6b28568a",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/CLAUDE.md": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/tests/test_smoke.py": "067eb6577dfd55e29ed79673b5ccda4b009c0a82d60484f72075775339f762be",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/tests/test_count.py": "a8ad8ee9e5b238e38e59556929236dad0a6c9ca213d3e8627638fa16005e3e8b",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/tests/test_summary.py": "f756d2ec1dfb5e86d7f8ba21a40951d16f0a70369f7ab99b8dd09d71a7c07560",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/tests/test_accepted.py": "3ebe958754fbc73c66f4396a6d91491f7c49a8b94fa907aa739d738ccd0dbfcb",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/.beads/PRIME.md": "f647c75608369f81e13cd439365f8d39a25cb0cefffc0c66fd82c262c56d4ae7",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/public_tests/count_1.json": "ff1cbb13b1d1a19cd2cbee115271681f7a61eef3d3789511a56dc83e67b7d967",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/public_tests/summary_2.json": "1e96d9fb9663f994b8052cd3f2fd2618943a2ff81b72006a7ee74715009862ea",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/public_tests/accepted_2.json": "1b8d4c46be0408ea8eb75f1a91caeeae6d3958203f9501c02ef7b8956e87f12a",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/public_tests/summary_1.json": "78b7e9f8d12516bb1b8cdf9194455ac5077c343f6d9903848711f6fc1145dfc5",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/vendor/protocol-1.md": "1b9aab99cae45df1f4a6e0ba3497514d7224ae993810fce0b6715eaa627d12b2",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/.agents/skills/beads/SKILL.md": "612b5d2f760dd95ddeb66a23813b37857df94952694258457b8885c842164d6c",
+    "cases/claude-opus-webhooks-generic-isolated/stage-4/workspace-after/.agents/skills/beads/references/memory.md": "6fb8fb175311bf635c3274f1958f3a525bb3da94c691a59f9e17dc71fcaa718a"
+  }
+}

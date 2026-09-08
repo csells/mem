@@ -1,0 +1,17 @@
+{
+  "createdAt": "2026-09-08T00:48:55.367Z",
+  "files": [
+    {
+      "afterContent": "import os\nimport sys\nimport unittest\n\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\nimport main\n\ndef receipt(record_id, delivery_id, occurred_at=\"2026-04-01T10:00:00Z\", account_id=\"A\"):\n    return {\n        \"record_id\": record_id,\n        \"account_id\": account_id,\n        \"delivery_id\": delivery_id,\n        \"occurred_at\": occurred_at,\n        \"payload\": \"payload:\" + record_id,\n    }\n\nclass Protocol1Selection(unittest.TestCase):\n    def test_earliest_instant_accepted(self):\n        got = main.accepted_receipts(\"1\", [\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n        ])\n        self.assertEqual([r[\"record_id\"] for r in got], [\"R-1\"])\n\n    def test_equal_instants_use_smallest_record_id(self):\n        got = main.accepted_receipts(\"1\", [\n            receipt(\"R-2\", \"D-1\"),\n            receipt(\"R-1\", \"D-1\"),\n        ])\n        self.assertEqual([r[\"record_id\"] for r in got], [\"R-1\"])\n\nclass Protocol2Selection(unittest.TestCase):\n    def test_latest_instant_accepted(self):\n        got = main.accepted_receipts(\"2\", [\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T09:00:00Z\"),\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T10:00:00Z\"),\n        ])\n        self.assertEqual([r[\"record_id\"] for r in got], [\"R-2\"])\n\n    def test_latest_instant_across_accounts(self):\n        got = main.accepted_receipts(\"2\", [\n            receipt(\"R-1\", \"D-1\", \"2026-04-01T10:00:00Z\", account_id=\"A\"),\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T11:00:00Z\", account_id=\"B\"),\n        ])\n        self.assertEqual([r[\"record_id\"] for r in got], [\"R-2\"])\n\n    def test_equal_instant_with_offset_crossing_date_boundary_uses_record_id(self):\n        got = main.accepted_receipts(\"2\", [\n            receipt(\"R-2\", \"D-1\", \"2026-04-01T23:30:00-05:00\"),\n            receipt(\"R-1\", \"D-1\", \"2026-04-02T04:30:00Z\"),\n        ])\n        self.assertEqual([r[\"record_id\"] for r in got], [\"R-1\"])\n\n    def test_original_input_order_and_spelling_retained(self):\n        winner = receipt(\"R-1\", \"D-1\", \"2026-04-01T23:30:00-05:00\", account_id=\"A\")\n        other = receipt(\"R-2\", \"D-1\", \"2026-04-01T10:00:00Z\", account_id=\"B\")\n        later = receipt(\"R-3\", \"D-2\", \"2027-01-01T00:00:00Z\", account_id=\"C\")\n        got = main.accepted_receipts(\"2\", [winner, other, later])\n        self.assertEqual(got, [winner, later])\n\nif __name__ == \"__main__\":\n    unittest.main()\n",
+      "afterContentLength": 2442,
+      "beforeContent": null,
+      "existedBefore": false,
+      "path": "/private/tmp/ordinary-work-7g1jlzqj/work/tests/test_protocols.py",
+      "structuredPatch": []
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_6a27154e9a064239a1ac4fdc",
+  "toolName": "Write",
+  "version": 1
+}

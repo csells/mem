@@ -1,0 +1,59 @@
+{
+  "createdAt": "2026-09-08T00:06:47.280Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime\n\nCURRENT_PROTOCOL = \"1\"\n\ndef parse_instant(text):\n    # RFC3339 with Z or an explicit offset; aware datetimes compare as UTC instants.\n    return datetime.fromisoformat(text)\n\ndef protocol1_accepted(receipts):\n    # (account_id, delivery_id) identifies a delivery; the accepted receipt is\n    # the earliest occurred_at instant, ties broken by smallest record_id.\n    winners = {}\n    for receipt in receipts:\n        key = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n        if key not in winners or rank < winners[key][0]:\n            winners[key] = (rank, receipt)\n    won = {receipt[\"record_id\"] for _, receipt in winners.values()}\n    return [receipt for receipt in receipts if receipt[\"record_id\"] in won]\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n        if protocol != \"1\":\n            return {\"error\": \"unsupported_protocol\"}\n        receipts = q.get(\"receipts\", [])\n        accepted_count = len(protocol1_accepted(receipts))\n        return {\n            \"protocol\": protocol,\n            \"accepted_count\": accepted_count,\n            \"duplicate_count\": len(receipts) - accepted_count,\n        }\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-pybycfec/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 21,
+          "oldLines": 21,
+          "newStart": 21,
+          "newLines": 24,
+          "lines": [
+            "     won = {receipt[\"record_id\"] for _, receipt in winners.values()}",
+            "     return [receipt for receipt in receipts if receipt[\"record_id\"] in won]",
+            " ",
+            "+def protocol1_counts(q):",
+            "+    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "+    if protocol != \"1\":",
+            "+        return {\"error\": \"unsupported_protocol\"}",
+            "+    receipts = q.get(\"receipts\", [])",
+            "+    accepted_count = len(protocol1_accepted(receipts))",
+            "+    return {",
+            "+        \"protocol\": protocol,",
+            "+        \"accepted_count\": accepted_count,",
+            "+        \"duplicate_count\": len(receipts) - accepted_count,",
+            "+    }",
+            "+",
+            " def run(q):",
+            "     command = q.get(\"command\")",
+            "     if command == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}",
+            "-    if command == \"count\":",
+            "-        protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "-        if protocol != \"1\":",
+            "-            return {\"error\": \"unsupported_protocol\"}",
+            "-        receipts = q.get(\"receipts\", [])",
+            "-        accepted_count = len(protocol1_accepted(receipts))",
+            "-        return {",
+            "-            \"protocol\": protocol,",
+            "-            \"accepted_count\": accepted_count,",
+            "-            \"duplicate_count\": len(receipts) - accepted_count,",
+            "-        }",
+            "+    if command in (\"count\", \"summary\"):",
+            "+        return protocol1_counts(q)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " if __name__ == \"__main__\":"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_1b72857495dc4aa392280217",
+  "toolName": "Edit",
+  "version": 1
+}

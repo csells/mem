@@ -1,0 +1,308 @@
+{
+  "slot": "claude-haiku-finance-rich-prime-isolated-2",
+  "lifecycle": "claude-haiku-finance-rich-prime-isolated",
+  "profile_id": "claude-haiku",
+  "family": "finance",
+  "corpus_family": "finance/account-first",
+  "arm": "rich-prime",
+  "catalog_mode": "indexed",
+  "stage": 2,
+  "artifact_passed": false,
+  "artifact_correct": 27,
+  "artifact_total": 30,
+  "task_closed": true,
+  "host_success": true,
+  "errors": [],
+  "infrastructure_fault": false,
+  "delivery": {
+    "schema": "memory-prime-delivery.v1",
+    "arm": "rich-prime",
+    "startup_briefing_injected": false,
+    "startup_instruction_role": null,
+    "task_prompt_sha256": "41d4ca20bfd7d2918dc49386208aea944a63252cd8c563776f22173f548fc3c7",
+    "launch_prompt_sha256": "41d4ca20bfd7d2918dc49386208aea944a63252cd8c563776f22173f548fc3c7",
+    "briefing_sha256": "ad67aa824137168f346269352ff2857f2d264d0d658949c687f65eea3591c2ec",
+    "actual_prime_sha256": "ad67aa824137168f346269352ff2857f2d264d0d658949c687f65eea3591c2ec",
+    "expected_prime_sha256": "ad67aa824137168f346269352ff2857f2d264d0d658949c687f65eea3591c2ec",
+    "actual_prime_equals_briefing": true,
+    "prime_observation": "lifecycle setup prime.json; harness invocation before agent launch",
+    "task_specific_memory_cues_added": false
+  },
+  "administrative_memory_reads": 2,
+  "evidence_directory": "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2",
+  "memory_before": {},
+  "memory_after": {},
+  "created": [],
+  "updated": [],
+  "removed": [],
+  "calls": [
+    {
+      "name": "Skill",
+      "tool_use_id": "toolu_017YjbccvDixtUsnG55mtu1e",
+      "tool_use_index": 2,
+      "tool_result_index": 3,
+      "arguments": {
+        "skill": "beads",
+        "args": "show trial-e14"
+      },
+      "result": "Launching skill: beads",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01JpEpzQYqqyJgUfHsAbGcE2",
+      "tool_use_index": 6,
+      "tool_result_index": 7,
+      "arguments": {
+        "command": "bd show trial-e14"
+      },
+      "result": "○ trial-e14 · Quote a monthly statement total   [P2 · OPEN]\nOwner: csells · Type: task\nCreated: 2026-09-07 · Updated: 2026-09-07\n\nDESCRIPTION\n\n  Meridian Credits quotes loyalty credits for a subscription reseller. The    \n  local Python CLI accepts one JSON object on stdin and emits exactly one JSON\n  object on stdout; run python3 main.py. Preserve {\"command\":\"ping\"} ->       \n  {\"status\":\"ok\",\"product\":\"Meridian Credits\"} and the existing unknown-      \n  command response. No network, clock, locale or third-party package is       \n  needed. Malformed input is outside these issues.                            \n                                                                              \n  A charge line has exactly line_id, account_id, subscription_id, service_on, \n  and charge_cents. The three IDs are nonempty strings; line_id is unique     \n  within a request. A subscription is identified by the pair (account_id,     \n  subscription_id); the same subscription_id can occur under different        \n  accounts, and a subscription can have several charge lines. service_on is a \n  valid Gregorian YYYY-MM-DD date from 2020-01-01 through 2099-12-31.         \n  charge_cents is a nonnegative integer in US cents. No line is excluded by   \n  its service date. Each request is the complete charge set of one            \n  independently quoted monthly statement; caps apply within that set. Line    \n  collections may be empty. Lexicographic ID order means Unicode code-point   \n  order. JSON object key order is immaterial; do not add response keys beyond \n  those specified.                                                            \n                                                                              \n  Release \"1.0\" is the initial agreement. An omitted release selects the      \n  current agreement; an explicit supported release selects that version.      \n  Versions introduced in an issue remain supported afterward. Public suites   \n  name a specific release and send explicit release values, so their          \n  expectations remain applicable when the current agreement changes. Run a    \n  supplied suite with python3 test_public.py --cases PATH.                    \n                                                                              \n  Add total for a complete monthly statement. Request:                        \n  {\"command\":\"total\",\"lines\":[LINE,...]} with optional release \"1.0\". Return  \n  exactly release, credit_cents, and amount_due_cents for the whole charge set\n  under the approved release agreement. The total must reflect that           \n  agreement's credit-cap scope across the supplied lines. It is not a         \n  collection of independent single-line quote requests. Keep quote available. \n                                                                              \n  An empty statement returns                                                  \n  {\"release\":\"1.0\",\"credit_cents\":0,\"amount_due_cents\":0}. A statement        \n  containing only the line in the quote example returns {\"release\": \"1.0\",    \n  \"credit_cents\": 1999, \"amount_due_cents\": 18000}.",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Read",
+      "tool_use_id": "toolu_01HrvkQDLA3ey7Lh41WBw2WM",
+      "tool_use_index": 10,
+      "tool_result_index": 11,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-yk4ccwl2/work/main.py"
+      },
+      "result": "1\t#!/usr/bin/env python3\n2\t\"\"\"Meridian Credits local JSON CLI.\"\"\"\n3\timport json\n4\timport sys\n5\t\n6\t\n7\tdef quote_single_line(line, release):\n8\t    \"\"\"Quote a single charge line.\"\"\"\n9\t    charge_cents = line[\"charge_cents\"]\n10\t    uncapped_credit = charge_cents // 10\n11\t    cap_cents = 2400\n12\t    assigned_credit = min(uncapped_credit, cap_cents)\n13\t    amount_due = charge_cents - assigned_credit\n14\t    return {\n15\t        \"release\": release,\n16\t        \"credit_cents\": assigned_credit,\n17\t        \"amount_due_cents\": amount_due,\n18\t        \"line_id\": line[\"line_id\"],\n19\t    }\n20\t\n21\t\n22\tdef handle(request):\n23\t    if request.get(\"command\") == \"ping\":\n24\t        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n25\t    if request.get(\"command\") == \"quote\":\n26\t        release = request.get(\"release\", \"1.0\")\n27\t        return quote_single_line(request[\"line\"], release)\n28\t    return {\"error\": \"unknown_command\"}\n29\t\n30\t\n31\tif __name__ == \"__main__\":\n32\t    json.dump(handle(json.load(sys.stdin)), sys.stdout)\n33\t    sys.stdout.write(\"\\n\")\n34\t",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01Y8khYG8WApQbpygJxdescF",
+      "tool_use_index": 12,
+      "tool_result_index": 13,
+      "arguments": {
+        "command": "ls -la /private/tmp/ordinary-work-yk4ccwl2/work/"
+      },
+      "result": "total 48\ndrwxr-xr-x@ 14 csells  wheel   448 Sep  7 16:48 .\ndrwx------@  7 csells  wheel   224 Sep  7 16:48 ..\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 16:48 .agents\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 16:48 .beads\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 16:48 .claude\ndrwxr-xr-x@ 12 csells  wheel   384 Sep  7 16:48 .git\n-rw-r--r--@  1 csells  wheel  1789 Sep  7 16:48 AGENTS.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 16:48 CLAUDE.md\n-rw-r--r--@  1 csells  wheel    11 Sep  7 16:48 GEMINI.md\n-rw-r--r--@  1 csells  wheel   507 Sep  7 11:28 README.md\n-rw-r--r--@  1 csells  wheel   959 Sep  7 16:48 main.py\ndrwxr-xr-x@  4 csells  wheel   128 Sep  7 16:48 public_tests\n-rw-r--r--@  1 csells  wheel  1411 Sep  7 11:28 test_public.py\ndrwxr-xr-x@  3 csells  wheel    96 Sep  7 11:30 tests",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01QqPPaSQVaNLgddgDRMU4xg",
+      "tool_use_index": 15,
+      "tool_result_index": 16,
+      "arguments": {
+        "command": "find /private/tmp/ordinary-work-yk4ccwl2/work/public_tests -name \"*.json\" | head -20"
+      },
+      "result": "/private/tmp/ordinary-work-yk4ccwl2/work/public_tests/release_1_total.json\n/private/tmp/ordinary-work-yk4ccwl2/work/public_tests/release_1_quote.json",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Read",
+      "tool_use_id": "toolu_01AamncYWgrBr3PQX9T3JgpK",
+      "tool_use_index": 18,
+      "tool_result_index": 19,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-yk4ccwl2/work/public_tests/release_1_total.json"
+      },
+      "result": "1\t[\n2\t  {\n3\t    \"name\": \"empty statement total\",\n4\t    \"request\": {\n5\t      \"command\": \"total\",\n6\t      \"release\": \"1.0\",\n7\t      \"lines\": []\n8\t    },\n9\t    \"expected\": {\n10\t      \"release\": \"1.0\",\n11\t      \"credit_cents\": 0,\n12\t      \"amount_due_cents\": 0\n13\t    }\n14\t  },\n15\t  {\n16\t    \"name\": \"one charge total\",\n17\t    \"request\": {\n18\t      \"command\": \"total\",\n19\t      \"release\": \"1.0\",\n20\t      \"lines\": [\n21\t        {\n22\t          \"line_id\": \"L-1\",\n23\t          \"account_id\": \"A\",\n24\t          \"subscription_id\": \"S\",\n25\t          \"service_on\": \"2026-04-15\",\n26\t          \"charge_cents\": 19999\n27\t        }\n28\t      ]\n29\t    },\n30\t    \"expected\": {\n31\t      \"release\": \"1.0\",\n32\t      \"credit_cents\": 1999,\n33\t      \"amount_due_cents\": 18000\n34\t    }\n35\t  }\n36\t]\n37\t",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Read",
+      "tool_use_id": "toolu_01LnWpjbkaAs8Zar7xaqJ8Tw",
+      "tool_use_index": 20,
+      "tool_result_index": 21,
+      "arguments": {
+        "file_path": "/private/tmp/ordinary-work-yk4ccwl2/work/public_tests/release_1_quote.json"
+      },
+      "result": "1\t[\n2\t  {\n3\t    \"name\": \"single charge\",\n4\t    \"request\": {\n5\t      \"command\": \"quote\",\n6\t      \"release\": \"1.0\",\n7\t      \"line\": {\n8\t        \"line_id\": \"L-1\",\n9\t        \"account_id\": \"A\",\n10\t        \"subscription_id\": \"S\",\n11\t        \"service_on\": \"2026-04-15\",\n12\t        \"charge_cents\": 19999\n13\t      }\n14\t    },\n15\t    \"expected\": {\n16\t      \"release\": \"1.0\",\n17\t      \"credit_cents\": 1999,\n18\t      \"amount_due_cents\": 18000,\n19\t      \"line_id\": \"L-1\"\n20\t    }\n21\t  }\n22\t]\n23\t",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_012mHGw3soGy6ruf4WrYb7w1",
+      "tool_use_index": 24,
+      "tool_result_index": 25,
+      "arguments": {
+        "command": "bd update trial-e14 --status in_progress"
+      },
+      "result": "✓ Updated issue: trial-e14 — Quote a monthly statement total",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Edit",
+      "tool_use_id": "toolu_01EarHWP5v93mZKbvm3UNSUt",
+      "tool_use_index": 28,
+      "tool_result_index": 29,
+      "arguments": {
+        "replace_all": false,
+        "file_path": "/private/tmp/ordinary-work-yk4ccwl2/work/main.py",
+        "old_string": "def handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        release = request.get(\"release\", \"1.0\")\n        return quote_single_line(request[\"line\"], release)\n    return {\"error\": \"unknown_command\"}",
+        "new_string": "def handle_total(request):\n    release = request.get(\"release\", \"1.0\")\n    lines = request.get(\"lines\", [])\n\n    subscriptions = {}\n    for line in lines:\n        key = (line[\"account_id\"], line[\"subscription_id\"])\n        if key not in subscriptions:\n            subscriptions[key] = []\n        subscriptions[key].append(line)\n\n    total_credit = 0\n    total_amount_due = 0\n\n    cap_cents = 2400\n    for sub_lines in subscriptions.values():\n        uncapped_credit = sum(line[\"charge_cents\"] // 10 for line in sub_lines)\n        assigned_credit = min(uncapped_credit, cap_cents)\n        total_credit += assigned_credit\n\n        total_charge_cents = sum(line[\"charge_cents\"] for line in sub_lines)\n        sub_amount_due = total_charge_cents - assigned_credit\n        total_amount_due += sub_amount_due\n\n    return {\n        \"release\": release,\n        \"credit_cents\": total_credit,\n        \"amount_due_cents\": total_amount_due,\n    }\n\n\ndef handle(request):\n    if request.get(\"command\") == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Meridian Credits\"}\n    if request.get(\"command\") == \"quote\":\n        release = request.get(\"release\", \"1.0\")\n        return quote_single_line(request[\"line\"], release)\n    if request.get(\"command\") == \"total\":\n        return handle_total(request)\n    return {\"error\": \"unknown_command\"}"
+      },
+      "result": "The file /private/tmp/ordinary-work-yk4ccwl2/work/main.py has been updated successfully. (file state is current in your context — no need to Read it back)",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01RDt2SajamBxE9nneev3JYA",
+      "tool_use_index": 32,
+      "tool_result_index": 33,
+      "arguments": {
+        "command": "python3 test_public.py --cases public_tests/release_1_total.json"
+      },
+      "result": "PASS empty statement total\nPASS one charge total",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01LyKSQUNzcURRBrCoSLFvzE",
+      "tool_use_index": 35,
+      "tool_result_index": 36,
+      "arguments": {
+        "command": "python3 test_public.py --cases public_tests/release_1_quote.json"
+      },
+      "result": "PASS single charge",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01Dh9PWYeowGmz6gnpk4RNxT",
+      "tool_use_index": 38,
+      "tool_result_index": 39,
+      "arguments": {
+        "command": "echo '{\"command\":\"ping\"}' | python3 main.py"
+      },
+      "result": "{\"status\": \"ok\", \"product\": \"Meridian Credits\"}",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01SjBT1EaZ9TXMndYWtg9r9n",
+      "tool_use_index": 42,
+      "tool_result_index": 43,
+      "arguments": {
+        "command": "bd close trial-e14"
+      },
+      "result": "✓ Closed trial-e14 — Quote a monthly statement total: Closed",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01FEFVoCWH37dF1WnKgPJXZf",
+      "tool_use_index": 46,
+      "tool_result_index": 47,
+      "arguments": {
+        "command": "git status"
+      },
+      "result": "On branch master\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   main.py\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\tpublic_tests/\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01MpY7EzLYy7AUKbDxooixhp",
+      "tool_use_index": 49,
+      "tool_result_index": 50,
+      "arguments": {
+        "command": "git add main.py public_tests/ && git commit -m \"$(cat <<'EOF'\nAdd total command for monthly statement quoting.\n\nImplements the total command to quote complete monthly statements with credit-cap\nscope applied per subscription. Handles multiple charge lines grouped by account\nand subscription ID, summing charges and applying per-subscription credit limits.\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n)\""
+      },
+      "result": "Exit code 1\n(eval):1: can't create temp file for here document: operation not permitted\nAborting commit due to empty commit message.",
+      "is_error": true,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_01HfjN3SY69aEewK9dwUg3GM",
+      "tool_use_index": 52,
+      "tool_result_index": 53,
+      "arguments": {
+        "command": "git commit -m \"Add total command for monthly statement quoting\n\nImplements the total command to quote complete monthly statements with credit-cap\nscope applied per subscription. Handles multiple charge lines grouped by account\nand subscription ID, summing charges and applying per-subscription credit limits.\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\""
+      },
+      "result": "[master 9da8457] Add total command for monthly statement quoting\n Committer: Chris Sells <csells@Chriss-MacBook-Pro.local>\nYour name and email address were configured automatically based\non your username and hostname. Please check that they are accurate.\nYou can suppress this message by setting them explicitly:\n\n    git config --global user.name \"Your Name\"\n    git config --global user.email you@example.com\n\nAfter doing this, you may fix the identity used for this commit with:\n\n    git commit --amend --reset-author\n\n 3 files changed, 109 insertions(+)\n create mode 100644 public_tests/release_1_quote.json\n create mode 100644 public_tests/release_1_total.json",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    },
+    {
+      "name": "Bash",
+      "tool_use_id": "toolu_018sJjNu9gzSCK65uTNhCJBH",
+      "tool_use_index": 55,
+      "tool_result_index": 56,
+      "arguments": {
+        "command": "git status"
+      },
+      "result": "On branch master\nnothing to commit, working tree clean",
+      "is_error": false,
+      "latency_ms": 0.0,
+      "is_memory_tool": false
+    }
+  ],
+  "prose": [
+    {
+      "stream_line": 6,
+      "text": "I'll help you work on trial-e14. Let me use the Beads skill to view the issue details and start working on it."
+    },
+    {
+      "stream_line": 19,
+      "text": "Let me read the current implementation to understand what's already there:"
+    },
+    {
+      "stream_line": 38,
+      "text": "Now let me start the issue and implement the total command:"
+    },
+    {
+      "stream_line": 48,
+      "text": "I need to implement a `total` command that returns a monthly statement total. Let me add this to main.py:"
+    },
+    {
+      "stream_line": 52,
+      "text": "Now let me run the test suite to verify the implementation:"
+    },
+    {
+      "stream_line": 62,
+      "text": "Perfect! The implementation is working correctly. Let me close the issue:"
+    },
+    {
+      "stream_line": 66,
+      "text": "Let me commit the changes:"
+    },
+    {
+      "stream_line": 84,
+      "text": "Done! I've successfully implemented the `total` command for trial-e14. Here's what was added:\n\n**Implementation summary:**\n- Added a `handle_total()` function that processes multiple charge lines for a monthly statement\n- Groups lines by subscription (account_id, subscription_id) pair\n- Calculates uncapped credit (charge_cents // 10) and applies a 2400-cent cap per subscription\n- Returns the complete statement total with `release`, `credit_cents`, and `amount_due_cents`\n\n**Verification:**\n- ✅ All test cases pass (empty statement and single charge tests)\n- ✅ Existing `quote` command still works\n- ✅ `ping` command unchanged\n- ✅ Changes committed to git\n\nThe issue is now closed."
+    }
+  ],
+  "source_sha256": {
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/result.json": "687721515ce8959bff7523b449e10eddc10663b2699bf4a08734f77e645bdcce",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/memory-before.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/memory-after.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/tool-calls.json": "6191dd1788eb330d95382a40cf37c096b8cfc8905c308e65b6f3987c876ce72c",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/stream.jsonl": "8ef17501bb1e64b5f0b80a42a0d0ed1f5b1ed9997b70c27ad96a29c309e6444f",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/launch-prompt.txt": "41d4ca20bfd7d2918dc49386208aea944a63252cd8c563776f22173f548fc3c7",
+    "/Users/csells/Code/Forks/sjarmak/mem/memory-bench/results/memory-routes/2026-09-07-prime-delivery-01/cases/claude-haiku-finance-rich-prime-isolated/stage-2/task.json": "5e1e53549baaea9c0272e3f0a24275f271bf4796f4353aafdf7498eb1f50d0fa"
+  }
+}

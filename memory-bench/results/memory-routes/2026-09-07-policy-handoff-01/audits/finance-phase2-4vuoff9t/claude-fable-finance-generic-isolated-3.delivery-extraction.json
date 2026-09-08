@@ -1,0 +1,76 @@
+{
+  "schema": "finance-exact-body-delivery-candidates.v1",
+  "slot": "claude-fable-finance-generic-isolated-3",
+  "role": "Evidence extraction only; does not infer relevant-key lookup, full policy fidelity, read use, timing or curation purpose. Same content can occur under multiple keys; inspect actual command.",
+  "before_after_keys": {
+    "before": [
+      "meridian-credits/release-1.0-credit-agreement"
+    ],
+    "after": [
+      "meridian-credits/release-1.0-credit-agreement",
+      "meridian-credits/release-2.0-credit-agreement"
+    ]
+  },
+  "exact_body_matches": [
+    {
+      "source": "tool-calls.json",
+      "use": 14,
+      "result": 15,
+      "tool_id": "toolu_01KaUBunPLwbyZjwANNNp1wn",
+      "tool_name": "Bash",
+      "arguments": {
+        "command": "bd recall 'meridian-credits/release-1.0-credit-agreement'",
+        "description": "Read the existing release 1.0 agreement record"
+      },
+      "body_origins": [
+        {
+          "state": "before",
+          "key": "meridian-credits/release-1.0-credit-agreement"
+        }
+      ],
+      "body_sha256": "cb76fdbedbf62c2a2255840160ecae80012f837b873208ad72e6945e786f6446"
+    },
+    {
+      "source": "tool-calls.json",
+      "use": 31,
+      "result": 32,
+      "tool_id": "toolu_01LupXLy9yh6Syxsh7626Wn7",
+      "tool_name": "Bash",
+      "arguments": {
+        "command": "bd remember 'Meridian Credits release \"2.0\" credit agreement (Finance-approved and permanently adopted as the CURRENT agreement, per issue trial-a6r; supersedes release 1.0 as current). Applies to every supplied charge set regardless of service dates. An omitted release now selects \"2.0\"; explicit \"2.0\" behaves identically; explicit \"1.0\" still uses the original agreement (see key meridian-credits/release-1.0-credit-agreement). Rules: (1) uncapped line credit = 15% of charge_cents, floored per line to integer cents; (2) credit cap 3000 cents shared by all lines with the same (account_id, subscription_id) pair; distinct pairs have independent caps (same subscription_id under different accounts = different groups); (3) within a cap group, priority = largest charge_cents first, ties by increasing line_id (Unicode code-point order); service_on never affects priority; each line gets its uncapped credit up to the remaining cap, later lines get the remainder or zero; (4) total credit = sum of line credits; line amount_due = charge - credit; total due = total charges - total credit. Request/response shapes unchanged from 1.0: quote {\"command\":\"quote\",\"line\":LINE[,\"release\":R]} -> exactly {release, line_id, credit_cents, amount_due_cents}; total {\"command\":\"total\",\"lines\":[LINE,...][,\"release\":R]} -> exactly {release, credit_cents, amount_due_cents}; the response release identifies the agreement actually used; unsupported release -> {\"error\":\"unsupported_release\"}. Example: quote L-1 charge 19999 with omitted release -> {\"release\":\"2.0\",\"credit_cents\":2999,\"amount_due_cents\":17000,\"line_id\":\"L-1\"}. Implementation: main.py RELEASES table holds per-release rate_percent, cap_cents, cap_group key, and priority sort key; CURRENT_RELEASE = \"2.0\"; assign_credits(lines, rules) is the shared cap/priority engine. Public suite: python3 test_public.py --cases public_tests/release_2_quote_total.json (release 1 suites remain applicable and must keep passing).' --key 'meridian-credits/release-2.0-credit-agreement' && bd remember 'Meridian Credits release \"1.0\" credit agreement (Finance-approved, per issue trial-4tt). HISTORICAL: as of issue trial-a6r, release 1.0 is no longer the current agreement; an omitted release now selects \"2.0\" (see key meridian-credits/release-2.0-credit-agreement). Release 1.0 remains supported and is used only when a request sends explicit \"release\":\"1.0\". Rules: (1) uncapped line credit = 10% of charge_cents, floored per line to integer cents; (2) credit cap 2400 cents shared by all lines with the same account_id across its subscriptions, independent per account; (3) within a cap group, priority = earliest service_on first, ties by increasing line_id (Unicode code-point order); each line gets its uncapped credit up to the remaining cap, later lines get the remainder or zero; (4) total credit = sum of line credits; line amount_due = charge - credit; total due = total charges - total credit. Data model: line has exactly line_id, account_id, subscription_id, service_on (YYYY-MM-DD, 2020-01-01..2099-12-31), charge_cents (nonneg int); subscription key is (account_id, subscription_id); caps apply within one request. Quote command: {\"command\":\"quote\",\"line\":LINE,\"release\":\"1.0\"} -> exactly {release, line_id, credit_cents, amount_due_cents}; single line is treated as the whole statement. Total command (issue trial-fjv): {\"command\":\"total\",\"lines\":[LINE,...],\"release\":\"1.0\"} -> exactly {release, credit_cents, amount_due_cents}; caps apply across the whole supplied set, not per line; empty lines -> credit 0, due 0. Implementation: main.py RELEASES[\"1.0\"] entry (rate_percent 10, cap_cents 2400, cap_group account_id, priority (service_on, line_id)); assign_credits(lines, rules) runs the cap/priority engine; quote() and total() both call it. Public suites: python3 test_public.py --cases public_tests/release_1_quote.json and public_tests/release_1_total.json.' --key 'meridian-credits/release-1.0-credit-agreement' && echo \"=== recall 2.0\" && bd recall 'meridian-credits/release-2.0-credit-agreement' && echo && echo \"=== recall 1.0\" && bd recall 'meridian-credits/release-1.0-credit-agreement'",
+        "description": "Save release 2.0 memory, revise 1.0 record, read both back"
+      },
+      "body_origins": [
+        {
+          "state": "after",
+          "key": "meridian-credits/release-1.0-credit-agreement"
+        }
+      ],
+      "body_sha256": "b313b6baef712575dc2e0c8ba5e20f85116daa391c6a1da82ddb77c100143e9a"
+    },
+    {
+      "source": "tool-calls.json",
+      "use": 31,
+      "result": 32,
+      "tool_id": "toolu_01LupXLy9yh6Syxsh7626Wn7",
+      "tool_name": "Bash",
+      "arguments": {
+        "command": "bd remember 'Meridian Credits release \"2.0\" credit agreement (Finance-approved and permanently adopted as the CURRENT agreement, per issue trial-a6r; supersedes release 1.0 as current). Applies to every supplied charge set regardless of service dates. An omitted release now selects \"2.0\"; explicit \"2.0\" behaves identically; explicit \"1.0\" still uses the original agreement (see key meridian-credits/release-1.0-credit-agreement). Rules: (1) uncapped line credit = 15% of charge_cents, floored per line to integer cents; (2) credit cap 3000 cents shared by all lines with the same (account_id, subscription_id) pair; distinct pairs have independent caps (same subscription_id under different accounts = different groups); (3) within a cap group, priority = largest charge_cents first, ties by increasing line_id (Unicode code-point order); service_on never affects priority; each line gets its uncapped credit up to the remaining cap, later lines get the remainder or zero; (4) total credit = sum of line credits; line amount_due = charge - credit; total due = total charges - total credit. Request/response shapes unchanged from 1.0: quote {\"command\":\"quote\",\"line\":LINE[,\"release\":R]} -> exactly {release, line_id, credit_cents, amount_due_cents}; total {\"command\":\"total\",\"lines\":[LINE,...][,\"release\":R]} -> exactly {release, credit_cents, amount_due_cents}; the response release identifies the agreement actually used; unsupported release -> {\"error\":\"unsupported_release\"}. Example: quote L-1 charge 19999 with omitted release -> {\"release\":\"2.0\",\"credit_cents\":2999,\"amount_due_cents\":17000,\"line_id\":\"L-1\"}. Implementation: main.py RELEASES table holds per-release rate_percent, cap_cents, cap_group key, and priority sort key; CURRENT_RELEASE = \"2.0\"; assign_credits(lines, rules) is the shared cap/priority engine. Public suite: python3 test_public.py --cases public_tests/release_2_quote_total.json (release 1 suites remain applicable and must keep passing).' --key 'meridian-credits/release-2.0-credit-agreement' && bd remember 'Meridian Credits release \"1.0\" credit agreement (Finance-approved, per issue trial-4tt). HISTORICAL: as of issue trial-a6r, release 1.0 is no longer the current agreement; an omitted release now selects \"2.0\" (see key meridian-credits/release-2.0-credit-agreement). Release 1.0 remains supported and is used only when a request sends explicit \"release\":\"1.0\". Rules: (1) uncapped line credit = 10% of charge_cents, floored per line to integer cents; (2) credit cap 2400 cents shared by all lines with the same account_id across its subscriptions, independent per account; (3) within a cap group, priority = earliest service_on first, ties by increasing line_id (Unicode code-point order); each line gets its uncapped credit up to the remaining cap, later lines get the remainder or zero; (4) total credit = sum of line credits; line amount_due = charge - credit; total due = total charges - total credit. Data model: line has exactly line_id, account_id, subscription_id, service_on (YYYY-MM-DD, 2020-01-01..2099-12-31), charge_cents (nonneg int); subscription key is (account_id, subscription_id); caps apply within one request. Quote command: {\"command\":\"quote\",\"line\":LINE,\"release\":\"1.0\"} -> exactly {release, line_id, credit_cents, amount_due_cents}; single line is treated as the whole statement. Total command (issue trial-fjv): {\"command\":\"total\",\"lines\":[LINE,...],\"release\":\"1.0\"} -> exactly {release, credit_cents, amount_due_cents}; caps apply across the whole supplied set, not per line; empty lines -> credit 0, due 0. Implementation: main.py RELEASES[\"1.0\"] entry (rate_percent 10, cap_cents 2400, cap_group account_id, priority (service_on, line_id)); assign_credits(lines, rules) runs the cap/priority engine; quote() and total() both call it. Public suites: python3 test_public.py --cases public_tests/release_1_quote.json and public_tests/release_1_total.json.' --key 'meridian-credits/release-1.0-credit-agreement' && echo \"=== recall 2.0\" && bd recall 'meridian-credits/release-2.0-credit-agreement' && echo && echo \"=== recall 1.0\" && bd recall 'meridian-credits/release-1.0-credit-agreement'",
+        "description": "Save release 2.0 memory, revise 1.0 record, read both back"
+      },
+      "body_origins": [
+        {
+          "state": "after",
+          "key": "meridian-credits/release-2.0-credit-agreement"
+        }
+      ],
+      "body_sha256": "d54a0758e04faba003dbdf11615a21d94894598ff1484a75b795be398ddc1672"
+    }
+  ],
+  "model_rollout_evidence": [],
+  "limits": [
+    "Only output event bodies scanned, not input/write arguments or administrative snapshots.",
+    "Exact matching may miss transformed presentations; absence is not proof of non-delivery.",
+    "Raw receipts alone do not prove model exposure; pipelines can truncate or transform bodies."
+  ]
+}

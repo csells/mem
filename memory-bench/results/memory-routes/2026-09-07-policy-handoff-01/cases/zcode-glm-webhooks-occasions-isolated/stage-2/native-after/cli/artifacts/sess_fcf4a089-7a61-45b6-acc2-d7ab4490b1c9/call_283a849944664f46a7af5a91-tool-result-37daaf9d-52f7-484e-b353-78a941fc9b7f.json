@@ -1,0 +1,56 @@
+{
+  "createdAt": "2026-09-07T18:59:01.458Z",
+  "files": [
+    {
+      "beforeContent": "#!/usr/bin/env python3\nimport json\nimport sys\nfrom datetime import datetime, timedelta, timezone\n\nCURRENT_PROTOCOL = \"1\"\nSUPPORTED_PROTOCOLS = (\"1\",)\n\ndef parse_instant(text):\n    \"\"\"Parse an RFC3339 timestamp (Z or ±HH:MM offset) to a UTC instant.\"\"\"\n    if text[-1] in \"Zz\":\n        body, offset = text[:-1], timedelta(0)\n    else:\n        body = text[:-6]\n        offset = timedelta(hours=int(text[-5:-3]), minutes=int(text[-2:]))\n        if text[-6] == \"-\":\n            offset = -offset\n    return datetime.strptime(body, \"%Y-%m-%dT%H:%M:%S\").replace(tzinfo=timezone.utc) - offset\n\ndef accepted_receipts(receipts):\n    \"\"\"Protocol 1: one receipt per (account_id, delivery_id) delivery identity.\n\n    The earliest occurred_at UTC instant wins; equal instants use the smallest\n    record_id. Accepted receipts keep their original input order.\n    \"\"\"\n    best = {}\n    for index, receipt in enumerate(receipts):\n        key = (receipt[\"account_id\"], receipt[\"delivery_id\"])\n        rank = (parse_instant(receipt[\"occurred_at\"]), receipt[\"record_id\"])\n        if key not in best or rank < best[key][0]:\n            best[key] = (rank, index)\n    won = {index for _, index in best.values()}\n    return [r for i, r in enumerate(receipts) if i in won]\n\ndef count_command(q):\n    protocol = q.get(\"protocol\", CURRENT_PROTOCOL)\n    if protocol not in SUPPORTED_PROTOCOLS:\n        return {\"error\": \"unsupported_protocol\"}\n    receipts = q.get(\"receipts\", [])\n    accepted = accepted_receipts(receipts)\n    return {\n        \"protocol\": protocol,\n        \"accepted_count\": len(accepted),\n        \"duplicate_count\": len(receipts) - len(accepted),\n    }\n\ndef run(q):\n    command = q.get(\"command\")\n    if command == \"ping\":\n        return {\"status\": \"ok\", \"product\": \"Courier Relay\"}\n    if command == \"count\":\n        return count_command(q)\n    return {\"error\": \"unknown_command\"}\n\nif __name__ == \"__main__\":\n    print(json.dumps(run(json.load(sys.stdin))))\n",
+      "existedBefore": true,
+      "path": "/private/tmp/ordinary-work-1_4t2541/work/main.py",
+      "structuredPatch": [
+        {
+          "oldStart": 32,
+          "oldLines": 7,
+          "newStart": 32,
+          "newLines": 13,
+          "lines": [
+            "     won = {index for _, index in best.values()}",
+            "     return [r for i, r in enumerate(receipts) if i in won]",
+            " ",
+            "-def count_command(q):",
+            "+def batch_summary(q):",
+            "+    \"\"\"Protocol 1 counts for a receipt batch, shared by count and summary.",
+            "+",
+            "+    summary takes a batch from any number of accounts; count keeps its",
+            "+    original single-account use. Identity and acceptance follow",
+            "+    vendor/protocol-1.md.",
+            "+    \"\"\"",
+            "     protocol = q.get(\"protocol\", CURRENT_PROTOCOL)",
+            "     if protocol not in SUPPORTED_PROTOCOLS:",
+            "         return {\"error\": \"unsupported_protocol\"}"
+          ]
+        },
+        {
+          "oldStart": 48,
+          "oldLines": 8,
+          "newStart": 54,
+          "newLines": 8,
+          "lines": [
+            "     command = q.get(\"command\")",
+            "     if command == \"ping\":",
+            "         return {\"status\": \"ok\", \"product\": \"Courier Relay\"}",
+            "-    if command == \"count\":",
+            "-        return count_command(q)",
+            "+    if command in (\"count\", \"summary\"):",
+            "+        return batch_summary(q)",
+            "     return {\"error\": \"unknown_command\"}",
+            " ",
+            " if __name__ == \"__main__\":"
+          ]
+        }
+      ]
+    }
+  ],
+  "kind": "workspace_file_before_change",
+  "toolCallId": "call_283a849944664f46a7af5a91",
+  "toolName": "Edit",
+  "version": 1
+}
